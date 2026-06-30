@@ -52,6 +52,7 @@ export interface Stage extends Timestamps {
 export interface Company extends Mutable {
   id: string;
   org_id: string;
+  customer_code: string | null;
   name: string;
   industry: string | null;
   website: string | null;

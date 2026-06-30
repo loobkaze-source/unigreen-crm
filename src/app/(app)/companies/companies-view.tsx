@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { saveCompany, deleteCompany } from "./actions";
 
 const EMPTY = {
+  customer_code: "",
   name: "",
   industry: "",
   website: "",
@@ -37,6 +38,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
     return companies.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
+        (c.customer_code || "").toLowerCase().includes(q) ||
         (c.industry || "").toLowerCase().includes(q)
     );
   }, [companies, query]);
@@ -51,6 +53,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
   function openEdit(c: Company) {
     setEditing(c);
     setForm({
+      customer_code: c.customer_code || "",
       name: c.name,
       industry: c.industry || "",
       website: c.website || "",
@@ -122,6 +125,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-4 py-3 font-medium">รหัส</th>
                 <th className="px-4 py-3 font-medium">ชื่อ</th>
                 <th className="px-4 py-3 font-medium">อุตสาหกรรม</th>
                 <th className="px-4 py-3 font-medium">เว็บไซต์</th>
@@ -135,6 +139,9 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
                   key={c.id}
                   className="group border-b border-border last:border-0 hover:bg-muted/30"
                 >
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {c.customer_code || "—"}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-accent-foreground">
@@ -192,15 +199,26 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
               {error}
             </p>
           ) : null}
-          <div>
-            <Label htmlFor="name">ชื่อบริษัท *</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              autoFocus
-            />
+          <div className="grid grid-cols-[160px_1fr] gap-3">
+            <div>
+              <Label htmlFor="customer_code">รหัสลูกค้า</Label>
+              <Input
+                id="customer_code"
+                value={form.customer_code}
+                onChange={(e) => setForm({ ...form, customer_code: e.target.value })}
+                placeholder="L000001"
+              />
+            </div>
+            <div>
+              <Label htmlFor="name">ชื่อบริษัท *</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+                autoFocus
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

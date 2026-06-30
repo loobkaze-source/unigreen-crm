@@ -6,6 +6,7 @@ import { type ActionResult, ok, fail } from "@/lib/action-result";
 
 export type CompanyInput = {
   id?: string;
+  customer_code?: string;
   name: string;
   industry?: string;
   website?: string;
@@ -21,6 +22,7 @@ export async function saveCompany(input: CompanyInput): Promise<ActionResult> {
 
   const payload = {
     org_id: org.id,
+    customer_code: input.customer_code?.trim() || null,
     name,
     industry: input.industry?.trim() || null,
     website: input.website?.trim() || null,
