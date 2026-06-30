@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* ===========================================================================
+   Unigreen — brand design tokens
+   Brand palette (from logo): mint #60F0A8 · cyan #0CCCFC · purple #A860FC
+   =========================================================================== */
+:root {
+  --background: #f4f8f6;
+  --foreground: #142019;
+
+  --card: #ffffff;
+  --card-foreground: #142019;
+
+  --muted: #eef3f0;
+  --muted-foreground: #5d6b64;
+
+  --border: #e2eae6;
+  --input: #dbe5e0;
+  --ring: #2fd99a;
+
+  /* Interactive green — deep enough for white text + readable links */
+  --primary: #0ba36c;
+  --primary-foreground: #ffffff;
+
+  --accent: #e3faf0;
+  --accent-foreground: #07744d;
+
+  --secondary: #eef3f0;
+  --secondary-foreground: #142019;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --success: #0ba36c;
+  --warning: #d97706;
+
+  /* Brand accent colours (the three leaves) */
+  --brand-mint: #60f0a8;
+  --brand-cyan: #0cccfc;
+  --brand-purple: #a860fc;
+  --brand-ink: #484848;
+
+  --sidebar: #0c1a15;
+  --sidebar-foreground: #b8c7bf;
+  --sidebar-accent: #16271f;
+
+  --radius: 0.65rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-brand-mint: var(--brand-mint);
+  --color-brand-cyan: var(--brand-cyan);
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-ink: var(--brand-ink);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --font-sans: var(--font-noto-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.2rem);
+  --radius-sm: calc(var(--radius) - 0.35rem);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle, modern scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5cf;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a39b;
+  background-clip: padding-box;
+}

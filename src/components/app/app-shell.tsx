@@ -1,0 +1,164 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import {
+  Building2,
+  HardHat,
+  Handshake,
+  LayoutDashboard,
+  LifeBuoy,
+  ListChecks,
+  LogOut,
+  MapPin,
+  Menu,
+  Package,
+  Repeat,
+  ShieldCheck,
+  Users,
+  UserPlus,
+  Wrench,
+  X,
+} from "lucide-react";
+import { cn, initials } from "@/lib/utils";
+
+const NAV = [
+  { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
+  { href: "/leads", label: "ลูกค้ามุ่งหวัง", icon: UserPlus },
+  { href: "/contacts", label: "ผู้ติดต่อ", icon: Users },
+  { href: "/companies", label: "บริษัท", icon: Building2 },
+  { href: "/deals", label: "ดีล", icon: Handshake },
+  { href: "/sites", label: "ไซต์งาน", icon: MapPin },
+  { href: "/work-orders", label: "งานบริการ", icon: Wrench },
+  { href: "/cases", label: "เคส", icon: LifeBuoy },
+  { href: "/service-contracts", label: "สัญญาบริการ", icon: Repeat },
+  { href: "/warranties", label: "การรับประกัน", icon: ShieldCheck },
+  { href: "/technicians", label: "ช่าง", icon: HardHat },
+  { href: "/products", label: "สินค้า", icon: Package },
+  { href: "/activities", label: "กิจกรรม", icon: ListChecks },
+];
+
+export function AppShell({
+  user,
+  orgName,
+  children,
+}: {
+  user: { name: string; email: string };
+  orgName: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  return (
+    <div className="min-h-screen lg:grid lg:grid-cols-[256px_1fr]">
+      {/* Mobile backdrop */}
+      {open ? (
+        <div
+          className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex h-16 items-center justify-between px-5">
+          <Link href="/dashboard" className="flex items-center">
+            <Image
+              src="/brand/logo-dark.png"
+              alt="Unigreen"
+              width={144}
+              height={30}
+              priority
+            />
+          </Link>
+          <button
+            className="rounded-md p-1 text-slate-400 hover:text-white lg:hidden"
+            onClick={() => setOpen(false)}
+            aria-label="ปิดเมนู"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-3 pb-2">
+          <div className="rounded-lg bg-sidebar-accent px-3 py-2 text-xs text-slate-400">
+            พื้นที่ทำงาน
+            <div className="truncate text-sm font-medium text-white">{orgName}</div>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 px-3 py-2">
+          {NAV.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-primary text-white"
+                    : "text-slate-300 hover:bg-sidebar-accent hover:text-white"
+                )}
+              >
+                <item.icon className="h-4.5 w-4.5" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-white/10 p-3">
+          <div className="flex items-center gap-3 px-2 py-1.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+              {initials(user.name)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-white">
+                {user.name}
+              </div>
+              <div className="truncate text-xs text-slate-400">{user.email}</div>
+            </div>
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                className="rounded-md p-1.5 text-slate-400 hover:bg-sidebar-accent hover:text-white"
+                title="ออกจากระบบ"
+                aria-label="ออกจากระบบ"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main column */}
+      <div className="flex min-h-screen flex-col">
+        {/* Mobile top bar */}
+        <div className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 lg:hidden">
+          <button
+            onClick={() => setOpen(true)}
+            className="rounded-md p-2 text-muted-foreground hover:bg-muted"
+            aria-label="เปิดเมนู"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <Image src="/brand/logo-light.png" alt="Unigreen" width={120} height={25} />
+        </div>
+
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+      </div>
+    </div>
+  );
+}

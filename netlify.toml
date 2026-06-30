@@ -1,0 +1,13 @@
+# Netlify configuration for the Next.js 16 app.
+# The official Next.js Runtime turns the build into serverless/edge functions
+# (SSR, Server Actions, middleware/proxy, next/image all supported).
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
