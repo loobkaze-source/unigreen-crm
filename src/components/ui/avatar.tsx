@@ -18,12 +18,16 @@ function colorFor(seed: string) {
 
 export function Avatar({
   name,
+  text,
   className,
 }: {
   name: string | null | undefined;
+  /** Optional short label to show inside the circle (e.g. a nickname) instead of initials. */
+  text?: string | null;
   className?: string;
 }) {
   const label = name || "?";
+  const display = text && text.trim() ? text.trim().slice(0, 4) : initials(label);
   return (
     <span
       className={cn(
@@ -33,7 +37,7 @@ export function Avatar({
       )}
       title={label}
     >
-      {initials(label)}
+      {display}
     </span>
   );
 }

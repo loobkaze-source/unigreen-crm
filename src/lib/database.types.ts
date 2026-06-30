@@ -143,9 +143,11 @@ export interface Technician extends Mutable {
   id: string;
   org_id: string;
   name: string;
+  nickname: string | null;
   email: string | null;
   phone: string | null;
   skill: string | null;
+  skills: string[];
   active: boolean;
 }
 

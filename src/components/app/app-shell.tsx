@@ -17,6 +17,7 @@ import {
   Package,
   Repeat,
   ShieldCheck,
+  UserCog,
   Users,
   UserPlus,
   Wrench,
@@ -38,6 +39,7 @@ const NAV = [
   { href: "/technicians", label: "ช่าง", icon: HardHat },
   { href: "/products", label: "สินค้า", icon: Package },
   { href: "/activities", label: "กิจกรรม", icon: ListChecks },
+  { href: "/users", label: "ผู้ใช้", icon: UserCog },
 ];
 
 export function AppShell({

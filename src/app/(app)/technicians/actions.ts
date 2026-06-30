@@ -7,9 +7,10 @@ import { type ActionResult, ok, fail } from "@/lib/action-result";
 export type TechnicianInput = {
   id?: string;
   name: string;
+  nickname?: string;
   email?: string;
   phone?: string;
-  skill?: string;
+  skills?: string[];
   active?: boolean;
 };
 
@@ -23,9 +24,10 @@ export async function saveTechnician(
   const payload = {
     org_id: org.id,
     name,
+    nickname: input.nickname?.trim() || null,
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
-    skill: input.skill?.trim() || null,
+    skills: input.skills ?? [],
     active: input.active ?? true,
   };
 

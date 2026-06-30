@@ -13,9 +13,22 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/utils";
 import { saveTechnician, deleteTechnician } from "./actions";
 
-const EMPTY = { name: "", email: "", phone: "", skill: "", active: "true" };
+const SKILLS = [
+  "ATG", "Solar", "EV", "POS", "Tire Inflator", "Pump",
+  "Loading Arm", "Tank Truck", "Civil", "Elec", "Tank Test", "Dispensor",
+];
+
+const EMPTY = {
+  name: "",
+  nickname: "",
+  email: "",
+  phone: "",
+  skills: [] as string[],
+  active: "true",
+};
 
 export function TechniciansView({ technicians }: { technicians: Technician[] }) {
   const router = useRouter();
@@ -32,7 +45,8 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
     return technicians.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
-        (t.skill || "").toLowerCase().includes(q)
+        (t.nickname || "").toLowerCase().includes(q) ||
+        (t.skills || []).some((s) => s.toLowerCase().includes(q))
     );
   }, [technicians, query]);
 
@@ -46,9 +60,10 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
     setEditing(t);
     setForm({
       name: t.name,
+      nickname: t.nickname || "",
       email: t.email || "",
       phone: t.phone || "",
-      skill: t.skill || "",
+      skills: t.skills || [],
       active: t.active ? "true" : "false",
     });
     setError(null);
@@ -61,9 +76,10 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       const res = await saveTechnician({
         id: editing?.id,
         name: form.name,
+        nickname: form.nickname,
         email: form.email,
         phone: form.phone,
-        skill: form.skill,
+        skills: form.skills,
         active: form.active === "true",
       });
       if (!res.ok) return setError(res.error);
@@ -78,6 +94,14 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
+  }
+  function toggleSkill(s: string) {
+    setForm((f) => ({
+      ...f,
+      skills: f.skills.includes(s)
+        ? f.skills.filter((x) => x !== s)
+        : [...f.skills, s],
+    }));
   }
 
   return (
@@ -135,12 +159,27 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <Avatar name={t.name} />
-                      <span className="font-medium">{t.name}</span>
+                      <Avatar name={t.nickname || t.name} text={t.nickname || undefined} />
+                      <div>
+                        <span className="font-medium">{t.name}</span>
+                        {t.nickname ? (
+                          <div className="text-xs text-muted-foreground">({t.nickname})</div>
+                        ) : null}
+                      </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {t.skill || "—"}
+                  <td className="px-4 py-3">
+                    {t.skills && t.skills.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {t.skills.map((s) => (
+                          <Badge key={s} tone="primary">
+                            {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     <div className="flex flex-col gap-0.5 text-xs">
@@ -192,15 +231,26 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
               {error}
             </p>
           ) : null}
-          <div>
-            <Label htmlFor="name">ชื่อ-นามสกุล *</Label>
-            <Input
-              id="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              autoFocus
-            />
+          <div className="grid grid-cols-[1fr_140px] gap-3">
+            <div>
+              <Label htmlFor="name">ชื่อ-นามสกุล *</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="nickname">ชื่อเล่น</Label>
+              <Input
+                id="nickname"
+                value={form.nickname}
+                onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+                placeholder="ต้อง"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -221,27 +271,39 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="skill">ความชำนาญ</Label>
-              <Input
-                id="skill"
-                value={form.skill}
-                onChange={(e) => setForm({ ...form, skill: e.target.value })}
-                placeholder="ติดตั้งโซลาร์, EV…"
-              />
+          <div>
+            <Label>ความชำนาญ (เลือกได้หลายอย่าง)</Label>
+            <div className="flex flex-wrap gap-2">
+              {SKILLS.map((s) => {
+                const on = form.skills.includes(s);
+                return (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => toggleSkill(s)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      on
+                        ? "border-primary bg-primary text-white"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <Label htmlFor="active">สถานะ</Label>
-              <Select
-                id="active"
-                value={form.active}
-                onChange={(e) => setForm({ ...form, active: e.target.value })}
-              >
-                <option value="true">ใช้งาน</option>
-                <option value="false">พักงาน</option>
-              </Select>
-            </div>
+          </div>
+          <div>
+            <Label htmlFor="active">สถานะ</Label>
+            <Select
+              id="active"
+              value={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.value })}
+            >
+              <option value="true">ใช้งาน</option>
+              <option value="false">พักงาน</option>
+            </Select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
