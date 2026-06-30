@@ -10,6 +10,7 @@ export type DealInput = {
   value?: string | number | null;
   currency?: string;
   stage_id: string;
+  department?: string;
   company_id?: string | null;
   contact_id?: string | null;
   expected_close_date?: string | null;
@@ -34,6 +35,7 @@ export async function saveDeal(input: DealInput): Promise<ActionResult> {
     value: parseValue(input.value),
     currency: input.currency?.trim() || "USD",
     stage_id: input.stage_id,
+    department: input.department || "unigreen",
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
     expected_close_date: input.expected_close_date || null,

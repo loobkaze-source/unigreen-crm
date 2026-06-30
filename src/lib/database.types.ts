@@ -99,6 +99,7 @@ export interface Deal extends Mutable {
   value: number;
   currency: string;
   stage_id: string;
+  department: string;
   company_id: string | null;
   contact_id: string | null;
   expected_close_date: string | null;

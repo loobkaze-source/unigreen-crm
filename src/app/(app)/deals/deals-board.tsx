@@ -30,6 +30,12 @@ import { saveDeal, deleteDeal, updateDealStage } from "./actions";
 
 type Option = { id: string; name: string };
 
+const DEPARTMENTS = [
+  { value: "unigreen", label: "Unigreen" },
+  { value: "product_sales", label: "Product Sales" },
+  { value: "services_sales", label: "Services Sales" },
+];
+
 export function DealsBoard({
   stages,
   deals: initialDeals,
@@ -44,6 +50,7 @@ export function DealsBoard({
   const router = useRouter();
   const [deals, setDeals] = useState(initialDeals);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeDept, setActiveDept] = useState<string>("unigreen");
   const [, startTransition] = useTransition();
 
   // Keep local board in sync with server data after refresh / mutations.
@@ -62,15 +69,20 @@ export function DealsBoard({
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [contacts]);
 
+  const visibleDeals = useMemo(
+    () => deals.filter((d) => (d.department || "unigreen") === activeDept),
+    [deals, activeDept]
+  );
+
   const byStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
     stages.forEach((s) => map.set(s.id, []));
-    deals.forEach((d) => {
+    visibleDeals.forEach((d) => {
       if (!map.has(d.stage_id)) map.set(d.stage_id, []);
       map.get(d.stage_id)!.push(d);
     });
     return map;
-  }, [deals, stages]);
+  }, [visibleDeals, stages]);
 
   // ---- Modal state ----
   const firstStage = stages[0]?.id ?? "";
@@ -79,6 +91,7 @@ export function DealsBoard({
     value: "",
     currency: "THB",
     stage_id: firstStage,
+    department: "unigreen",
     company_id: "",
     contact_id: "",
     expected_close_date: "",
@@ -92,7 +105,7 @@ export function DealsBoard({
 
   function openCreate(stageId?: string) {
     setEditing(null);
-    setForm({ ...EMPTY, stage_id: stageId || firstStage });
+    setForm({ ...EMPTY, stage_id: stageId || firstStage, department: activeDept });
     setError(null);
     setOpen(true);
   }
@@ -103,6 +116,7 @@ export function DealsBoard({
       value: d.value != null ? String(d.value) : "",
       currency: d.currency || "THB",
       stage_id: d.stage_id,
+      department: d.department || "unigreen",
       company_id: d.company_id || "",
       contact_id: d.contact_id || "",
       expected_close_date: d.expected_close_date || "",
@@ -167,7 +181,9 @@ export function DealsBoard({
   }
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
-  const totalValue = deals.reduce((s, d) => s + (d.value || 0), 0);
+  const totalValue = visibleDeals.reduce((s, d) => s + (d.value || 0), 0);
+  const deptCount = (v: string) =>
+    deals.filter((d) => (d.department || "unigreen") === v).length;
 
   if (stages.length === 0) {
     return (
@@ -185,12 +201,33 @@ export function DealsBoard({
     <div>
       <PageHeader
         title="ไปป์ไลน์"
-        subtitle={`ดีลที่เปิดอยู่ ${deals.length} รายการ · รวม ${formatCurrency(totalValue)}`}
+        subtitle={`${visibleDeals.length} ดีลในบอร์ดนี้ · รวม ${formatCurrency(totalValue)}`}
       >
         <Button onClick={() => openCreate()}>
           <Plus className="h-4 w-4" /> เพิ่มดีล
         </Button>
       </PageHeader>
+
+      {/* Department boards */}
+      <div className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
+        {DEPARTMENTS.map((d) => (
+          <button
+            key={d.value}
+            onClick={() => setActiveDept(d.value)}
+            className={cn(
+              "relative -mb-px whitespace-nowrap border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              activeDept === d.value
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {d.label}
+            <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {deptCount(d.value)}
+            </span>
+          </button>
+        ))}
+      </div>
 
       <DndContext
         sensors={sensors}
@@ -283,6 +320,20 @@ export function DealsBoard({
                 ))}
               </Select>
             </div>
+          </div>
+          <div>
+            <Label htmlFor="department">บอร์ด / แผนก</Label>
+            <Select
+              id="department"
+              value={form.department}
+              onChange={(e) => setForm({ ...form, department: e.target.value })}
+            >
+              {DEPARTMENTS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
