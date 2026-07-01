@@ -8,6 +8,7 @@ import {
   Box,
   Building2,
   FolderKanban,
+  Layers,
   MapPin,
   Pencil,
   Plus,
@@ -33,7 +34,12 @@ import { Modal } from "@/components/ui/modal";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
-import { saveEquipment, deleteEquipment } from "../actions";
+import {
+  saveEquipment,
+  deleteEquipment,
+  saveAssetGroup,
+  deleteAssetGroup,
+} from "../actions";
 
 const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
   { value: "solar_panel", label: "แผงโซลาร์" },
@@ -52,10 +58,12 @@ const assetId = (eq: Equipment) =>
 
 type Brief = { id: string; title: string; status: string; end_date: string | null };
 type WarrantyBrief = Brief & { kind: string };
+type Group = { id: string; name: string; site_id: string };
 
 export function SiteDetail({
   site,
   equipment,
+  groups,
   warranties,
   contracts,
   companyName,
@@ -63,6 +71,7 @@ export function SiteDetail({
 }: {
   site: Site;
   equipment: Equipment[];
+  groups: Group[];
   warranties: WarrantyBrief[];
   contracts: Brief[];
   companyName?: string;
@@ -82,6 +91,7 @@ export function SiteDetail({
     model: "",
     serial_number: "",
     project_number: "",
+    group_id: "",
     warranty_months: "",
     warranty_start: "",
     install_date: "",
@@ -105,6 +115,7 @@ export function SiteDetail({
       model: eq.model || "",
       serial_number: eq.serial_number || "",
       project_number: eq.project_number || "",
+      group_id: eq.group_id || "",
       warranty_months: eq.warranty_months != null ? String(eq.warranty_months) : "",
       warranty_start: eq.warranty_start || "",
       install_date: eq.install_date || "",
@@ -127,6 +138,7 @@ export function SiteDetail({
         model: form.model,
         serial_number: form.serial_number,
         project_number: form.project_number,
+        group_id: form.group_id || null,
         warranty_months: form.warranty_months ? Number(form.warranty_months) : null,
         warranty_start: form.warranty_start || null,
         install_date: form.install_date || null,
@@ -141,6 +153,38 @@ export function SiteDetail({
     if (!confirm(`ลบ Asset "${eq.name}"?`)) return;
     startTransition(async () => {
       const res = await deleteEquipment(eq.id, site.id);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+
+  const groupName = (id: string | null) =>
+    id ? groups.find((g) => g.id === id)?.name : undefined;
+  const groupCount = (id: string) =>
+    equipment.filter((eq) => eq.group_id === id).length;
+
+  function addGroup() {
+    const name = window.prompt("ตั้งชื่อกลุ่ม Asset ใหม่");
+    if (!name?.trim()) return;
+    startTransition(async () => {
+      const res = await saveAssetGroup({ site_id: site.id, name });
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+  function renameGroup(g: Group) {
+    const name = window.prompt("เปลี่ยนชื่อกลุ่ม", g.name);
+    if (!name?.trim() || name === g.name) return;
+    startTransition(async () => {
+      const res = await saveAssetGroup({ id: g.id, site_id: site.id, name });
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+  function removeGroup(g: Group) {
+    if (!confirm(`ลบกลุ่ม "${g.name}"? (Asset ในกลุ่มจะไม่ถูกลบ แค่หลุดจากกลุ่ม)`)) return;
+    startTransition(async () => {
+      const res = await deleteAssetGroup(g.id, site.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
@@ -207,6 +251,49 @@ export function SiteDetail({
             </Button>
           </CardHeader>
           <CardContent>
+            {/* Asset groups (within this site) */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                <Layers className="h-3.5 w-3.5" /> กลุ่ม Asset:
+              </span>
+              {groups.length === 0 ? (
+                <span className="text-xs text-muted-foreground">ยังไม่มีกลุ่ม</span>
+              ) : (
+                groups.map((g) => (
+                  <span
+                    key={g.id}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                  >
+                    {g.name}
+                    <span className="text-muted-foreground">({groupCount(g.id)})</span>
+                    <button
+                      onClick={() => renameGroup(g)}
+                      className="text-muted-foreground hover:text-primary"
+                      title="เปลี่ยนชื่อกลุ่ม"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => removeGroup(g)}
+                      className="text-muted-foreground hover:text-destructive"
+                      title="ลบกลุ่ม"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addGroup}
+                disabled={pending}
+                className="h-6 px-2 text-xs"
+              >
+                <Plus className="h-3 w-3" /> เพิ่มกลุ่ม
+              </Button>
+            </div>
+
             {equipment.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 ยังไม่มี Asset ในไซต์นี้
@@ -219,6 +306,7 @@ export function SiteDetail({
                       <th className="px-3 py-2 font-medium">รหัส Asset</th>
                       <th className="px-3 py-2 font-medium">Asset</th>
                       <th className="px-3 py-2 font-medium">ชนิด</th>
+                      <th className="px-3 py-2 font-medium">กลุ่ม</th>
                       <th className="px-3 py-2 font-medium">Serial / เลขโครงการ</th>
                       <th className="px-3 py-2 font-medium">ประกัน</th>
                       <th className="px-3 py-2" />
@@ -255,6 +343,15 @@ export function SiteDetail({
                             {eq.asset_type === "project"
                               ? "โครงการ"
                               : catLabel(eq.category)}
+                          </td>
+                          <td className="px-3 py-2">
+                            {groupName(eq.group_id) ? (
+                              <span className="inline-flex items-center gap-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground">
+                                <Layers className="h-3 w-3" /> {groupName(eq.group_id)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                             {assetId(eq)}
@@ -443,6 +540,27 @@ export function SiteDetail({
               </div>
             </>
           )}
+
+          <div>
+            <Label htmlFor="group_id">กลุ่ม Asset</Label>
+            <Select
+              id="group_id"
+              value={form.group_id}
+              onChange={(e) => setForm({ ...form, group_id: e.target.value })}
+            >
+              <option value="">— ไม่มีกลุ่ม —</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </Select>
+            {groups.length === 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                ยังไม่มีกลุ่มในไซต์นี้ — สร้างได้ที่ปุ่ม “เพิ่มกลุ่ม” เหนือรายการ Asset
+              </p>
+            ) : null}
+          </div>
 
           <div className="grid grid-cols-3 gap-3">
             <div>

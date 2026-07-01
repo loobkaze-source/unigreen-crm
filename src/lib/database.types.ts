@@ -233,11 +233,19 @@ export interface Site extends Mutable {
 /** วัตถุ (identified by serial) หรือ โครงการ (identified by project number). */
 export type AssetType = "object" | "project";
 
+export interface AssetGroup extends Mutable {
+  id: string;
+  org_id: string;
+  site_id: string;
+  name: string;
+}
+
 export interface Equipment extends Mutable {
   id: string;
   org_id: string;
   code: number | null;
   site_id: string | null;
+  group_id: string | null;
   name: string;
   asset_type: AssetType;
   category: EquipmentCategory;

@@ -57,6 +57,39 @@ export async function deleteSite(id: string): Promise<ActionResult> {
   return ok();
 }
 
+// ---- Asset groups (named, per-site) ---------------------------------------
+export type AssetGroupInput = { id?: string; site_id: string; name: string };
+
+export async function saveAssetGroup(input: AssetGroupInput): Promise<ActionResult> {
+  const { supabase, org } = await getSessionContext();
+  const name = input.name?.trim();
+  if (!name) return fail("กรุณาตั้งชื่อกลุ่ม");
+
+  if (input.id) {
+    const { error } = await supabase
+      .from("asset_groups")
+      .update({ name })
+      .eq("id", input.id)
+      .eq("org_id", org.id);
+    if (error) return fail(error.message);
+  } else {
+    const { error } = await supabase
+      .from("asset_groups")
+      .insert({ org_id: org.id, site_id: input.site_id, name });
+    if (error) return fail(error.message);
+  }
+  revalidatePath(`/sites/${input.site_id}`);
+  return ok();
+}
+
+export async function deleteAssetGroup(id: string, siteId: string): Promise<ActionResult> {
+  const { supabase } = await getSessionContext();
+  const { error } = await supabase.from("asset_groups").delete().eq("id", id);
+  if (error) return fail(error.message);
+  revalidatePath(`/sites/${siteId}`);
+  return ok();
+}
+
 export type EquipmentInput = {
   id?: string;
   site_id: string;
@@ -67,6 +100,7 @@ export type EquipmentInput = {
   model?: string;
   serial_number?: string;
   project_number?: string;
+  group_id?: string | null;
   warranty_months?: number | null;
   warranty_start?: string | null;
   install_date?: string | null;
@@ -78,10 +112,22 @@ export async function saveEquipment(input: EquipmentInput): Promise<ActionResult
   const name = input.name?.trim();
   if (!name) return fail("กรุณากรอกชื่อ Asset");
 
+  // A group can only hold assets from its own site.
+  let group_id = input.group_id || null;
+  if (group_id) {
+    const { data: g } = await supabase
+      .from("asset_groups")
+      .select("site_id")
+      .eq("id", group_id)
+      .maybeSingle();
+    if (!g || g.site_id !== input.site_id) group_id = null;
+  }
+
   const isProject = input.asset_type === "project";
   const payload = {
     org_id: org.id,
     site_id: input.site_id,
+    group_id,
     name,
     asset_type: isProject ? "project" : "object",
     category: input.category || "other",

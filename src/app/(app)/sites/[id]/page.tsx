@@ -18,13 +18,18 @@ export default async function SiteDetailPage({
     .maybeSingle();
   if (!site) notFound();
 
-  const [{ data: equipment }, { data: warranties }, { data: contracts }, { data: companies }, { data: contacts }] =
+  const [{ data: equipment }, { data: groups }, { data: warranties }, { data: contracts }, { data: companies }, { data: contacts }] =
     await Promise.all([
       supabase
         .from("equipment")
         .select("*")
         .eq("site_id", id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("asset_groups")
+        .select("id, name, site_id")
+        .eq("site_id", id)
+        .order("name"),
       supabase
         .from("warranties")
         .select("id, title, kind, status, end_date")
@@ -53,6 +58,7 @@ export default async function SiteDetailPage({
     <SiteDetail
       site={site}
       equipment={equipment ?? []}
+      groups={groups ?? []}
       warranties={warranties ?? []}
       contracts={contracts ?? []}
       companyName={companyList.find((c) => c.id === site.company_id)?.name}
