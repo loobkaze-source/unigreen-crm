@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
-import { WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
+import { DEPARTMENTS } from "@/lib/departments";
+import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
@@ -28,6 +29,10 @@ const blank = {
   type: "installation",
   status: "new",
   priority: "normal",
+  job_class: "",
+  billing: "",
+  board_key: "",
+  asset_id: "",
   technician_id: "",
   company_id: "",
   contact_id: "",
@@ -45,6 +50,7 @@ export function WorkOrderModal({
   technicians,
   companies,
   contacts,
+  assets,
   onSaved,
 }: {
   open: boolean;
@@ -53,6 +59,7 @@ export function WorkOrderModal({
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
+  assets: Option[];
   onSaved: () => void;
 }) {
   const [form, setForm] = useState(blank);
@@ -69,6 +76,10 @@ export function WorkOrderModal({
             type: editing.type,
             status: editing.status,
             priority: editing.priority,
+            job_class: editing.job_class || "",
+            billing: editing.billing || "",
+            board_key: editing.board_key || "",
+            asset_id: editing.asset_id || "",
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
             contact_id: editing.contact_id || "",
@@ -96,6 +107,10 @@ export function WorkOrderModal({
         type: form.type as WorkOrder["type"],
         status: form.status as WorkOrder["status"],
         priority: form.priority as WorkOrder["priority"],
+        job_class: form.job_class || null,
+        billing: form.billing || null,
+        board_key: form.board_key || null,
+        asset_id: form.asset_id || null,
         technician_id: form.technician_id || null,
         company_id: form.company_id || null,
         contact_id: form.contact_id || null,
@@ -219,6 +234,57 @@ export function WorkOrderModal({
               ))}
             </Select>
           </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <Label htmlFor="job_class">ประเภทงาน (CM/PM)</Label>
+            <Select id="job_class" value={form.job_class} onChange={(e) => set("job_class", e.target.value)}>
+              <option value="">— ไม่ระบุ —</option>
+              {WO_JOB_CLASS.map((j) => (
+                <option key={j.value} value={j.value}>
+                  {j.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="billing">การเรียกเก็บ</Label>
+            <Select id="billing" value={form.billing} onChange={(e) => set("billing", e.target.value)}>
+              <option value="">— ไม่ระบุ —</option>
+              {WO_BILLING.map((b) => (
+                <option key={b.value} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="board_key">Service Board</Label>
+            <Select id="board_key" value={form.board_key} onChange={(e) => set("board_key", e.target.value)}>
+              <option value="">— ไม่ระบุ —</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="asset_id">Asset / ประกัน (Serial หรือ เลขโครงการ)</Label>
+          <Select id="asset_id" value={form.asset_id} onChange={(e) => set("asset_id", e.target.value)}>
+            <option value="">— ไม่ระบุ —</option>
+            {assets.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            ถ้าเป็นงานในประกัน เลือก Asset ที่อยู่ในประกัน (ระบบจะอ้างอิง Serial/เลขโครงการของ Asset นั้น)
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

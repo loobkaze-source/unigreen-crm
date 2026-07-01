@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
-import type { EquipmentCategory } from "@/lib/database.types";
+import type { AssetType, EquipmentCategory } from "@/lib/database.types";
 
 export type SiteInput = {
   id?: string;
@@ -61,10 +61,14 @@ export type EquipmentInput = {
   id?: string;
   site_id: string;
   name: string;
+  asset_type: AssetType;
   category: EquipmentCategory;
   brand?: string;
   model?: string;
   serial_number?: string;
+  project_number?: string;
+  warranty_months?: number | null;
+  warranty_start?: string | null;
   install_date?: string | null;
   notes?: string;
 };
@@ -72,16 +76,24 @@ export type EquipmentInput = {
 export async function saveEquipment(input: EquipmentInput): Promise<ActionResult> {
   const { supabase, org } = await getSessionContext();
   const name = input.name?.trim();
-  if (!name) return fail("กรุณากรอกชื่ออุปกรณ์");
+  if (!name) return fail("กรุณากรอกชื่อ Asset");
 
+  const isProject = input.asset_type === "project";
   const payload = {
     org_id: org.id,
     site_id: input.site_id,
     name,
+    asset_type: isProject ? "project" : "object",
     category: input.category || "other",
     brand: input.brand?.trim() || null,
     model: input.model?.trim() || null,
-    serial_number: input.serial_number?.trim() || null,
+    serial_number: isProject ? null : input.serial_number?.trim() || null,
+    project_number: isProject ? input.project_number?.trim() || null : null,
+    warranty_months:
+      input.warranty_months == null || Number.isNaN(input.warranty_months)
+        ? null
+        : Math.max(0, Math.round(input.warranty_months)),
+    warranty_start: input.warranty_start || null,
     install_date: input.install_date || null,
     notes: input.notes?.trim() || null,
   };

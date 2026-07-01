@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import type { ServiceType, VisitStatus } from "@/lib/database.types";
+import { DEPARTMENTS } from "@/lib/departments";
 
 export type ContractInput = {
   id?: string;
@@ -15,8 +16,12 @@ export type ContractInput = {
   frequency_per_year: number | string;
   duration_years: number | string;
   technician_id?: string | null;
+  board_key?: string | null;
   notes?: string;
 };
+
+const isBoard = (v: string | null | undefined) =>
+  v && DEPARTMENTS.some((d) => d.value === v) ? v : null;
 
 function num(v: number | string, fallback: number): number {
   const n = typeof v === "number" ? v : Number(v);
@@ -51,6 +56,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     duration_years: years,
     end_date: ymd(addMonths(start, Math.round(years * 12))),
     technician_id: input.technician_id || null,
+    board_key: isBoard(input.board_key),
     notes: input.notes?.trim() || null,
   };
 

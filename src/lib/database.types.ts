@@ -151,6 +151,11 @@ export interface Technician extends Mutable {
   active: boolean;
 }
 
+/** งานซ่อมแก้ไข (CM) หรือ บำรุงรักษาเชิงป้องกัน (PM). */
+export type WorkOrderJobClass = "CM" | "PM";
+/** อยู่ในประกัน หรือ มีค่าใช้จ่าย (ได้ค่าซ่อม). */
+export type WorkOrderBilling = "warranty" | "paid";
+
 export interface WorkOrder extends Mutable {
   id: string;
   org_id: string;
@@ -159,6 +164,10 @@ export interface WorkOrder extends Mutable {
   type: WorkOrderType;
   status: WorkOrderStatus;
   priority: WorkOrderPriority;
+  job_class: WorkOrderJobClass | null;
+  billing: WorkOrderBilling | null;
+  asset_id: string | null;
+  board_key: string | null;
   company_id: string | null;
   contact_id: string | null;
   deal_id: string | null;
@@ -218,15 +227,22 @@ export interface Site extends Mutable {
   notes: string | null;
 }
 
+/** วัตถุ (identified by serial) หรือ โครงการ (identified by project number). */
+export type AssetType = "object" | "project";
+
 export interface Equipment extends Mutable {
   id: string;
   org_id: string;
   site_id: string | null;
   name: string;
+  asset_type: AssetType;
   category: EquipmentCategory;
   brand: string | null;
   model: string | null;
   serial_number: string | null;
+  project_number: string | null;
+  warranty_months: number | null;
+  warranty_start: string | null;
   install_date: string | null;
   notes: string | null;
 }
@@ -251,6 +267,7 @@ export interface ServiceContract extends Mutable {
   duration_years: number;
   end_date: string | null;
   technician_id: string | null;
+  board_key: string | null;
   status: ContractStatus;
   notes: string | null;
 }

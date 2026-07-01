@@ -21,7 +21,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { WO_STATUSES, priorityMeta, statusMeta, typeLabel, woCode } from "./constants";
+import {
+  WO_STATUSES,
+  billingMeta,
+  jobClassLabel,
+  priorityMeta,
+  statusMeta,
+  typeLabel,
+  woCode,
+} from "./constants";
 import { WorkOrderModal, type Option } from "./work-order-modal";
 import { deleteWorkOrder } from "./actions";
 
@@ -30,11 +38,13 @@ export function WorkOrdersView({
   technicians,
   companies,
   contacts,
+  assets,
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
+  assets: Option[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -237,6 +247,7 @@ export function WorkOrdersView({
         technicians={technicians}
         companies={companies}
         contacts={contacts}
+        assets={assets}
         onSaved={() => {
           setOpen(false);
           router.refresh();
@@ -279,7 +290,19 @@ function WorkOrderRow({
           ) : null}
         </Link>
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{typeLabel(w.type)}</td>
+      <td className="px-4 py-3 text-muted-foreground">
+        <div>{typeLabel(w.type)}</div>
+        {w.job_class || w.billing ? (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {w.job_class ? <Badge tone="info">{jobClassLabel(w.job_class)}</Badge> : null}
+            {w.billing ? (
+              <Badge tone={billingMeta(w.billing)?.tone ?? "muted"}>
+                {billingMeta(w.billing)?.label}
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
+      </td>
       <td className="px-4 py-3">
         <Badge tone={s.tone}>{s.label}</Badge>
       </td>

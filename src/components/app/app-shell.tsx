@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
   ChevronDown,
+  ClipboardList,
   HardHat,
   Handshake,
   LayoutDashboard,
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/companies", label: "บริษัท", icon: Building2 },
   { href: "/deals", label: "ดีล", icon: Handshake },
   { href: "/sites", label: "ไซต์งาน", icon: MapPin },
+  { href: "/service-board", label: "Service Board", icon: ClipboardList },
   { href: "/work-orders", label: "งานบริการ", icon: Wrench },
   { href: "/cases", label: "เคส", icon: LifeBuoy },
   { href: "/service-contracts", label: "สัญญาบริการ", icon: Repeat },

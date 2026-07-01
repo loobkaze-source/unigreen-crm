@@ -9,6 +9,7 @@ export default async function WorkOrdersPage() {
     { data: technicians },
     { data: companies },
     { data: contacts },
+    { data: assets },
   ] = await Promise.all([
     supabase
       .from("work_orders")
@@ -27,6 +28,11 @@ export default async function WorkOrdersPage() {
       .select("id, first_name, last_name")
       .eq("org_id", org.id)
       .order("first_name"),
+    supabase
+      .from("equipment")
+      .select("id, name, asset_type, serial_number, project_number")
+      .eq("org_id", org.id)
+      .order("name"),
   ]);
 
   return (
@@ -38,6 +44,11 @@ export default async function WorkOrdersPage() {
         id: c.id,
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
       }))}
+      assets={(assets ?? []).map((a) => {
+        const code =
+          a.asset_type === "project" ? a.project_number : a.serial_number;
+        return { id: a.id, name: code ? `${a.name} · ${code}` : a.name };
+      })}
     />
   );
 }

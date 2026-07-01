@@ -15,6 +15,10 @@ export type WorkOrderInput = {
   type: WorkOrderType;
   status: WorkOrderStatus;
   priority: WorkOrderPriority;
+  job_class?: string | null;
+  billing?: string | null;
+  asset_id?: string | null;
+  board_key?: string | null;
   company_id?: string | null;
   contact_id?: string | null;
   technician_id?: string | null;
@@ -24,6 +28,9 @@ export type WorkOrderInput = {
   scheduled_end?: string | null;
   description?: string;
 };
+
+const oneOf = (v: string | null | undefined, allowed: string[]) =>
+  v && allowed.includes(v) ? v : null;
 
 function iso(v: string | null | undefined): string | null {
   if (!v) return null;
@@ -42,6 +49,10 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     type: input.type || "installation",
     status: input.status || "new",
     priority: input.priority || "normal",
+    job_class: oneOf(input.job_class, ["CM", "PM"]),
+    billing: oneOf(input.billing, ["warranty", "paid"]),
+    asset_id: input.asset_id || null,
+    board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
     technician_id: input.technician_id || null,

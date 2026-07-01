@@ -30,6 +30,21 @@ export const WO_PRIORITIES: { value: WorkOrderPriority; label: string; tone: Ton
   { value: "urgent", label: "ด่วน", tone: "danger" },
 ];
 
+export const WO_JOB_CLASS = [
+  { value: "CM", label: "CM (ซ่อมแก้ไข)" },
+  { value: "PM", label: "PM (บำรุงรักษาเชิงป้องกัน)" },
+] as const;
+
+export const WO_BILLING = [
+  { value: "warranty", label: "อยู่ในประกัน", tone: "success" as Tone },
+  { value: "paid", label: "มีค่าซ่อม", tone: "warning" as Tone },
+] as const;
+
+export const jobClassLabel = (v: string | null) =>
+  WO_JOB_CLASS.find((x) => x.value === v)?.label ?? v ?? "";
+export const billingMeta = (v: string | null) =>
+  WO_BILLING.find((x) => x.value === v);
+
 export const typeLabel = (v: WorkOrderType) =>
   WO_TYPES.find((x) => x.value === v)?.label ?? v;
 export const statusMeta = (v: WorkOrderStatus) =>

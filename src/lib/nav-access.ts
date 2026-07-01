@@ -4,6 +4,7 @@
  * access both server-side (layout) and client-side (app-shell).
  */
 export const TECH_ROUTES = [
+  "/service-board",
   "/sites",
   "/work-orders",
   "/cases",

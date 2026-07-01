@@ -16,6 +16,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DEPARTMENTS } from "@/lib/departments";
 import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
 import { saveContract, deleteContract } from "./actions";
 
@@ -63,6 +64,7 @@ export function ContractsView({
     frequency_per_year: "2",
     duration_years: "5",
     technician_id: "",
+    board_key: "",
     notes: "",
   };
   const [form, setForm] = useState(EMPTY);
@@ -92,6 +94,7 @@ export function ContractsView({
       frequency_per_year: String(c.frequency_per_year),
       duration_years: String(c.duration_years),
       technician_id: c.technician_id || "",
+      board_key: c.board_key || "",
       notes: c.notes || "",
     });
     setError(null);
@@ -111,6 +114,7 @@ export function ContractsView({
         frequency_per_year: form.frequency_per_year,
         duration_years: form.duration_years,
         technician_id: form.technician_id || null,
+        board_key: form.board_key || null,
         notes: form.notes,
       });
       if (!res.ok) return setError(res.error);
@@ -330,6 +334,24 @@ export function ContractsView({
                 ))}
               </Select>
             </div>
+          </div>
+          <div>
+            <Label htmlFor="board_key">Service Board</Label>
+            <Select
+              id="board_key"
+              value={form.board_key}
+              onChange={(e) => setForm({ ...form, board_key: e.target.value })}
+            >
+              <option value="">— ไม่ระบุ —</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d.value} value={d.value}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              เลือกบอร์ดเพื่อให้รอบบริการของสัญญานี้แสดงในหน้า Service Board
+            </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>

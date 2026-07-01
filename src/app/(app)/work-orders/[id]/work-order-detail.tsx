@@ -58,6 +58,7 @@ export function WorkOrderDetail({
   technicians,
   companies,
   contacts,
+  assets,
   orgId,
   technicianName,
   companyName,
@@ -69,6 +70,7 @@ export function WorkOrderDetail({
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
+  assets: Option[];
   orgId: string;
   technicianName?: string;
   companyName?: string;
@@ -389,6 +391,7 @@ export function WorkOrderDetail({
         technicians={technicians}
         companies={companies}
         contacts={contacts}
+        assets={assets}
         onSaved={() => {
           setEditing(false);
           router.refresh();
