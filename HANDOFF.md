@@ -55,6 +55,12 @@ Open Supabase → **SQL Editor** and run in order:
 8. `0008_user_roles.sql` — `organization_members.app_role`; sets vasawat=admin
 9. `0009_departments_invites.sql` — `organization_members.department`, `invites` table,
    `handle_new_user` honours invites, renames workspace to "Unigreen Power"
+10. `0010_invite_only.sql` — signup is **invite-only**: `handle_new_user` rejects any email
+    without a pending invite (except bootstrapping the first workspace on a fresh, org-less DB)
+
+**Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
+Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
+(Authentication → URL Configuration). Otherwise confirmation links point to `localhost:3000`.
 
 **Data imports** (`supabase/import_*.sql`, **gitignored** — contain real customer data/emails,
 but copy with the folder). Run AFTER migrations:

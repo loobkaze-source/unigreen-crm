@@ -17,7 +17,7 @@ export function SignupForm() {
     <div>
       <h1 className="text-2xl font-bold tracking-tight">สร้างบัญชีของคุณ</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        เริ่มจัดการไปป์ไลน์การขายของคุณได้ในไม่กี่นาที
+        การสมัครใช้ได้เฉพาะอีเมลที่ได้รับคำเชิญจากผู้ดูแลระบบ
       </p>
 
       <form action={formAction} className="mt-6 space-y-4">

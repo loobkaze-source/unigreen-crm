@@ -46,7 +46,17 @@ export async function signup(
     options: { data: { full_name: fullName } },
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    // The DB trigger rejects non-invited emails (invite-only signup).
+    const m = error.message || "";
+    if (/invite_required|Database error saving new user|Database error/i.test(m)) {
+      return {
+        error:
+          "อีเมลนี้ยังไม่ได้รับคำเชิญ — การสมัครใช้ได้เฉพาะผู้ที่ผู้ดูแลระบบเชิญเท่านั้น",
+      };
+    }
+    return { error: m };
+  }
 
   // If email confirmation is disabled, a session is returned immediately.
   if (data.session) redirect("/dashboard");
