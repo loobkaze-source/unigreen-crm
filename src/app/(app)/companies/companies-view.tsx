@@ -87,9 +87,9 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
 
   return (
     <div>
-      <PageHeader title="บริษัท" subtitle="องค์กรที่คุณทำธุรกิจด้วย">
+      <PageHeader title="ลูกค้า" subtitle="องค์กร/ลูกค้าที่คุณทำธุรกิจด้วย">
         <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> เพิ่มบริษัท
+          <Plus className="h-4 w-4" /> เพิ่มลูกค้า
         </Button>
       </PageHeader>
 

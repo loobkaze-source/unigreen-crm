@@ -22,7 +22,6 @@ import {
   ShieldCheck,
   UserCog,
   Users,
-  UserPlus,
   Workflow,
   Wrench,
   X,
@@ -33,9 +32,8 @@ import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access
 
 const NAV = [
   { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
-  { href: "/leads", label: "ลูกค้ามุ่งหวัง", icon: UserPlus },
+  { href: "/companies", label: "ลูกค้า", icon: Building2 },
   { href: "/contacts", label: "ผู้ติดต่อ", icon: Users },
-  { href: "/companies", label: "บริษัท", icon: Building2 },
   { href: "/deals", label: "ดีล", icon: Handshake },
   { href: "/sites", label: "ไซต์งาน", icon: MapPin },
   { href: "/service-board", label: "Service Board", icon: ClipboardList },
