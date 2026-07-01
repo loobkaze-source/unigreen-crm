@@ -164,6 +164,7 @@ export function DateRangePicker({
               <label className="mb-1 block text-xs text-muted-foreground">เวลาไป</label>
               <input
                 type="time"
+                lang="en-GB"
                 value={startTime}
                 disabled={!s}
                 onChange={(ev) => {
@@ -180,6 +181,7 @@ export function DateRangePicker({
               <label className="mb-1 block text-xs text-muted-foreground">เวลากลับ</label>
               <input
                 type="time"
+                lang="en-GB"
                 value={endTime}
                 disabled={!e}
                 onChange={(ev) => {
