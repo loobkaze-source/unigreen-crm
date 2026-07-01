@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
   HardHat,
@@ -25,7 +25,10 @@ import {
   X,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
+import { LoadingScreen } from "@/components/ui/spinner";
+import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 
+// `adminOnly: true` = visible to owners/admins only.
 const NAV = [
   { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
   { href: "/leads", label: "ลูกค้ามุ่งหวัง", icon: UserPlus },
@@ -40,20 +43,39 @@ const NAV = [
   { href: "/technicians", label: "ช่าง", icon: HardHat },
   { href: "/products", label: "สินค้า", icon: Package },
   { href: "/activities", label: "กิจกรรม", icon: ListChecks },
-  { href: "/users", label: "ผู้ใช้", icon: UserCog },
-];
+  { href: "/users", label: "ผู้ใช้", icon: UserCog, adminOnly: true },
+] as const;
 
 export function AppShell({
   user,
   orgName,
+  appRole = null,
+  isAdmin = false,
   children,
 }: {
   user: { name: string; email: string };
   orgName: string;
+  appRole?: string | null;
+  isAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+
+  const isTechnician = !isAdmin && appRole === "Technician";
+
+  const visibleNav = NAV.filter((item) => {
+    if ("adminOnly" in item && item.adminOnly && !isAdmin) return false;
+    if (isTechnician && !TECH_ROUTES.some((r) => r === item.href)) return false;
+    return true;
+  });
+
+  const blocked = isTechnician && !isTechnicianAllowed(pathname);
+
+  useEffect(() => {
+    if (blocked) router.replace("/sites");
+  }, [blocked, router]);
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[256px_1fr]">
@@ -99,9 +121,8 @@ export function AppShell({
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
-          {NAV.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+          {visibleNav.map((item) => {
+            const active = routeMatches(pathname, item.href);
             return (
               <Link
                 key={item.href}
@@ -176,7 +197,9 @@ export function AppShell({
           <Image src="/brand/logo-light.png" alt="Unicloud" width={120} height={25} />
         </div>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          {blocked ? <LoadingScreen label="กำลังเปลี่ยนหน้า…" /> : children}
+        </main>
       </div>
     </div>
   );
