@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { toAuthEmail } from "@/lib/username";
 
 export type AuthState = { error?: string; message?: string };
 
@@ -9,18 +10,21 @@ export async function login(
   _prev: AuthState,
   formData: FormData
 ): Promise<AuthState> {
-  const email = String(formData.get("email") || "").trim();
+  const identifier = String(formData.get("identifier") || "").trim();
   const password = String(formData.get("password") || "");
   const redirectTo = String(formData.get("redirectTo") || "/dashboard");
 
-  if (!email || !password) {
-    return { error: "กรุณากรอกอีเมลและรหัสผ่าน" };
+  if (!identifier || !password) {
+    return { error: "กรุณากรอกชื่อผู้ใช้/อีเมล และรหัสผ่าน" };
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { error } = await supabase.auth.signInWithPassword({
+    email: toAuthEmail(identifier),
+    password,
+  });
 
-  if (error) return { error: error.message };
+  if (error) return { error: "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง" };
   redirect(redirectTo.startsWith("/") ? redirectTo : "/dashboard");
 }
 

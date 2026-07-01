@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/app-shell";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { getSessionContext } from "@/lib/data";
+import { displayUsername } from "@/lib/username";
 
 export default async function AppLayout({
   children,
@@ -19,8 +20,8 @@ export default async function AppLayout({
   return (
     <AppShell
       user={{
-        name: profile?.full_name || email?.split("@")[0] || "User",
-        email: email || "",
+        name: profile?.full_name || displayUsername(email) || "User",
+        email: displayUsername(email),
       }}
       orgName={org.name}
       appRole={appRole}

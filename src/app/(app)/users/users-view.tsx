@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES, DEPT_ROLES } from "@/lib/roles";
+import { displayUsername } from "@/lib/username";
 import { updateMember, createUser, resetUserPassword, removeMember } from "./actions";
 
 type Member = {
@@ -38,7 +39,7 @@ export function UsersView({
 
   // create-user form
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("123456");
   const [cuRole, setCuRole] = useState("Sales");
   const [cuDept, setCuDept] = useState<string>(DEPARTMENTS[0].value);
@@ -60,10 +61,10 @@ export function UsersView({
   }
 
   function submitCreate() {
-    if (!email.trim()) return;
+    if (!username.trim()) return;
     run("create", async () => {
       const res = await createUser({
-        email,
+        username,
         fullName: name,
         password,
         appRole: cuRole,
@@ -71,7 +72,7 @@ export function UsersView({
       });
       if (res.ok) {
         setName("");
-        setEmail("");
+        setUsername("");
         setPassword("123456");
       }
       return res;
@@ -80,7 +81,7 @@ export function UsersView({
 
   function resetPw(m: Member) {
     const pw = window.prompt(
-      `ตั้งรหัสชั่วคราวใหม่ให้ ${m.name || m.email}\n(ผู้ใช้จะต้องตั้งรหัสของตัวเองอีกครั้งตอนล็อกอิน)`,
+      `ตั้งรหัสชั่วคราวใหม่ให้ ${m.name || displayUsername(m.email)}\n(ผู้ใช้จะต้องตั้งรหัสของตัวเองอีกครั้งตอนล็อกอิน)`,
       "123456"
     );
     if (!pw) return;
@@ -118,8 +119,14 @@ export function UsersView({
               <Input placeholder="สมชาย ใจดี" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">อีเมล (ใช้ล็อกอิน)</label>
-              <Input type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label className="mb-1 block text-xs text-muted-foreground">ชื่อผู้ใช้ (ใช้ล็อกอิน)</label>
+              <Input
+                type="text"
+                placeholder="เช่น somchai"
+                autoCapitalize="none"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">รหัสผ่านเริ่มต้น</label>
@@ -148,7 +155,7 @@ export function UsersView({
             </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            ผู้ใช้ล็อกอินด้วยอีเมล + รหัสเริ่มต้นนี้ แล้วระบบจะบังคับให้ตั้งรหัสของตัวเองก่อนใช้งาน
+            ผู้ใช้ล็อกอินด้วยชื่อผู้ใช้ + รหัสเริ่มต้นนี้ (ไม่ต้องมีอีเมล) แล้วระบบจะบังคับให้ตั้งรหัสของตัวเองก่อนใช้งาน
           </p>
         </section>
       ) : null}
@@ -177,10 +184,10 @@ export function UsersView({
                   <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={m.name || m.email} />
+                        <Avatar name={m.name || displayUsername(m.email)} />
                         <div>
                           <div className="font-medium">{m.name || "—"}</div>
-                          <div className="text-xs text-muted-foreground">{m.email}</div>
+                          <div className="text-xs text-muted-foreground">{displayUsername(m.email)}</div>
                         </div>
                       </div>
                     </td>
@@ -235,7 +242,7 @@ export function UsersView({
                                 title="นำออกจากพื้นที่ทำงาน"
                                 disabled={busy}
                                 onClick={() => {
-                                  if (confirm(`นำ ${m.name || m.email} ออกจากพื้นที่ทำงาน?`))
+                                  if (confirm(`นำ ${m.name || displayUsername(m.email)} ออกจากพื้นที่ทำงาน?`))
                                     run(m.id, () => removeMember(m.id));
                                 }}
                               >

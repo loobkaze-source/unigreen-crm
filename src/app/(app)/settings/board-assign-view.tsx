@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { DEPARTMENTS } from "@/lib/departments";
+import { displayUsername } from "@/lib/username";
 import { assignToBoard, unassignFromBoard } from "./actions";
 
 export type OrgUser = {
@@ -74,7 +75,7 @@ export function BoardAssignView({
                     const u = userById.get(r.user_id);
                     return (
                       <div key={r.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1.5">
-                        <Avatar name={u?.name || u?.email || "?"} className="h-7 w-7 text-[10px]" />
+                        <Avatar name={u?.name || displayUsername(u?.email) || "?"} className="h-7 w-7 text-[10px]" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">{u?.name || "—"}</div>
                           <div className="truncate text-xs text-muted-foreground">{u?.app_role}</div>
@@ -112,7 +113,7 @@ export function BoardAssignView({
                   </option>
                   {addable.map((u) => (
                     <option key={u.user_id} value={u.user_id}>
-                      {(u.name || u.email) + " · " + u.app_role}
+                      {(u.name || displayUsername(u.email)) + " · " + u.app_role}
                     </option>
                   ))}
                 </Select>

@@ -29,13 +29,14 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         ) : null}
 
         <div>
-          <Label htmlFor="email">อีเมล</Label>
+          <Label htmlFor="identifier">ชื่อผู้ใช้ หรือ อีเมล</Label>
           <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="you@company.com"
-            autoComplete="email"
+            id="identifier"
+            name="identifier"
+            type="text"
+            placeholder="เช่น somchai"
+            autoComplete="username"
+            autoCapitalize="none"
             required
           />
         </div>

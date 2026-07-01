@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES } from "@/lib/roles";
+import { toAuthEmail, isValidLoginId } from "@/lib/username";
 
 const isRole = (v: string) =>
   USER_ROLES.includes(v as (typeof USER_ROLES)[number]) ? v : null;
@@ -43,9 +44,9 @@ export async function updateMember(
   return ok();
 }
 
-/** Admin creates a user directly with an initial password (no email). */
+/** Admin creates a user directly with an initial password (username or email). */
 export async function createUser(input: {
-  email: string;
+  username: string;
   fullName: string;
   password: string;
   appRole: string;
@@ -54,8 +55,9 @@ export async function createUser(input: {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
 
-  const email = input.email.trim().toLowerCase();
-  if (!email.includes("@")) return fail("อีเมลไม่ถูกต้อง");
+  if (!isValidLoginId(input.username))
+    return fail("ชื่อผู้ใช้ไม่ถูกต้อง (ใช้ตัวอักษร/ตัวเลข . _ - อย่างน้อย 2 ตัว หรือกรอกอีเมล)");
+  const email = toAuthEmail(input.username);
   if ((input.password || "").length < 6)
     return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
 
