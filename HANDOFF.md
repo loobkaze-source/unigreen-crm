@@ -59,6 +59,8 @@ Open Supabase → **SQL Editor** and run in order:
     without a pending invite (except bootstrapping the first workspace on a fresh, org-less DB)
 11. `0011_admin_user_mgmt.sql` — `profiles.must_change_password` (forces a password change on
     first login) + `mark_password_changed()` RPC; backfills the flag for all non-owner members
+12. `0012_board_assignments.sql` — `board_assignments` (admins assign users to pipeline/service
+    boards per department); renames legacy role "Job Dispatcher" → "Dispatcher"
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
