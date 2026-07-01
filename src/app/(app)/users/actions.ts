@@ -4,15 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
-
-export const USER_ROLES = [
-  "admin",
-  "Sales",
-  "Manager",
-  "Technician",
-  "Job Dispatcher",
-  "Accounting",
-] as const;
+import { USER_ROLES } from "@/lib/roles";
 
 const isRole = (v: string) =>
   USER_ROLES.includes(v as (typeof USER_ROLES)[number]) ? v : null;

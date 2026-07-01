@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DEPARTMENTS, departmentLabel } from "@/lib/departments";
+import { USER_ROLES } from "@/lib/roles";
 import {
-  USER_ROLES,
   updateMember,
   inviteMember,
   revokeInvite,
