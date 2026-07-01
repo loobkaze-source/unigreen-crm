@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES } from "@/lib/roles";
-import { toAuthEmail, isValidLoginId } from "@/lib/username";
+import { toAuthEmail, isValidLoginId, displayUsername, USERNAME_DOMAIN } from "@/lib/username";
 
 const isRole = (v: string) =>
   USER_ROLES.includes(v as (typeof USER_ROLES)[number]) ? v : null;
@@ -18,6 +18,34 @@ async function requireAdmin() {
   const ctx = await getSessionContext();
   if (!ctx.isAdmin) return { ctx, error: "เฉพาะแอดมินเท่านั้น" as const };
   return { ctx, error: null };
+}
+
+/** Create/link a technician record for a Technician-role user (idempotent). */
+async function ensureTechnician(
+  supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
+  orgId: string,
+  userId: string
+) {
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+  const email =
+    prof?.email && !String(prof.email).toLowerCase().endsWith(`@${USERNAME_DOMAIN}`)
+      ? prof.email
+      : null;
+  await supabase.from("technicians").upsert(
+    {
+      org_id: orgId,
+      user_id: userId,
+      name: prof?.full_name || displayUsername(prof?.email) || "ช่าง",
+      email,
+      skills: [],
+      active: true,
+    },
+    { onConflict: "org_id,user_id", ignoreDuplicates: true }
+  );
 }
 
 export async function updateMember(
@@ -40,7 +68,19 @@ export async function updateMember(
     .eq("org_id", ctx.org.id)
     .neq("role", "owner");
   if (e) return fail(e.message);
+
+  if (role === "Technician") {
+    const { data: mem } = await ctx.supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("id", memberId)
+      .eq("org_id", ctx.org.id)
+      .maybeSingle();
+    if (mem?.user_id) await ensureTechnician(ctx.supabase, ctx.org.id, mem.user_id);
+  }
+
   revalidatePath("/users");
+  revalidatePath("/technicians");
   return ok();
 }
 
@@ -93,8 +133,13 @@ export async function createUser(input: {
   // Force a password change on first login.
   if (data.user) {
     await admin.from("profiles").update({ must_change_password: true }).eq("id", data.user.id);
+    // A Technician user also joins the technician roster.
+    if (role === "Technician") {
+      await ensureTechnician(ctx.supabase, ctx.org.id, data.user.id);
+    }
   }
   revalidatePath("/users");
+  revalidatePath("/technicians");
   return ok();
 }
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { HardHat, Mail, Pencil, Phone, Plus, Search, Trash2 } from "lucide-react";
+import { HardHat, Mail, Pencil, Phone, Plus, Search, Trash2, UserCog, Users } from "lucide-react";
 import type { Technician } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
@@ -14,7 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { saveTechnician, deleteTechnician } from "./actions";
+import { saveTechnician, deleteTechnician, importTechniciansFromUsers } from "./actions";
 
 const SKILLS = [
   "ATG", "Solar", "EV", "POS", "Tire Inflator", "Pump",
@@ -103,10 +103,20 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         : [...f.skills, s],
     }));
   }
+  function importUsers() {
+    startTransition(async () => {
+      const res = await importTechniciansFromUsers();
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
 
   return (
     <div>
       <PageHeader title="ช่าง" subtitle="ทีมช่างเทคนิคสำหรับงานบริการภาคสนาม">
+        <Button variant="secondary" onClick={importUsers} disabled={pending}>
+          <Users className="h-4 w-4" /> ดึงช่างจากผู้ใช้ Technician
+        </Button>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> เพิ่มช่าง
         </Button>
@@ -162,6 +172,11 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
                       <Avatar name={t.nickname || t.name} text={t.nickname || undefined} />
                       <div>
                         <span className="font-medium">{t.name}</span>
+                        {t.user_id ? (
+                          <span className="ml-2 inline-flex items-center gap-1 rounded bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground">
+                            <UserCog className="h-3 w-3" /> บัญชีผู้ใช้
+                          </span>
+                        ) : null}
                         {t.nickname ? (
                           <div className="text-xs text-muted-foreground">({t.nickname})</div>
                         ) : null}

@@ -142,6 +142,7 @@ export type WorkOrderPriority = "low" | "normal" | "high" | "urgent";
 export interface Technician extends Mutable {
   id: string;
   org_id: string;
+  user_id: string | null;
   name: string;
   nickname: string | null;
   email: string | null;
