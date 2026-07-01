@@ -21,6 +21,7 @@ export type WorkOrderInput = {
   asset_ids?: string[];
   board_key?: string | null;
   site_id?: string | null;
+  case_id?: string | null;
   company_id?: string | null;
   contact_id?: string | null;
   technician_id?: string | null;
@@ -75,6 +76,11 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
 
   const assetIds = input.asset_ids ?? (input.asset_id ? [input.asset_id] : []);
 
+  const startIso = iso(input.scheduled_start);
+  let endIso = iso(input.scheduled_end);
+  // Guard against an inverted range slipping through.
+  if (startIso && endIso && endIso < startIso) endIso = null;
+
   const payload: Record<string, unknown> = {
     org_id: org.id,
     title,
@@ -86,13 +92,14 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     asset_id: assetIds[0] ?? null, // keep the single column pointing at the first
     board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
     site_id: input.site_id || null,
+    case_id: input.case_id || null,
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
     technician_id: input.technician_id || null,
     site_address: input.site_address?.trim() || null,
     site_map_url: input.site_map_url?.trim() || null,
-    scheduled_start: iso(input.scheduled_start),
-    scheduled_end: iso(input.scheduled_end),
+    scheduled_start: startIso,
+    scheduled_end: endIso,
     description: input.description?.trim() || null,
   };
   if (input.status === "completed") payload.completed_at = new Date().toISOString();

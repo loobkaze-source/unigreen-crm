@@ -29,6 +29,7 @@ export default async function WorkOrderDetailPage({
     { data: contacts },
     { data: sites },
     { data: assets },
+    { data: cases },
     { data: woAssets },
   ] = await Promise.all([
     supabase
@@ -63,10 +64,21 @@ export default async function WorkOrderDetailPage({
       .eq("org_id", org.id)
       .order("code"),
     supabase
+      .from("cases")
+      .select("id, number, subject, company_id")
+      .eq("org_id", org.id)
+      .order("number", { ascending: false }),
+    supabase
       .from("work_order_assets")
       .select("equipment_id")
       .eq("work_order_id", id),
   ]);
+
+  const caseList = (cases ?? []).map((c) => ({
+    id: c.id,
+    company_id: c.company_id,
+    name: `${c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส"} · ${c.subject}`,
+  }));
 
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
@@ -101,6 +113,7 @@ export default async function WorkOrderDetailPage({
       contacts={contactList}
       sites={sites ?? []}
       assets={assetList}
+      cases={caseList}
       assetIds={assetIds}
       orgId={org.id}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}

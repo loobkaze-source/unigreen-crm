@@ -12,6 +12,7 @@ export default async function WorkOrdersPage() {
     { data: contacts },
     { data: sites },
     { data: assets },
+    { data: cases },
     { data: woAssets },
   ] = await Promise.all([
     supabase
@@ -42,10 +43,21 @@ export default async function WorkOrdersPage() {
       .eq("org_id", org.id)
       .order("code"),
     supabase
+      .from("cases")
+      .select("id, number, subject, company_id")
+      .eq("org_id", org.id)
+      .order("number", { ascending: false }),
+    supabase
       .from("work_order_assets")
       .select("work_order_id, equipment_id")
       .eq("org_id", org.id),
   ]);
+
+  const caseList = (cases ?? []).map((c) => ({
+    id: c.id,
+    company_id: c.company_id,
+    name: `${c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส"} · ${c.subject}`,
+  }));
 
   const assetIdsByWo: Record<string, string[]> = {};
   for (const r of woAssets ?? []) {
@@ -63,6 +75,7 @@ export default async function WorkOrdersPage() {
         company_id: c.company_id,
       }))}
       assetIdsByWo={assetIdsByWo}
+      cases={caseList}
       sites={sites ?? []}
       assets={(assets ?? []).map((a) => {
         const ident =

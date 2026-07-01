@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DEPARTMENTS } from "@/lib/departments";
 import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
 export type ContactOption = { id: string; name: string; company_id: string | null };
+export type CaseOption = { id: string; name: string; company_id: string | null };
 export type SiteOption = {
   id: string;
   name: string;
@@ -41,6 +43,7 @@ const blank = {
   job_class: "",
   billing: "",
   board_key: "",
+  case_id: "",
   asset_ids: [] as string[],
   technician_id: "",
   company_id: "",
@@ -62,6 +65,7 @@ export function WorkOrderModal({
   contacts,
   sites,
   assets,
+  cases,
   assetIds = [],
   onSaved,
 }: {
@@ -73,6 +77,7 @@ export function WorkOrderModal({
   contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  cases: CaseOption[];
   /** The editing WO's current linked asset ids (empty when creating). */
   assetIds?: string[];
   onSaved: () => void;
@@ -96,6 +101,7 @@ export function WorkOrderModal({
             job_class: editing.job_class || "",
             billing: editing.billing || "",
             board_key: editing.board_key || "",
+            case_id: editing.case_id || "",
             asset_ids: assetIds,
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
@@ -161,6 +167,9 @@ export function WorkOrderModal({
   const visibleContacts = form.company_id
     ? contacts.filter((c) => c.company_id === form.company_id || c.id === form.contact_id)
     : contacts;
+  const visibleCases = form.company_id
+    ? cases.filter((c) => c.company_id === form.company_id || c.id === form.case_id)
+    : cases;
   const visibleAssets = assets.filter(
     (a) => (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
   );
@@ -203,6 +212,7 @@ export function WorkOrderModal({
         job_class: form.job_class || null,
         billing: form.billing || null,
         board_key: form.board_key || null,
+        case_id: form.case_id || null,
         asset_ids: form.asset_ids,
         technician_id: form.technician_id || null,
         company_id: form.company_id || null,
@@ -369,20 +379,33 @@ export function WorkOrderModal({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
-          <Select
-            id="technician_id"
-            value={form.technician_id}
-            onChange={(e) => set("technician_id", e.target.value)}
-          >
-            <option value="">— ยังไม่มอบหมาย —</option>
-            {technicians.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
+            <Select
+              id="technician_id"
+              value={form.technician_id}
+              onChange={(e) => set("technician_id", e.target.value)}
+            >
+              <option value="">— ยังไม่มอบหมาย —</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="case_id">เคส / Ticket ที่เกี่ยวข้อง</Label>
+            <Select id="case_id" value={form.case_id} onChange={(e) => set("case_id", e.target.value)}>
+              <option value="">— ไม่ระบุ —</option>
+              {visibleCases.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
         <div>
@@ -442,25 +465,15 @@ export function WorkOrderModal({
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="scheduled_start">นัดหมายเริ่ม</Label>
-            <Input
-              id="scheduled_start"
-              type="datetime-local"
-              value={form.scheduled_start}
-              onChange={(e) => set("scheduled_start", e.target.value)}
-            />
-          </div>
-          <div>
-            <Label htmlFor="scheduled_end">สิ้นสุด (ถ้ามี)</Label>
-            <Input
-              id="scheduled_end"
-              type="datetime-local"
-              value={form.scheduled_end}
-              onChange={(e) => set("scheduled_end", e.target.value)}
-            />
-          </div>
+        <div>
+          <Label>นัดหมาย (ไป–กลับ)</Label>
+          <DateRangePicker
+            start={form.scheduled_start}
+            end={form.scheduled_end}
+            onChange={(s, e) =>
+              setForm((f) => ({ ...f, scheduled_start: s, scheduled_end: e }))
+            }
+          />
         </div>
 
         <div>

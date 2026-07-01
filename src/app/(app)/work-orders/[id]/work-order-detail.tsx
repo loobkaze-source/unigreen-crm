@@ -42,6 +42,7 @@ import {
   WorkOrderModal,
   type Option,
   type ContactOption,
+  type CaseOption,
   type SiteOption,
   type AssetOption,
 } from "../work-order-modal";
@@ -66,6 +67,7 @@ export function WorkOrderDetail({
   contacts,
   sites,
   assets,
+  cases,
   assetIds,
   orgId,
   technicianName,
@@ -80,6 +82,7 @@ export function WorkOrderDetail({
   contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  cases: CaseOption[];
   assetIds: string[];
   orgId: string;
   technicianName?: string;
@@ -401,6 +404,7 @@ export function WorkOrderDetail({
         contacts={contacts}
         sites={sites}
         assets={assets}
+        cases={cases}
         assetIds={assetIds}
         onSaved={() => {
           setEditing(false);

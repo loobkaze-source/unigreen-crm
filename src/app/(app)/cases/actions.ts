@@ -20,10 +20,31 @@ export type CaseInput = {
   case_date?: string | null;
 };
 
+/** Count work orders on a case that aren't finished (completed/cancelled). */
+async function openWorkOrders(
+  supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
+  caseId: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("work_orders")
+    .select("id", { count: "exact", head: true })
+    .eq("case_id", caseId)
+    .not("status", "in", "(completed,cancelled)");
+  return count ?? 0;
+}
+
+const CLOSE_BLOCKED = (n: number) =>
+  `ปิดเคสไม่ได้ — ยังมีใบสั่งงานที่ทำไม่เสร็จ ${n} รายการ (ต้องปิดงานให้เสร็จก่อน)`;
+
 export async function saveCase(input: CaseInput): Promise<ActionResult> {
   const { supabase, org } = await getSessionContext();
   const subject = input.subject?.trim();
   if (!subject) return fail("กรุณากรอกหัวข้อเคส");
+
+  if (input.id && input.status === "closed") {
+    const open = await openWorkOrders(supabase, input.id);
+    if (open > 0) return fail(CLOSE_BLOCKED(open));
+  }
 
   const payload = {
     org_id: org.id,
@@ -57,6 +78,10 @@ export async function updateCaseStatus(
   status: CaseStatus
 ): Promise<ActionResult> {
   const { supabase } = await getSessionContext();
+  if (status === "closed") {
+    const open = await openWorkOrders(supabase, id);
+    if (open > 0) return fail(CLOSE_BLOCKED(open));
+  }
   const { error } = await supabase.from("cases").update({ status }).eq("id", id);
   if (error) return fail(error.message);
   revalidatePath("/cases");

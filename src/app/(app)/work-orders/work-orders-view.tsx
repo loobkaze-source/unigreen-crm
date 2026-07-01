@@ -35,6 +35,7 @@ import {
   WorkOrderModal,
   type Option,
   type ContactOption,
+  type CaseOption,
   type SiteOption,
   type AssetOption,
 } from "./work-order-modal";
@@ -47,6 +48,7 @@ export function WorkOrdersView({
   contacts,
   sites,
   assets,
+  cases,
   assetIdsByWo,
 }: {
   workOrders: WorkOrder[];
@@ -55,6 +57,7 @@ export function WorkOrdersView({
   contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  cases: CaseOption[];
   assetIdsByWo: Record<string, string[]>;
 }) {
   const router = useRouter();
@@ -260,6 +263,7 @@ export function WorkOrdersView({
         contacts={contacts}
         sites={sites}
         assets={assets}
+        cases={cases}
         assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
         onSaved={() => {
           setOpen(false);
