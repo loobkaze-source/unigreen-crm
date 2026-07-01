@@ -7,6 +7,8 @@ import { type ActionResult, ok, fail } from "@/lib/action-result";
 export type CompanyInput = {
   id?: string;
   customer_code?: string;
+  tax_id?: string;
+  tags?: string[];
   name: string;
   industry?: string;
   website?: string;
@@ -20,9 +22,14 @@ export async function saveCompany(input: CompanyInput): Promise<ActionResult> {
   const name = input.name?.trim();
   if (!name) return fail("กรุณากรอกชื่อบริษัท");
 
+  const tags = [
+    ...new Set((input.tags ?? []).map((t) => t.trim()).filter(Boolean)),
+  ];
   const payload = {
     org_id: org.id,
     customer_code: input.customer_code?.trim() || null,
+    tax_id: input.tax_id?.trim() || null,
+    tags,
     name,
     industry: input.industry?.trim() || null,
     website: input.website?.trim() || null,

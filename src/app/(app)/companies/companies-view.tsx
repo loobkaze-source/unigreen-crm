@@ -2,46 +2,86 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Globe, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, Globe, Pencil, Plus, Search, Tag, Trash2, X } from "lucide-react";
 import type { Company } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/utils";
 import { saveCompany, deleteCompany } from "./actions";
+
+/** Suggested customer tags (users can also type their own). */
+const COMMON_TAGS = ["Shell", "PTT", "BCP", "บ้าน", "โรงงาน", "โรงแรม"];
 
 const EMPTY = {
   customer_code: "",
+  tax_id: "",
   name: "",
   industry: "",
   website: "",
   phone: "",
   address: "",
   notes: "",
+  tags: [] as string[],
 };
 
 export function CompaniesView({ companies }: { companies: Company[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // All tags in use (+ the common suggestions), for the filter bar.
+  const allTags = useMemo(() => {
+    const set = new Set<string>(COMMON_TAGS);
+    companies.forEach((c) => (c.tags || []).forEach((t) => set.add(t)));
+    return [...set];
+  }, [companies]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return companies;
-    return companies.filter(
-      (c) =>
+    return companies.filter((c) => {
+      if (
+        tagFilter.length &&
+        !tagFilter.some((t) => (c.tags || []).includes(t)) // match ANY selected tag
+      )
+        return false;
+      if (!q) return true;
+      return (
         c.name.toLowerCase().includes(q) ||
         (c.customer_code || "").toLowerCase().includes(q) ||
-        (c.industry || "").toLowerCase().includes(q)
-    );
-  }, [companies, query]);
+        (c.tax_id || "").toLowerCase().includes(q) ||
+        (c.industry || "").toLowerCase().includes(q) ||
+        (c.tags || []).some((t) => t.toLowerCase().includes(q))
+      );
+    });
+  }, [companies, query, tagFilter]);
+
+  const toggleFilterTag = (t: string) =>
+    setTagFilter((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
+
+  function toggleFormTag(t: string) {
+    setForm((f) => ({
+      ...f,
+      tags: f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t],
+    }));
+  }
+  function addFormTag() {
+    const t = tagInput.trim();
+    if (!t) return;
+    setForm((f) => ({ ...f, tags: f.tags.includes(t) ? f.tags : [...f.tags, t] }));
+    setTagInput("");
+  }
 
   function openCreate() {
     setEditing(null);
@@ -54,12 +94,14 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
     setEditing(c);
     setForm({
       customer_code: c.customer_code || "",
+      tax_id: c.tax_id || "",
       name: c.name,
       industry: c.industry || "",
       website: c.website || "",
       phone: c.phone || "",
       address: c.address || "",
       notes: c.notes || "",
+      tags: c.tags || [],
     });
     setError(null);
     setOpen(true);
@@ -93,15 +135,45 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
         </Button>
       </PageHeader>
 
-      <div className="mb-4 relative max-w-xs">
+      <div className="mb-3 relative max-w-xs">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาบริษัท…"
+          placeholder="ค้นหาลูกค้า / รหัส / Tax ID / แท็ก…"
           className="pl-9"
         />
       </div>
+
+      {allTags.length ? (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Tag className="h-3.5 w-3.5" /> กรองแท็ก:
+          </span>
+          {allTags.map((t) => (
+            <button
+              key={t}
+              onClick={() => toggleFilterTag(t)}
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                tagFilter.includes(t)
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {t}
+            </button>
+          ))}
+          {tagFilter.length ? (
+            <button
+              onClick={() => setTagFilter([])}
+              className="text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              ล้าง
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -127,7 +199,8 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
               <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-3 font-medium">รหัส</th>
                 <th className="px-4 py-3 font-medium">ชื่อ</th>
-                <th className="px-4 py-3 font-medium">อุตสาหกรรม</th>
+                <th className="px-4 py-3 font-medium">แท็ก</th>
+                <th className="px-4 py-3 font-medium">Tax ID</th>
                 <th className="px-4 py-3 font-medium">เว็บไซต์</th>
                 <th className="px-4 py-3 font-medium">โทรศัพท์</th>
                 <th className="px-4 py-3" />
@@ -150,8 +223,21 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
                       <span className="font-medium">{c.name}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {c.industry || "—"}
+                  <td className="px-4 py-3">
+                    {c.tags && c.tags.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {c.tags.map((t) => (
+                          <Badge key={t} tone="muted">
+                            {t}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    {c.tax_id || "—"}
                   </td>
                   <td className="px-4 py-3">
                     {c.website ? (
@@ -220,7 +306,16 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="tax_id">Tax ID (เลขผู้เสียภาษี)</Label>
+              <Input
+                id="tax_id"
+                value={form.tax_id}
+                onChange={(e) => setForm({ ...form, tax_id: e.target.value })}
+                placeholder="0105xxxxxxxxx"
+              />
+            </div>
             <div>
               <Label htmlFor="industry">อุตสาหกรรม</Label>
               <Input
@@ -236,6 +331,45 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
+            </div>
+          </div>
+
+          <div>
+            <Label>แท็ก (ติดได้หลายอัน · ใช้กรอง)</Label>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {[...new Set([...COMMON_TAGS, ...form.tags])].map((t) => (
+                <button
+                  type="button"
+                  key={t}
+                  onClick={() => toggleFormTag(t)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                    form.tags.includes(t)
+                      ? "border-primary bg-primary text-white"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {form.tags.includes(t) ? <X className="h-3 w-3" /> : null}
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addFormTag();
+                  }
+                }}
+                placeholder="เพิ่มแท็กใหม่ แล้วกด Enter"
+                className="h-8"
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={addFormTag}>
+                เพิ่ม
+              </Button>
             </div>
           </div>
           <div>

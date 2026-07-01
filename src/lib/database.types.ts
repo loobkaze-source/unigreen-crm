@@ -53,6 +53,8 @@ export interface Company extends Mutable {
   id: string;
   org_id: string;
   customer_code: string | null;
+  tax_id: string | null;
+  tags: string[];
   name: string;
   industry: string | null;
   website: string | null;
