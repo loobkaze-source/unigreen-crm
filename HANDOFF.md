@@ -70,6 +70,8 @@ Open Supabase → **SQL Editor** and run in order:
     customer→site→asset cascade
 16. `0016_work_order_assets.sql` — `work_order_assets` M2M (a WO can involve many
     assets; backfilled from the single `asset_id`)
+17. `0017_work_order_case.sql` — `work_orders.case_id` (FK cases); a case can't be
+    closed while it has unfinished work orders (guard in cases/actions.ts)
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.
