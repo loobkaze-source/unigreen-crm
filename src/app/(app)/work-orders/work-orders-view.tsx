@@ -30,7 +30,12 @@ import {
   typeLabel,
   woCode,
 } from "./constants";
-import { WorkOrderModal, type Option } from "./work-order-modal";
+import {
+  WorkOrderModal,
+  type Option,
+  type SiteOption,
+  type AssetOption,
+} from "./work-order-modal";
 import { deleteWorkOrder } from "./actions";
 
 export function WorkOrdersView({
@@ -38,13 +43,15 @@ export function WorkOrdersView({
   technicians,
   companies,
   contacts,
+  sites,
   assets,
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
-  assets: Option[];
+  sites: SiteOption[];
+  assets: AssetOption[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -247,6 +254,7 @@ export function WorkOrdersView({
         technicians={technicians}
         companies={companies}
         contacts={contacts}
+        sites={sites}
         assets={assets}
         onSaved={() => {
           setOpen(false);

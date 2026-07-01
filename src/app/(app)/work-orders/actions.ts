@@ -19,6 +19,7 @@ export type WorkOrderInput = {
   billing?: string | null;
   asset_id?: string | null;
   board_key?: string | null;
+  site_id?: string | null;
   company_id?: string | null;
   contact_id?: string | null;
   technician_id?: string | null;
@@ -53,6 +54,7 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     billing: oneOf(input.billing, ["warranty", "paid"]),
     asset_id: input.asset_id || null,
     board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
+    site_id: input.site_id || null,
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
     technician_id: input.technician_id || null,

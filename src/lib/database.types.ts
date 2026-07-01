@@ -168,6 +168,7 @@ export interface WorkOrder extends Mutable {
   billing: WorkOrderBilling | null;
   asset_id: string | null;
   board_key: string | null;
+  site_id: string | null;
   company_id: string | null;
   contact_id: string | null;
   deal_id: string | null;

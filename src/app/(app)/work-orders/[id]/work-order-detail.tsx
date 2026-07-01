@@ -38,7 +38,12 @@ import {
   typeLabel,
   woCode,
 } from "../constants";
-import { WorkOrderModal, type Option } from "../work-order-modal";
+import {
+  WorkOrderModal,
+  type Option,
+  type SiteOption,
+  type AssetOption,
+} from "../work-order-modal";
 import {
   addChecklistItem,
   addWorkOrderPhoto,
@@ -58,6 +63,7 @@ export function WorkOrderDetail({
   technicians,
   companies,
   contacts,
+  sites,
   assets,
   orgId,
   technicianName,
@@ -70,7 +76,8 @@ export function WorkOrderDetail({
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
-  assets: Option[];
+  sites: SiteOption[];
+  assets: AssetOption[];
   orgId: string;
   technicianName?: string;
   companyName?: string;
@@ -391,6 +398,7 @@ export function WorkOrderDetail({
         technicians={technicians}
         companies={companies}
         contacts={contacts}
+        sites={sites}
         assets={assets}
         onSaved={() => {
           setEditing(false);

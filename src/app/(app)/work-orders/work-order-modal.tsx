@@ -13,6 +13,14 @@ import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
+export type SiteOption = {
+  id: string;
+  name: string;
+  company_id: string | null;
+  address: string | null;
+  map_url: string | null;
+};
+export type AssetOption = { id: string; name: string; site_id: string | null };
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return "";
@@ -35,6 +43,7 @@ const blank = {
   asset_id: "",
   technician_id: "",
   company_id: "",
+  site_id: "",
   contact_id: "",
   scheduled_start: "",
   scheduled_end: "",
@@ -50,6 +59,7 @@ export function WorkOrderModal({
   technicians,
   companies,
   contacts,
+  sites,
   assets,
   onSaved,
 }: {
@@ -59,7 +69,8 @@ export function WorkOrderModal({
   technicians: Option[];
   companies: Option[];
   contacts: Option[];
-  assets: Option[];
+  sites: SiteOption[];
+  assets: AssetOption[];
   onSaved: () => void;
 }) {
   const [form, setForm] = useState(blank);
@@ -82,6 +93,7 @@ export function WorkOrderModal({
             asset_id: editing.asset_id || "",
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
+            site_id: editing.site_id || "",
             contact_id: editing.contact_id || "",
             scheduled_start: toLocalInput(editing.scheduled_start),
             scheduled_end: toLocalInput(editing.scheduled_end),
@@ -96,6 +108,43 @@ export function WorkOrderModal({
   function set<K extends keyof typeof blank>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
   }
+
+  // ---- Cascade: customer -> site -> asset --------------------------------
+  function selectCompany(id: string) {
+    setForm((f) => {
+      const keep = sites.find((s) => s.id === f.site_id)?.company_id === id;
+      if (keep) return { ...f, company_id: id };
+      // Site no longer matches the customer — clear the site + its auto-filled
+      // address/map so stale wrong-customer location isn't saved.
+      return {
+        ...f,
+        company_id: id,
+        site_id: "",
+        asset_id: "",
+        site_address: "",
+        site_map_url: "",
+      };
+    });
+  }
+  function selectSite(id: string) {
+    const s = sites.find((x) => x.id === id);
+    setForm((f) => ({
+      ...f,
+      site_id: id,
+      company_id: s?.company_id ?? f.company_id,
+      // Auto-fill from the site, but keep any typed value if the site has none.
+      site_address: s?.address ?? f.site_address,
+      site_map_url: s?.map_url ?? f.site_map_url,
+      asset_id: "",
+    }));
+  }
+
+  const visibleSites = form.company_id
+    ? sites.filter((s) => s.company_id === form.company_id || s.id === form.site_id)
+    : sites;
+  const visibleAssets = assets.filter(
+    (a) => (form.site_id && a.site_id === form.site_id) || a.id === form.asset_id
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +162,7 @@ export function WorkOrderModal({
         asset_id: form.asset_id || null,
         technician_id: form.technician_id || null,
         company_id: form.company_id || null,
+        site_id: form.site_id || null,
         contact_id: form.contact_id || null,
         scheduled_start: form.scheduled_start || null,
         scheduled_end: form.scheduled_end || null,
@@ -188,33 +238,36 @@ export function WorkOrderModal({
           </div>
         </div>
 
+        {/* Cascade: เลือกลูกค้า -> ไซต์ -> (Asset ด้านล่าง) */}
         <div className="grid grid-cols-3 gap-3">
-          <div>
-            <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
-            <Select
-              id="technician_id"
-              value={form.technician_id}
-              onChange={(e) => set("technician_id", e.target.value)}
-            >
-              <option value="">— ยังไม่มอบหมาย —</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
-          </div>
           <div>
             <Label htmlFor="company_id">ลูกค้า (บริษัท)</Label>
             <Select
               id="company_id"
               value={form.company_id}
-              onChange={(e) => set("company_id", e.target.value)}
+              onChange={(e) => selectCompany(e.target.value)}
             >
               <option value="">— ไม่ระบุ —</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="site_id">ไซต์งาน</Label>
+            <Select
+              id="site_id"
+              value={form.site_id}
+              onChange={(e) => selectSite(e.target.value)}
+            >
+              <option value="">
+                {form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
+              </option>
+              {visibleSites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
                 </option>
               ))}
             </Select>
@@ -272,20 +325,44 @@ export function WorkOrderModal({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="asset_id">Asset / ประกัน (Serial หรือ เลขโครงการ)</Label>
-          <Select id="asset_id" value={form.asset_id} onChange={(e) => set("asset_id", e.target.value)}>
-            <option value="">— ไม่ระบุ —</option>
-            {assets.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="asset_id">Asset / ประกัน (ในไซต์ที่เลือก)</Label>
+            <Select
+              id="asset_id"
+              value={form.asset_id}
+              disabled={!form.site_id}
+              onChange={(e) => set("asset_id", e.target.value)}
+            >
+              <option value="">
+                {form.site_id ? "— ไม่ระบุ —" : "— เลือกไซต์ก่อน —"}
               </option>
-            ))}
-          </Select>
-          <p className="mt-1 text-xs text-muted-foreground">
-            ถ้าเป็นงานในประกัน เลือก Asset ที่อยู่ในประกัน (ระบบจะอ้างอิง Serial/เลขโครงการของ Asset นั้น)
-          </p>
+              {visibleAssets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
+            <Select
+              id="technician_id"
+              value={form.technician_id}
+              onChange={(e) => set("technician_id", e.target.value)}
+            >
+              <option value="">— ยังไม่มอบหมาย —</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          ถ้าเป็นงานในประกัน เลือก Asset ที่อยู่ในประกัน (ระบบอ้างอิง Serial/เลขโครงการของ Asset นั้น) · ที่อยู่หน้างานจะเติมให้อัตโนมัติจากไซต์
+        </p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

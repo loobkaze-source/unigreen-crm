@@ -27,6 +27,7 @@ export default async function WorkOrderDetailPage({
     { data: technicians },
     { data: companies },
     { data: contacts },
+    { data: sites },
     { data: assets },
   ] = await Promise.all([
     supabase
@@ -51,8 +52,13 @@ export default async function WorkOrderDetailPage({
       .eq("org_id", org.id)
       .order("first_name"),
     supabase
+      .from("sites")
+      .select("id, name, company_id, address, map_url")
+      .eq("org_id", org.id)
+      .order("name"),
+    supabase
       .from("equipment")
-      .select("id, code, name, asset_type, brand, serial_number, project_number")
+      .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
       .eq("org_id", org.id)
       .order("code"),
   ]);
@@ -63,6 +69,7 @@ export default async function WorkOrderDetailPage({
     const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
     return {
       id: a.id,
+      site_id: a.site_id,
       name: `${assetCode(a.code)} · ${a.name}${ident ? ` · ${ident}` : ""}${brand}`,
     };
   });
@@ -85,6 +92,7 @@ export default async function WorkOrderDetailPage({
       technicians={techList}
       companies={companyList}
       contacts={contactList}
+      sites={sites ?? []}
       assets={assetList}
       orgId={org.id}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
