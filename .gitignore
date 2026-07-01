@@ -46,3 +46,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local data backups (JSON) — never commit real data
+backups/
