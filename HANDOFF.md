@@ -61,6 +61,9 @@ Open Supabase → **SQL Editor** and run in order:
     first login) + `mark_password_changed()` RPC; backfills the flag for all non-owner members
 12. `0012_board_assignments.sql` — `board_assignments` (admins assign users to pipeline/service
     boards per department); renames legacy role "Job Dispatcher" → "Dispatcher"
+13. `0013_assets_service_fields.sql` — equipment→asset (`asset_type` object/project,
+    `project_number`, `warranty_months`, `warranty_start`); work_orders `job_class` (CM/PM),
+    `billing` (warranty/paid), `asset_id`, `board_key`; service_contracts `board_key`
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
