@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
+  ChevronDown,
   HardHat,
   Handshake,
   LayoutDashboard,
@@ -21,6 +22,7 @@ import {
   UserCog,
   Users,
   UserPlus,
+  Workflow,
   Wrench,
   X,
 } from "lucide-react";
@@ -28,7 +30,6 @@ import { cn, initials } from "@/lib/utils";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 
-// `adminOnly: true` = visible to owners/admins only.
 const NAV = [
   { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
   { href: "/leads", label: "ลูกค้ามุ่งหวัง", icon: UserPlus },
@@ -43,8 +44,14 @@ const NAV = [
   { href: "/technicians", label: "ช่าง", icon: HardHat },
   { href: "/products", label: "สินค้า", icon: Package },
   { href: "/activities", label: "กิจกรรม", icon: ListChecks },
-  { href: "/users", label: "ผู้ใช้", icon: UserCog, adminOnly: true },
 ] as const;
+
+// Admin-only settings submenu.
+const SETTINGS_NAV = [
+  { href: "/users", label: "ผู้ใช้", icon: UserCog },
+  { href: "/settings/pipelines", label: "ไปป์ไลน์", icon: Workflow },
+  { href: "/settings/service-boards", label: "Service Board", icon: Wrench },
+];
 
 export function AppShell({
   user,
@@ -65,11 +72,13 @@ export function AppShell({
 
   const isTechnician = !isAdmin && appRole === "Technician";
 
-  const visibleNav = NAV.filter((item) => {
-    if ("adminOnly" in item && item.adminOnly && !isAdmin) return false;
-    if (isTechnician && !TECH_ROUTES.some((r) => r === item.href)) return false;
-    return true;
-  });
+  const visibleNav = NAV.filter(
+    (item) => !isTechnician || TECH_ROUTES.some((r) => r === item.href)
+  );
+
+  const [settingsOpen, setSettingsOpen] = useState(
+    () => pathname.startsWith("/users") || pathname.startsWith("/settings")
+  );
 
   const blocked = isTechnician && !isTechnicianAllowed(pathname);
 
@@ -140,6 +149,47 @@ export function AppShell({
               </Link>
             );
           })}
+
+          {isAdmin ? (
+            <div className="pt-1">
+              <button
+                onClick={() => setSettingsOpen((o) => !o)}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-sidebar-accent hover:text-white"
+              >
+                <Settings className="h-4.5 w-4.5" />
+                ตั้งค่า
+                <ChevronDown
+                  className={cn(
+                    "ml-auto h-4 w-4 transition-transform",
+                    settingsOpen && "rotate-180"
+                  )}
+                />
+              </button>
+              {settingsOpen ? (
+                <div className="mt-1 space-y-1 border-l border-white/10 pl-3">
+                  {SETTINGS_NAV.map((item) => {
+                    const active = routeMatches(pathname, item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                          active
+                            ? "bg-primary text-white"
+                            : "text-slate-300 hover:bg-sidebar-accent hover:text-white"
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </nav>
 
         <div className="border-t border-white/10 p-3">

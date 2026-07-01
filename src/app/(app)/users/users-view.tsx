@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DEPARTMENTS } from "@/lib/departments";
-import { USER_ROLES } from "@/lib/roles";
+import { USER_ROLES, DEPT_ROLES } from "@/lib/roles";
 import { updateMember, createUser, resetUserPassword, removeMember } from "./actions";
 
 type Member = {
@@ -22,8 +22,6 @@ type Member = {
   name: string;
   email: string;
 };
-
-const DEPT_ROLES = new Set(["Manager", "Sales", "Job Dispatcher", "Technician"]);
 
 export function UsersView({
   members,

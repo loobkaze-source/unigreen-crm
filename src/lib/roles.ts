@@ -8,8 +8,24 @@ export const USER_ROLES = [
   "Sales",
   "Manager",
   "Technician",
-  "Job Dispatcher",
+  "Dispatcher",
+  "Technical Supporter",
   "Accounting",
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Roles that participate in a sales pipeline board. */
+export const PIPELINE_ROLES = ["Sales", "Manager"] as const;
+
+/** Roles that participate in a service board. */
+export const SERVICE_ROLES = ["Dispatcher", "Technical Supporter", "Technician"] as const;
+
+/** Roles that are scoped to a single department. */
+export const DEPT_ROLES = new Set<string>([
+  "Manager",
+  "Sales",
+  "Dispatcher",
+  "Technical Supporter",
+  "Technician",
+]);
