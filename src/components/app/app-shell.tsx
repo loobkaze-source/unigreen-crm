@@ -16,6 +16,7 @@ import {
   Menu,
   Package,
   Repeat,
+  Settings,
   ShieldCheck,
   UserCog,
   Users,
@@ -121,16 +122,32 @@ export function AppShell({
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-3 px-2 py-1.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
-              {initials(user.name)}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-white">
-                {user.name}
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <Link
+              href="/account"
+              onClick={() => setOpen(false)}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 hover:bg-sidebar-accent"
+              title="บัญชีของฉัน"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                {initials(user.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-white">
+                  {user.name}
+                </div>
+                <div className="truncate text-xs text-slate-400">{user.email}</div>
               </div>
-              <div className="truncate text-xs text-slate-400">{user.email}</div>
-            </div>
+            </Link>
+            <Link
+              href="/account"
+              onClick={() => setOpen(false)}
+              className="rounded-md p-1.5 text-slate-400 hover:bg-sidebar-accent hover:text-white"
+              title="ตั้งค่าบัญชี"
+              aria-label="ตั้งค่าบัญชี"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
             <form action="/auth/signout" method="post">
               <button
                 type="submit"

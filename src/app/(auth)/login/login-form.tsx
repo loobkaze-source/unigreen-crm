@@ -41,7 +41,15 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           />
         </div>
         <div>
-          <Label htmlFor="password">รหัสผ่าน</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">รหัสผ่าน</Label>
+            <Link
+              href="/forgot"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              ลืมรหัสผ่าน?
+            </Link>
+          </div>
           <Input
             id="password"
             name="password"
