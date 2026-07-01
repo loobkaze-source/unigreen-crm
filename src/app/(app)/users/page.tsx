@@ -2,13 +2,20 @@ import { getSessionContext } from "@/lib/data";
 import { UsersView } from "./users-view";
 
 export default async function UsersPage() {
-  const { supabase, org, role } = await getSessionContext();
+  const { supabase, org, isAdmin } = await getSessionContext();
 
-  const { data: members } = await supabase
-    .from("organization_members")
-    .select("id, user_id, role, app_role, created_at")
-    .eq("org_id", org.id)
-    .order("created_at", { ascending: true });
+  const [{ data: members }, { data: invites }] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("id, user_id, role, app_role, department, created_at")
+      .eq("org_id", org.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("invites")
+      .select("id, email, app_role, department, created_at")
+      .eq("org_id", org.id)
+      .order("created_at", { ascending: true }),
+  ]);
 
   const ids = (members ?? []).map((m) => m.user_id);
   const { data: profiles } = ids.length
@@ -21,11 +28,17 @@ export default async function UsersPage() {
     id: m.id,
     role: m.role as string,
     app_role: (m.app_role as string) || "",
+    department: (m.department as string) || "",
     name: pmap.get(m.user_id)?.full_name || "",
     email: pmap.get(m.user_id)?.email || "",
   }));
 
-  return (
-    <UsersView members={rows} canManage={["owner", "admin"].includes(role)} />
-  );
+  const inviteRows = (invites ?? []).map((i) => ({
+    id: i.id as string,
+    email: i.email as string,
+    app_role: (i.app_role as string) || "",
+    department: (i.department as string) || "",
+  }));
+
+  return <UsersView members={rows} invites={inviteRows} canManage={isAdmin} />;
 }

@@ -2,7 +2,7 @@ import { getSessionContext } from "@/lib/data";
 import { DealsBoard } from "./deals-board";
 
 export default async function DealsPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, isAdmin, department } = await getSessionContext();
 
   const [{ data: stages }, { data: deals }, { data: companies }, { data: contacts }] =
     await Promise.all([
@@ -33,6 +33,8 @@ export default async function DealsPage() {
         id: c.id,
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
       }))}
+      canSeeAll={isAdmin}
+      userDept={department}
     />
   );
 }

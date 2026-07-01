@@ -9,6 +9,12 @@ export type SessionContext = {
   profile: Profile | null;
   org: Organization;
   role: string;
+  /** Business role assigned by an admin (admin/Sales/Manager/…). */
+  appRole: string | null;
+  /** Department the user is scoped to (null = all / admin). */
+  department: string | null;
+  /** true when the user may see every department's data. */
+  isAdmin: boolean;
 };
 
 /**
@@ -33,15 +39,19 @@ export async function getSessionContext(): Promise<SessionContext> {
 
   const { data: memberships } = await supabase
     .from("organization_members")
-    .select("org_id, role")
+    .select("org_id, role, app_role, department")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
 
   let org: Organization | null = null;
   let role = "owner";
+  let appRole: string | null = null;
+  let department: string | null = null;
 
   if (memberships && memberships.length > 0) {
     role = memberships[0].role;
+    appRole = (memberships[0].app_role as string) ?? null;
+    department = (memberships[0].department as string) ?? null;
     const { data } = await supabase
       .from("organizations")
       .select("*")
@@ -66,6 +76,9 @@ export async function getSessionContext(): Promise<SessionContext> {
     redirect("/setup");
   }
 
+  const isAdmin =
+    role === "owner" || role === "admin" || appRole === "admin";
+
   return {
     supabase,
     userId: user.id,
@@ -73,5 +86,8 @@ export async function getSessionContext(): Promise<SessionContext> {
     profile: profile ?? null,
     org,
     role,
+    appRole,
+    department,
+    isAdmin,
   };
 }

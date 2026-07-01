@@ -26,31 +26,39 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
+import { DEPARTMENTS } from "@/lib/departments";
 import { saveDeal, deleteDeal, updateDealStage } from "./actions";
 
 type Option = { id: string; name: string };
-
-const DEPARTMENTS = [
-  { value: "unigreen", label: "Unigreen" },
-  { value: "product_sales", label: "Product Sales" },
-  { value: "services_sales", label: "Services Sales" },
-];
 
 export function DealsBoard({
   stages,
   deals: initialDeals,
   companies,
   contacts,
+  canSeeAll = true,
+  userDept = null,
 }: {
   stages: Stage[];
   deals: Deal[];
   companies: Option[];
   contacts: Option[];
+  /** Admins see every department's board; others are pinned to their own. */
+  canSeeAll?: boolean;
+  userDept?: string | null;
 }) {
   const router = useRouter();
+
+  // Which department tabs this user may switch between.
+  const boards = useMemo(() => {
+    if (canSeeAll) return DEPARTMENTS;
+    const mine = DEPARTMENTS.filter((d) => d.value === userDept);
+    return mine.length ? mine : DEPARTMENTS;
+  }, [canSeeAll, userDept]);
+
   const [deals, setDeals] = useState(initialDeals);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeDept, setActiveDept] = useState<string>("unigreen");
+  const [activeDept, setActiveDept] = useState<string>(boards[0].value);
   const [, startTransition] = useTransition();
 
   // Keep local board in sync with server data after refresh / mutations.
@@ -209,8 +217,9 @@ export function DealsBoard({
       </PageHeader>
 
       {/* Department boards */}
+      {boards.length > 1 ? (
       <div className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
-        {DEPARTMENTS.map((d) => (
+        {boards.map((d) => (
           <button
             key={d.value}
             onClick={() => setActiveDept(d.value)}
@@ -228,6 +237,7 @@ export function DealsBoard({
           </button>
         ))}
       </div>
+      ) : null}
 
       <DndContext
         sensors={sensors}
@@ -326,9 +336,10 @@ export function DealsBoard({
             <Select
               id="department"
               value={form.department}
+              disabled={!canSeeAll}
               onChange={(e) => setForm({ ...form, department: e.target.value })}
             >
-              {DEPARTMENTS.map((d) => (
+              {boards.map((d) => (
                 <option key={d.value} value={d.value}>
                   {d.label}
                 </option>
