@@ -64,6 +64,8 @@ Open Supabase → **SQL Editor** and run in order:
 13. `0013_assets_service_fields.sql` — equipment→asset (`asset_type` object/project,
     `project_number`, `warranty_months`, `warranty_start`); work_orders `job_class` (CM/PM),
     `billing` (warranty/paid), `asset_id`, `board_key`; service_contracts `board_key`
+14. `0014_asset_code.sql` — `equipment.code` (per-org sequential AS-0001, trigger + backfill):
+    the unique Asset ID (serial numbers aren't globally unique — can collide across brands)
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
