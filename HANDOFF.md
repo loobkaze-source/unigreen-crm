@@ -178,6 +178,11 @@ Supabase → Project Settings → API → `service_role` `secret`. Set it in **b
 `NEXT_PUBLIC_` prefix, so it never reaches the browser). Without it, /users shows a warning and
 create/reset are disabled (self-service password change and forced first-login change still work).
 
+**Username login (no email):** usernames are stored as internal emails `<username>@unicloud.local`
+(`src/lib/username.ts`: `toAuthEmail` maps a login id → email, `displayUsername` strips the domain
+for display). Login and admin `createUser` accept a plain username OR a real email; existing
+real-email accounts keep logging in with their email. All user-facing displays use `displayUsername`.
+
 **User model (admin-managed, no email):** admins create users in `/users` with an initial password;
 new users are forced to `/set-password` on first login (gated by `must_change_password` in the
 `(app)` layout via `getSessionContext`). Password reset is admin-only (`resetUserPassword` → sets a
