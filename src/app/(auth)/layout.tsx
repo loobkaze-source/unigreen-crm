@@ -15,14 +15,14 @@ export default function AuthLayout({
       <div className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
         <Image
           src="/brand/logo-dark.png"
-          alt="Unigreen"
+          alt="Unicloud"
           width={168}
           height={35}
           priority
         />
         <div className="relative z-10 max-w-md">
           <h1 className="text-3xl font-bold leading-tight">
-            ขับเคลื่อนยอดขายพลังงานสะอาด
+            บริหารงานขายและบริการอย่างมืออาชีพ
           </h1>
           <p className="mt-4 text-slate-300">
             ติดตามลูกค้ามุ่งหวัง จัดการไปป์ไลน์การขายและโครงการ
@@ -41,7 +41,7 @@ export default function AuthLayout({
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <Image src="/brand/logo-light.png" alt="Unigreen" width={150} height={31} priority />
+            <Image src="/brand/logo-light.png" alt="Unicloud" width={150} height={31} priority />
           </div>
           {children}
         </div>

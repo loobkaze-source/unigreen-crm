@@ -10,8 +10,8 @@ const notoThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "Unigreen CRM",
-  description: "ระบบ CRM สำหรับทีมขายพลังงานสะอาด Unigreen",
+  title: "Unicloud CRM",
+  description: "ระบบ CRM สำหรับทีมขายและบริการ Unicloud",
 };
 
 export default function RootLayout({

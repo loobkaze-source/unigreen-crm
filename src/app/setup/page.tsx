@@ -9,7 +9,7 @@ export default function SetupPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6 py-12">
       <div className="mb-6">
-        <Image src="/brand/logo-light.png" alt="Unigreen" width={150} height={31} priority />
+        <Image src="/brand/logo-light.png" alt="Unicloud" width={150} height={31} priority />
       </div>
 
       <div className="rounded-xl border border-border bg-card p-8 shadow-sm">

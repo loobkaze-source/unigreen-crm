@@ -76,7 +76,7 @@ export function AppShell({
           <Link href="/dashboard" className="flex items-center">
             <Image
               src="/brand/logo-dark.png"
-              alt="Unigreen"
+              alt="Unicloud"
               width={144}
               height={30}
               priority
@@ -173,7 +173,7 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Image src="/brand/logo-light.png" alt="Unigreen" width={120} height={25} />
+          <Image src="/brand/logo-light.png" alt="Unicloud" width={120} height={25} />
         </div>
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>

@@ -17,7 +17,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
     <div>
       <h1 className="text-2xl font-bold tracking-tight">ยินดีต้อนรับกลับมา</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        เข้าสู่ระบบพื้นที่ทำงาน Unigreen CRM ของคุณ
+        เข้าสู่ระบบพื้นที่ทำงาน Unicloud CRM ของคุณ
       </p>
 
       <form action={formAction} className="mt-6 space-y-4">

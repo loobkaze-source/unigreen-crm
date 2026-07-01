@@ -1,48 +1,48 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   Unigreen — brand design tokens
-   Brand palette (from logo): mint #60F0A8 · cyan #0CCCFC · purple #A860FC
+   Unicloud — brand design tokens
+   Brand palette (from logo): azure blue #2A72E0 · interactive #2563EB
    =========================================================================== */
 :root {
-  --background: #f4f8f6;
-  --foreground: #142019;
+  --background: #f5f8fd;
+  --foreground: #0f172a;
 
   --card: #ffffff;
-  --card-foreground: #142019;
+  --card-foreground: #0f172a;
 
-  --muted: #eef3f0;
-  --muted-foreground: #5d6b64;
+  --muted: #eef2f9;
+  --muted-foreground: #58657a;
 
-  --border: #e2eae6;
-  --input: #dbe5e0;
-  --ring: #2fd99a;
+  --border: #e3e9f2;
+  --input: #d8e1ef;
+  --ring: #2a72e0;
 
-  /* Interactive green — deep enough for white text + readable links */
-  --primary: #0ba36c;
+  /* Interactive blue — deep enough for white text + readable links */
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
 
-  --accent: #e3faf0;
-  --accent-foreground: #07744d;
+  --accent: #e7f0fe;
+  --accent-foreground: #1a4fbf;
 
-  --secondary: #eef3f0;
-  --secondary-foreground: #142019;
+  --secondary: #eef2f9;
+  --secondary-foreground: #0f172a;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --success: #0ba36c;
+  --success: #16a34a;
   --warning: #d97706;
 
-  /* Brand accent colours (the three leaves) */
-  --brand-mint: #60f0a8;
-  --brand-cyan: #0cccfc;
-  --brand-purple: #a860fc;
-  --brand-ink: #484848;
+  /* Brand accent colours (blue / indigo family) */
+  --brand-mint: #60a5fa;
+  --brand-cyan: #2a72e0;
+  --brand-purple: #818cf8;
+  --brand-ink: #1e293b;
 
-  --sidebar: #0c1a15;
-  --sidebar-foreground: #b8c7bf;
-  --sidebar-accent: #16271f;
+  --sidebar: #0b1b33;
+  --sidebar-foreground: #b7c4d8;
+  --sidebar-accent: #15294a;
 
   --radius: 0.65rem;
 }
@@ -105,12 +105,12 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5cf;
+  background: #c7d2e4;
   border-radius: 9999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a39b;
+  background: #94a3be;
   background-clip: padding-box;
 }
