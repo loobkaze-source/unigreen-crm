@@ -72,7 +72,7 @@ Also in Supabase Auth settings: **turn OFF "Confirm email"** (built-in email is 
 
 ## 4. Deployment (Netlify)
 
-- Live: **https://unigreen-crm-th.netlify.app** (site `unigreen-crm-th`, account `vasawat-wx3l7a`)
+- Live: **https://unicloudcrm.netlify.app** (site `unicloudcrm`, account `vasawat-wx3l7a`; renamed from `unigreen-crm-th` on 2026-07-01)
 - Code: GitHub **loobkaze-source/unigreen-crm** (branch `main`) — **PUBLIC** repo
 - `git push` to `main` → Netlify auto-builds on Linux (`@netlify/plugin-nextjs`). Env vars set on the Netlify site.
 
@@ -81,7 +81,7 @@ Also in Supabase Auth settings: **turn OFF "Confirm email"** (built-in email is 
   Netlify site's `repo.private` was set false via API. Don't flip the repo back to private.
 - Commits should be authored as **vasawat@unigreen.solar** (the Netlify account email; git config set locally).
 - Manual build trigger if needed: `POST /api/v1/sites/{id}/builds` with the Netlify token.
-- Check deploy state via `GET /api/v1/sites/unigreen-crm-th.netlify.app/deploys` (needs the token).
+- Check deploy state via `GET /api/v1/sites/unicloudcrm.netlify.app/deploys` (needs the token).
 
 ---
 
