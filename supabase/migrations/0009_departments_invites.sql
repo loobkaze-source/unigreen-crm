@@ -72,7 +72,7 @@ begin
     insert into public.organization_members (org_id, user_id, role, app_role, department)
       values (
         inv.org_id, new.id,
-        case when inv.app_role = 'admin' then 'admin' else 'member' end,
+        (case when inv.app_role = 'admin' then 'admin' else 'member' end)::public.member_role,
         inv.app_role,
         case when inv.app_role = 'admin' then null else inv.department end
       )
