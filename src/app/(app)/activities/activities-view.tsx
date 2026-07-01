@@ -2,8 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { format, isPast } from "date-fns";
-import { th } from "date-fns/locale";
+import { isPast } from "date-fns";
 import {
   Calendar,
   CheckCircle2,
@@ -27,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { fmtDateTime } from "@/lib/format";
 import { saveActivity, toggleActivity, deleteActivity } from "./actions";
 
 type Option = { id: string; name: string };
@@ -247,7 +247,7 @@ export function ActivitiesView({
                         overdue ? "font-medium text-destructive" : "text-muted-foreground"
                       )}
                     >
-                      {format(new Date(a.due_date), "d MMM HH:mm", { locale: th })}
+                      {fmtDateTime(a.due_date)}
                     </span>
                   ) : null}
                   <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">

@@ -18,6 +18,7 @@ export type WorkOrderInput = {
   job_class?: string | null;
   billing?: string | null;
   asset_id?: string | null;
+  asset_ids?: string[];
   board_key?: string | null;
   site_id?: string | null;
   company_id?: string | null;
@@ -39,10 +40,40 @@ function iso(v: string | null | undefined): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Replace a work order's linked assets (M2M). Returns an error message or null. */
+async function syncAssets(
+  supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
+  orgId: string,
+  workOrderId: string,
+  assetIds: string[]
+): Promise<string | null> {
+  const unique = [...new Set(assetIds.filter(Boolean))];
+  // Insert first so a failure doesn't leave the WO with zero assets.
+  if (unique.length) {
+    const { error: insErr } = await supabase.from("work_order_assets").upsert(
+      unique.map((equipment_id) => ({
+        org_id: orgId,
+        work_order_id: workOrderId,
+        equipment_id,
+      })),
+      { onConflict: "work_order_id,equipment_id" }
+    );
+    if (insErr) return insErr.message;
+  }
+  // Then drop any links no longer selected.
+  let del = supabase.from("work_order_assets").delete().eq("work_order_id", workOrderId);
+  if (unique.length) del = del.not("equipment_id", "in", `(${unique.join(",")})`);
+  const { error: delErr } = await del;
+  if (delErr) return delErr.message;
+  return null;
+}
+
 export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, userId } = await getSessionContext();
   const title = input.title?.trim();
   if (!title) return fail("กรุณากรอกชื่องาน");
+
+  const assetIds = input.asset_ids ?? (input.asset_id ? [input.asset_id] : []);
 
   const payload: Record<string, unknown> = {
     org_id: org.id,
@@ -52,7 +83,7 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     priority: input.priority || "normal",
     job_class: oneOf(input.job_class, ["CM", "PM"]),
     billing: oneOf(input.billing, ["warranty", "paid"]),
-    asset_id: input.asset_id || null,
+    asset_id: assetIds[0] ?? null, // keep the single column pointing at the first
     board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
     site_id: input.site_id || null,
     company_id: input.company_id || null,
@@ -72,14 +103,20 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
       .update(payload)
       .eq("id", input.id);
     if (error) return fail(error.message);
+    const aErr = await syncAssets(supabase, org.id, input.id, assetIds);
+    if (aErr) return fail(aErr);
     revalidatePath(`/work-orders/${input.id}`);
   } else {
+    // New WO is owned by its creator (the Dispatcher).
+    payload.owner_id = userId;
     const { data, error } = await supabase
       .from("work_orders")
       .insert(payload)
       .select("id")
       .single();
     if (error) return fail(error.message);
+    const aErr = await syncAssets(supabase, org.id, data.id, assetIds);
+    if (aErr) return fail(aErr);
     revalidatePath("/work-orders");
     return ok(data.id);
   }

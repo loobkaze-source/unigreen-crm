@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/format";
 import { statusMeta, woCode, jobClassLabel, billingMeta } from "../work-orders/constants";
 
 type Board = { value: string; label: string };
@@ -25,11 +26,6 @@ type Contract = { id: string; title: string; board_key: string | null; site_id: 
 type Visit = { id: string; contract_id: string; seq: number; due_date: string };
 type Tech = { id: string; name: string; nickname: string | null };
 
-const fmt = (d: string) => {
-  const dt = new Date(d + (d.length <= 10 ? "T00:00:00" : ""));
-  if (Number.isNaN(dt.getTime())) return d;
-  return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear() + 543}`;
-};
 const isOverdue = (d: string) => {
   const dt = new Date(d + (d.length <= 10 ? "T00:00:00" : ""));
   return !Number.isNaN(dt.getTime()) && dt.getTime() < Date.now();
@@ -148,7 +144,7 @@ export function ServiceBoardView({
                     </div>
                     <Badge tone={overdue ? "danger" : "info"}>
                       {overdue ? "เลยกำหนด " : "ครบกำหนด "}
-                      {fmt(v.due_date)}
+                      {fmtDate(v.due_date)}
                     </Badge>
                   </li>
                 );
@@ -185,7 +181,7 @@ export function ServiceBoardView({
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {[
-                          w.scheduled_start ? fmt(w.scheduled_start.slice(0, 10)) : null,
+                          w.scheduled_start ? fmtDate(w.scheduled_start.slice(0, 10)) : null,
                           techName(w.technician_id),
                         ]
                           .filter(Boolean)

@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { th } from "date-fns/locale";
 import {
   ArrowLeft,
   Building2,
@@ -31,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
   priorityMeta,
@@ -41,6 +41,7 @@ import {
 import {
   WorkOrderModal,
   type Option,
+  type ContactOption,
   type SiteOption,
   type AssetOption,
 } from "../work-order-modal";
@@ -65,6 +66,7 @@ export function WorkOrderDetail({
   contacts,
   sites,
   assets,
+  assetIds,
   orgId,
   technicianName,
   companyName,
@@ -75,9 +77,10 @@ export function WorkOrderDetail({
   photos: PhotoWithUrl[];
   technicians: Option[];
   companies: Option[];
-  contacts: Option[];
+  contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  assetIds: string[];
   orgId: string;
   technicianName?: string;
   companyName?: string;
@@ -234,9 +237,7 @@ export function WorkOrderDetail({
             label="นัดหมาย"
             value={
               workOrder.scheduled_start
-                ? format(new Date(workOrder.scheduled_start), "d MMM yyyy, HH:mm", {
-                    locale: th,
-                  }) +
+                ? fmtDateTime(workOrder.scheduled_start) +
                   (workOrder.scheduled_end
                     ? ` – ${format(new Date(workOrder.scheduled_end), "HH:mm")}`
                     : "")
@@ -400,6 +401,7 @@ export function WorkOrderDetail({
         contacts={contacts}
         sites={sites}
         assets={assets}
+        assetIds={assetIds}
         onSaved={() => {
           setEditing(false);
           router.refresh();

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
   billingMeta,
@@ -33,6 +34,7 @@ import {
 import {
   WorkOrderModal,
   type Option,
+  type ContactOption,
   type SiteOption,
   type AssetOption,
 } from "./work-order-modal";
@@ -45,13 +47,15 @@ export function WorkOrdersView({
   contacts,
   sites,
   assets,
+  assetIdsByWo,
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
   companies: Option[];
-  contacts: Option[];
+  contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  assetIdsByWo: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -213,7 +217,7 @@ export function WorkOrdersView({
           {agenda.groups.map(([date, items]) => (
             <div key={date}>
               <h3 className="mb-2 text-sm font-semibold">
-                {format(new Date(date), "EEEE d MMMM", { locale: th })}
+                {format(new Date(date), "EEEE", { locale: th })} {fmtDate(date)}
               </h3>
               <div className="space-y-2">
                 {items.map((w) => (
@@ -256,6 +260,7 @@ export function WorkOrdersView({
         contacts={contacts}
         sites={sites}
         assets={assets}
+        assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
         onSaved={() => {
           setOpen(false);
           router.refresh();
@@ -316,9 +321,7 @@ function WorkOrderRow({
       </td>
       <td className="px-4 py-3 text-muted-foreground">{techName || "—"}</td>
       <td className="px-4 py-3 text-muted-foreground">
-        {w.scheduled_start
-          ? format(new Date(w.scheduled_start), "d MMM HH:mm", { locale: th })
-          : "—"}
+        {w.scheduled_start ? fmtDateTime(w.scheduled_start) : "—"}
       </td>
       <td className="px-4 py-3">
         <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">

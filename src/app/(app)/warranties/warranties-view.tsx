@@ -2,8 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { th } from "date-fns/locale";
 import { Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import type { Warranty, WarrantyKind } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
@@ -16,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/format";
 import { saveWarranty, deleteWarranty } from "./actions";
 
 type Option = { id: string; name: string };
@@ -132,7 +131,7 @@ export function WarrantiesView({
     const expired = w.end_date < today;
     return (
       <span className={cn("text-sm", expired ? "font-medium text-destructive" : "")}>
-        {format(new Date(w.end_date), "d MMM yyyy", { locale: th })}
+        {fmtDate(w.end_date)}
         {expired ? (
           <Badge tone="danger" className="ml-2">
             หมดอายุ

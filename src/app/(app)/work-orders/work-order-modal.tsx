@@ -13,6 +13,7 @@ import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
+export type ContactOption = { id: string; name: string; company_id: string | null };
 export type SiteOption = {
   id: string;
   name: string;
@@ -40,7 +41,7 @@ const blank = {
   job_class: "",
   billing: "",
   board_key: "",
-  asset_id: "",
+  asset_ids: [] as string[],
   technician_id: "",
   company_id: "",
   site_id: "",
@@ -61,6 +62,7 @@ export function WorkOrderModal({
   contacts,
   sites,
   assets,
+  assetIds = [],
   onSaved,
 }: {
   open: boolean;
@@ -68,18 +70,22 @@ export function WorkOrderModal({
   editing: WorkOrder | null;
   technicians: Option[];
   companies: Option[];
-  contacts: Option[];
+  contacts: ContactOption[];
   sites: SiteOption[];
   assets: AssetOption[];
+  /** The editing WO's current linked asset ids (empty when creating). */
+  assetIds?: string[];
   onSaved: () => void;
 }) {
   const [form, setForm] = useState(blank);
   const [error, setError] = useState<string | null>(null);
+  const [assetQuery, setAssetQuery] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setAssetQuery("");
     setForm(
       editing
         ? {
@@ -90,7 +96,7 @@ export function WorkOrderModal({
             job_class: editing.job_class || "",
             billing: editing.billing || "",
             board_key: editing.board_key || "",
-            asset_id: editing.asset_id || "",
+            asset_ids: assetIds,
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
             site_id: editing.site_id || "",
@@ -103,7 +109,7 @@ export function WorkOrderModal({
           }
         : blank
     );
-  }, [open, editing]);
+  }, [open, editing, assetIds]);
 
   function set<K extends keyof typeof blank>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -113,14 +119,17 @@ export function WorkOrderModal({
   function selectCompany(id: string) {
     setForm((f) => {
       const keep = sites.find((s) => s.id === f.site_id)?.company_id === id;
-      if (keep) return { ...f, company_id: id };
+      const contactOk = contacts.find((c) => c.id === f.contact_id)?.company_id === id;
+      if (keep)
+        return { ...f, company_id: id, contact_id: contactOk ? f.contact_id : "" };
       // Site no longer matches the customer — clear the site + its auto-filled
-      // address/map so stale wrong-customer location isn't saved.
+      // address/map (+ contact + assets) so stale wrong-customer data isn't saved.
       return {
         ...f,
         company_id: id,
         site_id: "",
-        asset_id: "",
+        asset_ids: [],
+        contact_id: contactOk ? f.contact_id : "",
         site_address: "",
         site_map_url: "",
       };
@@ -128,23 +137,58 @@ export function WorkOrderModal({
   }
   function selectSite(id: string) {
     const s = sites.find((x) => x.id === id);
-    setForm((f) => ({
-      ...f,
-      site_id: id,
-      company_id: s?.company_id ?? f.company_id,
-      // Auto-fill from the site, but keep any typed value if the site has none.
-      site_address: s?.address ?? f.site_address,
-      site_map_url: s?.map_url ?? f.site_map_url,
-      asset_id: "",
-    }));
+    setForm((f) => {
+      const resolvedCompany = s?.company_id ?? f.company_id;
+      const contactOk =
+        !f.contact_id ||
+        contacts.find((c) => c.id === f.contact_id)?.company_id === resolvedCompany;
+      return {
+        ...f,
+        site_id: id,
+        company_id: resolvedCompany,
+        // Auto-fill from the site, but keep any typed value if the site has none.
+        site_address: s?.address ?? f.site_address,
+        site_map_url: s?.map_url ?? f.site_map_url,
+        asset_ids: [],
+        contact_id: contactOk ? f.contact_id : "",
+      };
+    });
   }
 
   const visibleSites = form.company_id
     ? sites.filter((s) => s.company_id === form.company_id || s.id === form.site_id)
     : sites;
+  const visibleContacts = form.company_id
+    ? contacts.filter((c) => c.company_id === form.company_id || c.id === form.contact_id)
+    : contacts;
   const visibleAssets = assets.filter(
-    (a) => (form.site_id && a.site_id === form.site_id) || a.id === form.asset_id
+    (a) => (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
   );
+  const shownAssets = assetQuery.trim()
+    ? visibleAssets.filter((a) =>
+        a.name.toLowerCase().includes(assetQuery.trim().toLowerCase())
+      )
+    : visibleAssets;
+  const allShownSelected =
+    shownAssets.length > 0 && shownAssets.every((a) => form.asset_ids.includes(a.id));
+
+  function toggleAsset(id: string) {
+    setForm((f) => ({
+      ...f,
+      asset_ids: f.asset_ids.includes(id)
+        ? f.asset_ids.filter((x) => x !== id)
+        : [...f.asset_ids, id],
+    }));
+  }
+  function toggleAllShown() {
+    const ids = shownAssets.map((a) => a.id);
+    setForm((f) => ({
+      ...f,
+      asset_ids: allShownSelected
+        ? f.asset_ids.filter((x) => !ids.includes(x))
+        : [...new Set([...f.asset_ids, ...ids])],
+    }));
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -159,7 +203,7 @@ export function WorkOrderModal({
         job_class: form.job_class || null,
         billing: form.billing || null,
         board_key: form.board_key || null,
-        asset_id: form.asset_id || null,
+        asset_ids: form.asset_ids,
         technician_id: form.technician_id || null,
         company_id: form.company_id || null,
         site_id: form.site_id || null,
@@ -280,7 +324,7 @@ export function WorkOrderModal({
               onChange={(e) => set("contact_id", e.target.value)}
             >
               <option value="">— ไม่ระบุ —</option>
-              {contacts.map((c) => (
+              {visibleContacts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -325,44 +369,78 @@ export function WorkOrderModal({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="asset_id">Asset / ประกัน (ในไซต์ที่เลือก)</Label>
-            <Select
-              id="asset_id"
-              value={form.asset_id}
-              disabled={!form.site_id}
-              onChange={(e) => set("asset_id", e.target.value)}
-            >
-              <option value="">
-                {form.site_id ? "— ไม่ระบุ —" : "— เลือกไซต์ก่อน —"}
+        <div>
+          <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
+          <Select
+            id="technician_id"
+            value={form.technician_id}
+            onChange={(e) => set("technician_id", e.target.value)}
+          >
+            <option value="">— ยังไม่มอบหมาย —</option>
+            {technicians.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
               </option>
-              {visibleAssets.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
-            <Select
-              id="technician_id"
-              value={form.technician_id}
-              onChange={(e) => set("technician_id", e.target.value)}
-            >
-              <option value="">— ยังไม่มอบหมาย —</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+            ))}
+          </Select>
         </div>
-        <p className="text-xs text-muted-foreground">
-          ถ้าเป็นงานในประกัน เลือก Asset ที่อยู่ในประกัน (ระบบอ้างอิง Serial/เลขโครงการของ Asset นั้น) · ที่อยู่หน้างานจะเติมให้อัตโนมัติจากไซต์
-        </p>
+
+        <div>
+          <Label>
+            Asset / ประกัน (เลือกได้หลายรายการ · {form.asset_ids.length} ที่เลือก)
+          </Label>
+          {!form.site_id ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+              เลือกไซต์ก่อน จึงจะเลือก Asset ได้
+            </p>
+          ) : (
+            <div className="rounded-md border border-border">
+              <div className="border-b border-border p-2">
+                <Input
+                  value={assetQuery}
+                  onChange={(e) => setAssetQuery(e.target.value)}
+                  placeholder="พิมพ์ค้นหา Asset (รหัส / ชื่อ / Serial)…"
+                  className="h-8"
+                />
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[color:var(--primary)]"
+                  checked={allShownSelected}
+                  onChange={toggleAllShown}
+                  disabled={shownAssets.length === 0}
+                />
+                เลือกทั้งหมด ({shownAssets.length})
+              </label>
+              <div className="max-h-48 overflow-y-auto">
+                {shownAssets.length === 0 ? (
+                  <p className="px-3 py-3 text-sm text-muted-foreground">
+                    ไม่พบ Asset ในไซต์นี้
+                  </p>
+                ) : (
+                  shownAssets.map((a) => (
+                    <label
+                      key={a.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/40"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[color:var(--primary)]"
+                        checked={form.asset_ids.includes(a.id)}
+                        onChange={() => toggleAsset(a.id)}
+                      />
+                      <span className="truncate">{a.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">
+            งานในประกันให้เลือก Asset ที่อยู่ในประกัน · ที่อยู่หน้างานเติมอัตโนมัติจากไซต์
+          </p>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

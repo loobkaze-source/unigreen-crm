@@ -2,8 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { th } from "date-fns/locale";
 import { LifeBuoy, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
@@ -16,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/format";
 import { saveCase, deleteCase } from "./actions";
 
 type Option = { id: string; name: string };
@@ -212,7 +211,7 @@ export function CasesView({
                     <td className="px-4 py-3 text-muted-foreground">{c.employee || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {c.case_date
-                        ? format(new Date(c.case_date), "d MMM yyyy", { locale: th })
+                        ? fmtDate(c.case_date)
                         : "—"}
                     </td>
                     <td className="px-4 py-3">

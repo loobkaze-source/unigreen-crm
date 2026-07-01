@@ -29,6 +29,7 @@ export default async function WorkOrderDetailPage({
     { data: contacts },
     { data: sites },
     { data: assets },
+    { data: woAssets },
   ] = await Promise.all([
     supabase
       .from("work_order_items")
@@ -48,7 +49,7 @@ export default async function WorkOrderDetailPage({
     supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
     supabase
       .from("contacts")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, company_id")
       .eq("org_id", org.id)
       .order("first_name"),
     supabase
@@ -61,9 +62,14 @@ export default async function WorkOrderDetailPage({
       .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
       .eq("org_id", org.id)
       .order("code"),
+    supabase
+      .from("work_order_assets")
+      .select("equipment_id")
+      .eq("work_order_id", id),
   ]);
 
   const techList = technicians ?? [];
+  const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
   const assetList = (assets ?? []).map((a) => {
     const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
     const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
@@ -77,6 +83,7 @@ export default async function WorkOrderDetailPage({
   const contactList = (contacts ?? []).map((c) => ({
     id: c.id,
     name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+    company_id: c.company_id,
   }));
 
   const photosWithUrl = (photos ?? []).map((p) => ({
@@ -94,6 +101,7 @@ export default async function WorkOrderDetailPage({
       contacts={contactList}
       sites={sites ?? []}
       assets={assetList}
+      assetIds={assetIds}
       orgId={org.id}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
       companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}

@@ -3,8 +3,6 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { th } from "date-fns/locale";
 import {
   ArrowLeft,
   Building2,
@@ -20,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { fmtDate } from "@/lib/format";
 import { serviceTypeLabel, visitStatusMeta } from "../constants";
 import { markVisit } from "../actions";
 
@@ -91,10 +90,8 @@ export function ContractDetail({
             <Info
               icon={CalendarCheck}
               label="ระยะสัญญา"
-              value={`${format(new Date(contract.start_date), "d MMM yyyy", { locale: th })} – ${
-                contract.end_date
-                  ? format(new Date(contract.end_date), "d MMM yyyy", { locale: th })
-                  : "—"
+              value={`${fmtDate(contract.start_date)} – ${
+                contract.end_date ? fmtDate(contract.end_date) : "—"
               }`}
             />
 
@@ -110,7 +107,7 @@ export function ContractDetail({
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 {nextDue
-                  ? `รอบถัดไป: ${format(new Date(nextDue.due_date), "d MMM yyyy", { locale: th })}`
+                  ? `รอบถัดไป: ${fmtDate(nextDue.due_date)}`
                   : "ครบทุกรอบแล้ว 🎉"}
               </div>
             </div>
@@ -161,12 +158,12 @@ export function ContractDetail({
                             overdue && "text-destructive"
                           )}
                         >
-                          {format(new Date(v.due_date), "d MMM yyyy", { locale: th })}
+                          {fmtDate(v.due_date)}
                         </span>
                       </div>
                       {v.completed_at ? (
                         <div className="text-xs text-muted-foreground">
-                          เข้าบริการ {format(new Date(v.completed_at), "d MMM yyyy", { locale: th })}
+                          เข้าบริการ {fmtDate(v.completed_at)}
                         </div>
                       ) : null}
                     </div>

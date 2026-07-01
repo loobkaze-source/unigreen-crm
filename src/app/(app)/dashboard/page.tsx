@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { format, isPast } from "date-fns";
-import { th } from "date-fns/locale";
+import { isPast } from "date-fns";
 import {
   ArrowUpRight,
   Building2,
@@ -10,6 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { getSessionContext } from "@/lib/data";
+import { fmtDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -231,7 +231,7 @@ export default async function DashboardPage() {
                             overdue ? "font-medium text-destructive" : "text-muted-foreground"
                           )}
                         >
-                          {format(new Date(a.due_date), "d MMM", { locale: th })}
+                          {fmtDate(a.due_date)}
                         </span>
                       ) : null}
                     </li>

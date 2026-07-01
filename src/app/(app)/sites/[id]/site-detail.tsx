@@ -32,6 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
+import { fmtDate } from "@/lib/format";
 import { saveEquipment, deleteEquipment } from "../actions";
 
 const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
@@ -44,9 +45,6 @@ const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
 ];
 const catLabel = (v: EquipmentCategory) =>
   CATEGORIES.find((c) => c.value === v)?.label ?? v;
-
-const fmtDate = (d: Date) =>
-  `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear() + 543}`;
 
 /** The identifier shown as "Asset ID": serial (object) or project no. (project). */
 const assetId = (eq: Equipment) =>

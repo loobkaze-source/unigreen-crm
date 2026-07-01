@@ -3,8 +3,6 @@
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
-import { th } from "date-fns/locale";
 import { Pencil, Plus, Repeat, Search, Trash2 } from "lucide-react";
 import type { ServiceContract, ServiceType } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
@@ -17,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DEPARTMENTS } from "@/lib/departments";
+import { fmtDate } from "@/lib/format";
 import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
 import { saveContract, deleteContract } from "./actions";
 
@@ -225,7 +224,7 @@ export function ContractsView({
                             overdue ? "text-sm font-medium text-destructive" : "text-sm text-muted-foreground"
                           }
                         >
-                          {format(new Date(c.nextDue), "d MMM yyyy", { locale: th })}
+                          {fmtDate(c.nextDue)}
                         </span>
                       ) : (
                         <Badge tone="success">ครบแล้ว</Badge>
