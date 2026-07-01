@@ -233,6 +233,7 @@ export type AssetType = "object" | "project";
 export interface Equipment extends Mutable {
   id: string;
   org_id: string;
+  code: number | null;
   site_id: string | null;
   name: string;
   asset_type: AssetType;

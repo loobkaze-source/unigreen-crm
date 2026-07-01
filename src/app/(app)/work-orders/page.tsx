@@ -1,4 +1,5 @@
 import { getSessionContext } from "@/lib/data";
+import { assetCode } from "@/lib/asset";
 import { WorkOrdersView } from "./work-orders-view";
 
 export default async function WorkOrdersPage() {
@@ -30,9 +31,9 @@ export default async function WorkOrdersPage() {
       .order("first_name"),
     supabase
       .from("equipment")
-      .select("id, name, asset_type, serial_number, project_number")
+      .select("id, code, name, asset_type, brand, serial_number, project_number")
       .eq("org_id", org.id)
-      .order("name"),
+      .order("code"),
   ]);
 
   return (
@@ -45,9 +46,13 @@ export default async function WorkOrdersPage() {
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
       }))}
       assets={(assets ?? []).map((a) => {
-        const code =
+        const ident =
           a.asset_type === "project" ? a.project_number : a.serial_number;
-        return { id: a.id, name: code ? `${a.name} · ${code}` : a.name };
+        const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
+        return {
+          id: a.id,
+          name: `${assetCode(a.code)} · ${a.name}${ident ? ` · ${ident}` : ""}${brand}`,
+        };
       })}
     />
   );

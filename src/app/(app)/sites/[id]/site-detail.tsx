@@ -31,6 +31,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
+import { assetCode } from "@/lib/asset";
 import { saveEquipment, deleteEquipment } from "../actions";
 
 const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
@@ -217,9 +218,10 @@ export function SiteDetail({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">รหัส Asset</th>
                       <th className="px-3 py-2 font-medium">Asset</th>
                       <th className="px-3 py-2 font-medium">ชนิด</th>
-                      <th className="px-3 py-2 font-medium">Asset ID</th>
+                      <th className="px-3 py-2 font-medium">Serial / เลขโครงการ</th>
                       <th className="px-3 py-2 font-medium">ประกัน</th>
                       <th className="px-3 py-2" />
                     </tr>
@@ -233,6 +235,9 @@ export function SiteDetail({
                           key={eq.id}
                           className="group border-b border-border last:border-0 hover:bg-muted/30"
                         >
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                            {assetCode(eq.code)}
+                          </td>
                           <td className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               {eq.asset_type === "project" ? (

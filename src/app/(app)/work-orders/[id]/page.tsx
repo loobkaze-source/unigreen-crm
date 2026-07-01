@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
+import { assetCode } from "@/lib/asset";
 import { WorkOrderDetail } from "./work-order-detail";
 
 export default async function WorkOrderDetailPage({
@@ -51,15 +52,19 @@ export default async function WorkOrderDetailPage({
       .order("first_name"),
     supabase
       .from("equipment")
-      .select("id, name, asset_type, serial_number, project_number")
+      .select("id, code, name, asset_type, brand, serial_number, project_number")
       .eq("org_id", org.id)
-      .order("name"),
+      .order("code"),
   ]);
 
   const techList = technicians ?? [];
   const assetList = (assets ?? []).map((a) => {
-    const code = a.asset_type === "project" ? a.project_number : a.serial_number;
-    return { id: a.id, name: code ? `${a.name} · ${code}` : a.name };
+    const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
+    const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
+    return {
+      id: a.id,
+      name: `${assetCode(a.code)} · ${a.name}${ident ? ` · ${ident}` : ""}${brand}`,
+    };
   });
   const companyList = companies ?? [];
   const contactList = (contacts ?? []).map((c) => ({
