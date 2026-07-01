@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Trash2, UserCog, UserPlus } from "lucide-react";
+import { KeyRound, Trash2, UserCog, UserPlus, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -10,14 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DEPARTMENTS, departmentLabel } from "@/lib/departments";
+import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES } from "@/lib/roles";
-import {
-  updateMember,
-  inviteMember,
-  revokeInvite,
-  removeMember,
-} from "./actions";
+import { updateMember, createUser, resetUserPassword, removeMember } from "./actions";
 
 type Member = {
   id: string;
@@ -28,33 +23,27 @@ type Member = {
   email: string;
 };
 
-type Invite = {
-  id: string;
-  email: string;
-  app_role: string;
-  department: string;
-};
-
-/** Roles that are pinned to a single department. */
 const DEPT_ROLES = new Set(["Manager", "Sales", "Job Dispatcher", "Technician"]);
 
 export function UsersView({
   members,
-  invites,
   canManage,
+  keyReady,
 }: {
   members: Member[];
-  invites: Invite[];
   canManage: boolean;
+  keyReady: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  // invite form
+  // create-user form
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [invRole, setInvRole] = useState("Sales");
-  const [invDept, setInvDept] = useState<string>(DEPARTMENTS[0].value);
+  const [password, setPassword] = useState("123456");
+  const [cuRole, setCuRole] = useState("Sales");
+  const [cuDept, setCuDept] = useState<string>(DEPARTMENTS[0].value);
 
   function run(id: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setSavingId(id);
@@ -67,111 +56,102 @@ export function UsersView({
   }
 
   function saveMember(m: Member, next: Partial<Member>) {
-    const appRole = next.app_role ?? m.app_role;
-    const department = next.department ?? m.department;
-    run(m.id, () => updateMember(m.id, appRole, department));
+    run(m.id, () =>
+      updateMember(m.id, next.app_role ?? m.app_role, next.department ?? m.department)
+    );
   }
 
-  function submitInvite() {
+  function submitCreate() {
     if (!email.trim()) return;
-    run("invite", async () => {
-      const res = await inviteMember({
+    run("create", async () => {
+      const res = await createUser({
         email,
-        appRole: invRole,
-        department: DEPT_ROLES.has(invRole) ? invDept : "",
+        fullName: name,
+        password,
+        appRole: cuRole,
+        department: DEPT_ROLES.has(cuRole) ? cuDept : "",
       });
-      if (res.ok) setEmail("");
+      if (res.ok) {
+        setName("");
+        setEmail("");
+        setPassword("123456");
+      }
       return res;
     });
+  }
+
+  function resetPw(m: Member) {
+    const pw = window.prompt(
+      `ตั้งรหัสชั่วคราวใหม่ให้ ${m.name || m.email}\n(ผู้ใช้จะต้องตั้งรหัสของตัวเองอีกครั้งตอนล็อกอิน)`,
+      "123456"
+    );
+    if (!pw) return;
+    if (pw.length < 6) return alert("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+    run(m.id, () => resetUserPassword(m.id, pw));
   }
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="ผู้ใช้และบทบาท"
-        subtitle="สมาชิกในพื้นที่ทำงาน · แอดมินกำหนดบทบาทและแผนกให้แต่ละคน"
+        subtitle="แอดมินสร้างผู้ใช้ กำหนดบทบาท/แผนก และรีเซ็ตรหัสผ่านได้ที่นี่"
       />
 
-      {/* Invite */}
+      {canManage && !keyReady ? (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            ยังสร้าง/รีเซ็ตรหัสผู้ใช้ไม่ได้ — ต้องตั้งค่า{" "}
+            <code className="rounded bg-amber-100 px-1">SUPABASE_SERVICE_ROLE_KEY</code>{" "}
+            ใน Netlify (Environment variables) และ <code className="rounded bg-amber-100 px-1">.env.local</code> ก่อน
+          </div>
+        </div>
+      ) : null}
+
+      {/* Create user */}
       {canManage ? (
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <UserPlus className="h-4 w-4 text-primary" />
-            เชิญสมาชิกเข้าพื้นที่ทำงาน
+            <UserPlus className="h-4 w-4 text-primary" /> เพิ่มผู้ใช้ใหม่
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="mb-1 block text-xs text-muted-foreground">อีเมล</label>
-              <Input
-                type="email"
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">ชื่อ-นามสกุล</label>
+              <Input placeholder="สมชาย ใจดี" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div className="w-full sm:w-44">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">อีเมล (ใช้ล็อกอิน)</label>
+              <Input type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">รหัสผ่านเริ่มต้น</label>
+              <Input value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <div>
               <label className="mb-1 block text-xs text-muted-foreground">บทบาท</label>
-              <Select value={invRole} onChange={(e) => setInvRole(e.target.value)}>
+              <Select value={cuRole} onChange={(e) => setCuRole(e.target.value)}>
                 {USER_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
+                  <option key={r} value={r}>{r}</option>
                 ))}
               </Select>
             </div>
-            <div className="w-full sm:w-44">
+            <div>
               <label className="mb-1 block text-xs text-muted-foreground">แผนก</label>
-              <Select
-                value={invDept}
-                disabled={!DEPT_ROLES.has(invRole)}
-                onChange={(e) => setInvDept(e.target.value)}
-              >
+              <Select value={cuDept} disabled={!DEPT_ROLES.has(cuRole)} onChange={(e) => setCuDept(e.target.value)}>
                 {DEPARTMENTS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
+                  <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
               </Select>
             </div>
-            <Button
-              onClick={submitInvite}
-              disabled={pending && savingId === "invite"}
-            >
-              เชิญ
-            </Button>
+            <div className="flex items-end">
+              <Button className="w-full" onClick={submitCreate} disabled={!keyReady || (pending && savingId === "create")}>
+                {pending && savingId === "create" ? "กำลังสร้าง…" : "สร้างผู้ใช้"}
+              </Button>
+            </div>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            ถ้าอีเมลยังไม่มีบัญชี ระบบจะเพิ่มให้อัตโนมัติเมื่อผู้ใช้สมัคร/เข้าสู่ระบบด้วยอีเมลนี้
+            ผู้ใช้ล็อกอินด้วยอีเมล + รหัสเริ่มต้นนี้ แล้วระบบจะบังคับให้ตั้งรหัสของตัวเองก่อนใช้งาน
           </p>
-
-          {invites.length > 0 ? (
-            <div className="mt-4 space-y-1.5 border-t border-border pt-3">
-              <div className="text-xs font-medium text-muted-foreground">
-                คำเชิญที่รอดำเนินการ ({invites.length})
-              </div>
-              {invites.map((i) => (
-                <div
-                  key={i.id}
-                  className="flex items-center gap-3 rounded-md bg-muted/40 px-3 py-2 text-sm"
-                >
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{i.email}</span>
-                  <Badge tone="muted">{i.app_role || "—"}</Badge>
-                  {i.department ? (
-                    <Badge tone="primary">{departmentLabel(i.department)}</Badge>
-                  ) : null}
-                  <button
-                    className="ml-auto rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    title="ยกเลิกคำเชิญ"
-                    disabled={pending && savingId === i.id}
-                    onClick={() => run(i.id, () => revokeInvite(i.id))}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </section>
       ) : null}
 
@@ -187,18 +167,16 @@ export function UsersView({
                 <th className="px-4 py-3 font-medium">สิทธิ์ระบบ</th>
                 <th className="px-4 py-3 font-medium">บทบาท</th>
                 <th className="px-4 py-3 font-medium">แผนก</th>
-                {canManage ? <th className="px-4 py-3" /> : null}
+                {canManage ? <th className="px-4 py-3 text-right font-medium">จัดการ</th> : null}
               </tr>
             </thead>
             <tbody>
               {members.map((m) => {
                 const deptRole = DEPT_ROLES.has(m.app_role);
                 const busy = pending && savingId === m.id;
+                const isOwner = m.role === "owner";
                 return (
-                  <tr
-                    key={m.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30"
-                  >
+                  <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar name={m.name || m.email} />
@@ -209,27 +187,23 @@ export function UsersView({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge tone={m.role === "owner" || m.role === "admin" ? "primary" : "muted"}>
-                        {m.role}
-                      </Badge>
+                      <Badge tone={isOwner || m.role === "admin" ? "primary" : "muted"}>{m.role}</Badge>
                     </td>
                     <td className="px-4 py-3">
                       <Select
                         value={m.app_role}
-                        disabled={!canManage || m.role === "owner" || busy}
+                        disabled={!canManage || isOwner || busy}
                         onChange={(e) => saveMember(m, { app_role: e.target.value })}
                         className="max-w-[170px]"
                       >
                         <option value="">— ยังไม่กำหนด —</option>
                         {USER_ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
+                          <option key={r} value={r}>{r}</option>
                         ))}
                       </Select>
                     </td>
                     <td className="px-4 py-3">
-                      {m.role === "owner" || m.app_role === "admin" ? (
+                      {isOwner || m.app_role === "admin" ? (
                         <span className="text-xs text-muted-foreground">ทุกแผนก</span>
                       ) : (
                         <Select
@@ -240,28 +214,38 @@ export function UsersView({
                         >
                           <option value="">— ทุกแผนก —</option>
                           {DEPARTMENTS.map((d) => (
-                            <option key={d.value} value={d.value}>
-                              {d.label}
-                            </option>
+                            <option key={d.value} value={d.value}>{d.label}</option>
                           ))}
                         </Select>
                       )}
                     </td>
                     {canManage ? (
-                      <td className="px-4 py-3 text-right">
-                        {m.role !== "owner" ? (
-                          <button
-                            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                            title="นำออกจากพื้นที่ทำงาน"
-                            disabled={busy}
-                            onClick={() => {
-                              if (confirm(`นำ ${m.name || m.email} ออกจากพื้นที่ทำงาน?`))
-                                run(m.id, () => removeMember(m.id));
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : null}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {!isOwner ? (
+                            <>
+                              <button
+                                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-primary disabled:opacity-40"
+                                title="รีเซ็ตรหัสผ่าน"
+                                disabled={!keyReady || busy}
+                                onClick={() => resetPw(m)}
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </button>
+                              <button
+                                className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                title="นำออกจากพื้นที่ทำงาน"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (confirm(`นำ ${m.name || m.email} ออกจากพื้นที่ทำงาน?`))
+                                    run(m.id, () => removeMember(m.id));
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
                       </td>
                     ) : null}
                   </tr>
@@ -274,7 +258,7 @@ export function UsersView({
 
       {!canManage ? (
         <p className="text-xs text-muted-foreground">
-          * เฉพาะเจ้าของ/แอดมินเท่านั้นที่แก้ไขบทบาทและแผนกได้
+          * เฉพาะเจ้าของ/แอดมินเท่านั้นที่จัดการผู้ใช้ได้
         </p>
       ) : null}
     </div>

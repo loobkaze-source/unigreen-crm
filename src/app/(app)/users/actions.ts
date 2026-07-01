@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES } from "@/lib/roles";
@@ -26,7 +27,6 @@ export async function updateMember(
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
   const role = isRole(appRole);
-  // Business "admin" also gets the membership-level admin that RLS enforces.
   const membershipRole = role === "admin" ? "admin" : "member";
   const { error: e } = await ctx.supabase
     .from("organization_members")
@@ -37,14 +37,17 @@ export async function updateMember(
     })
     .eq("id", memberId)
     .eq("org_id", ctx.org.id)
-    .neq("role", "owner"); // never alter the workspace owner
+    .neq("role", "owner");
   if (e) return fail(e.message);
   revalidatePath("/users");
   return ok();
 }
 
-export async function inviteMember(input: {
+/** Admin creates a user directly with an initial password (no email). */
+export async function createUser(input: {
   email: string;
+  fullName: string;
+  password: string;
   appRole: string;
   department: string;
 }): Promise<ActionResult> {
@@ -52,61 +55,77 @@ export async function inviteMember(input: {
   if (error) return fail(error);
 
   const email = input.email.trim().toLowerCase();
-  if (!email || !email.includes("@")) return fail("อีเมลไม่ถูกต้อง");
+  if (!email.includes("@")) return fail("อีเมลไม่ถูกต้อง");
+  if ((input.password || "").length < 6)
+    return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
 
-  // Already a member?
-  const { data: existing } = await ctx.supabase
-    .from("profiles")
-    .select("id")
-    .ilike("email", email)
-    .maybeSingle();
-  if (existing) {
-    const { data: mem } = await ctx.supabase
-      .from("organization_members")
-      .select("id")
-      .eq("org_id", ctx.org.id)
-      .eq("user_id", existing.id)
-      .maybeSingle();
-    if (mem) return fail("ผู้ใช้นี้เป็นสมาชิกอยู่แล้ว");
-    // Existing account (in another workspace) — add straight into this org.
-    const role = isRole(input.appRole);
-    const { error: e } = await ctx.supabase
-      .from("organization_members")
-      .insert({
-        org_id: ctx.org.id,
-        user_id: existing.id,
-        role: role === "admin" ? "admin" : "member",
-        app_role: role,
-        department: role === "admin" ? null : isDept(input.department),
-      });
-    if (e) return fail(e.message);
-    revalidatePath("/users");
-    return ok();
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "ตั้งค่า service key ไม่ถูกต้อง");
   }
 
-  const { error: e } = await ctx.supabase.from("invites").upsert(
-    {
-      org_id: ctx.org.id,
-      email,
-      app_role: isRole(input.appRole),
-      department: isDept(input.department),
-    },
+  const role = isRole(input.appRole);
+  const department = role === "admin" ? null : isDept(input.department);
+
+  // Pre-create an invite so the signup trigger routes the new account into this
+  // org with the right role/department (and satisfies invite-only signup).
+  const { error: invErr } = await ctx.supabase.from("invites").upsert(
+    { org_id: ctx.org.id, email, app_role: role, department },
     { onConflict: "org_id,email" }
   );
-  if (e) return fail(e.message);
+  if (invErr) return fail(invErr.message);
+
+  const { data, error: e } = await admin.auth.admin.createUser({
+    email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { full_name: input.fullName.trim() || email.split("@")[0] },
+  });
+  if (e) {
+    await ctx.supabase.from("invites").delete().eq("org_id", ctx.org.id).eq("email", email);
+    return fail(/already|exists|registered/i.test(e.message) ? "อีเมลนี้มีบัญชีอยู่แล้ว" : e.message);
+  }
+
+  // Force a password change on first login.
+  if (data.user) {
+    await admin.from("profiles").update({ must_change_password: true }).eq("id", data.user.id);
+  }
   revalidatePath("/users");
   return ok();
 }
 
-export async function revokeInvite(inviteId: string): Promise<ActionResult> {
+/** Admin resets a member's password to a new temp value; forces a change. */
+export async function resetUserPassword(
+  memberId: string,
+  newPassword: string
+): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
-  const { error: e } = await ctx.supabase
-    .from("invites")
-    .delete()
-    .eq("id", inviteId)
-    .eq("org_id", ctx.org.id);
+  if ((newPassword || "").length < 6)
+    return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+
+  const { data: mem } = await ctx.supabase
+    .from("organization_members")
+    .select("user_id")
+    .eq("id", memberId)
+    .eq("org_id", ctx.org.id)
+    .maybeSingle();
+  if (!mem?.user_id) return fail("ไม่พบสมาชิก");
+
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : "ตั้งค่า service key ไม่ถูกต้อง");
+  }
+
+  const { error: e } = await admin.auth.admin.updateUserById(mem.user_id as string, {
+    password: newPassword,
+  });
   if (e) return fail(e.message);
+  await admin.from("profiles").update({ must_change_password: true }).eq("id", mem.user_id);
   revalidatePath("/users");
   return ok();
 }
@@ -119,7 +138,7 @@ export async function removeMember(memberId: string): Promise<ActionResult> {
     .delete()
     .eq("id", memberId)
     .eq("org_id", ctx.org.id)
-    .neq("role", "owner"); // never remove the workspace owner
+    .neq("role", "owner");
   if (e) return fail(e.message);
   revalidatePath("/users");
   return ok();

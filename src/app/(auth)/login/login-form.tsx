@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
 import { login, type AuthState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,12 +42,9 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
         <div>
           <div className="flex items-center justify-between">
             <Label htmlFor="password">รหัสผ่าน</Label>
-            <Link
-              href="/forgot"
-              className="text-xs font-medium text-primary hover:underline"
-            >
-              ลืมรหัสผ่าน?
-            </Link>
+            <span className="text-xs text-muted-foreground">
+              ลืมรหัส? ติดต่อผู้ดูแลระบบ
+            </span>
           </div>
           <Input
             id="password"
@@ -64,13 +60,6 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           {pending ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
         </Button>
       </form>
-
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        ยังไม่มีบัญชี?{" "}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
-          สร้างบัญชีใหม่
-        </Link>
-      </p>
     </div>
   );
 }

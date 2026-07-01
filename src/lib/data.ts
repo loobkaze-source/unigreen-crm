@@ -15,6 +15,8 @@ export type SessionContext = {
   department: string | null;
   /** true when the user may see every department's data. */
   isAdmin: boolean;
+  /** true when the user must set a new password before using the app. */
+  mustChangePassword: boolean;
 };
 
 /**
@@ -89,5 +91,8 @@ export async function getSessionContext(): Promise<SessionContext> {
     appRole,
     department,
     isAdmin,
+    mustChangePassword: Boolean(
+      (profile as { must_change_password?: boolean } | null)?.must_change_password
+    ),
   };
 }

@@ -57,6 +57,8 @@ Open Supabase → **SQL Editor** and run in order:
    `handle_new_user` honours invites, renames workspace to "Unigreen Power"
 10. `0010_invite_only.sql` — signup is **invite-only**: `handle_new_user` rejects any email
     without a pending invite (except bootstrapping the first workspace on a fresh, org-less DB)
+11. `0011_admin_user_mgmt.sql` — `profiles.must_change_password` (forces a password change on
+    first login) + `mark_password_changed()` RPC; backfills the flag for all non-owner members
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
@@ -161,6 +163,17 @@ Nav lives in `src/components/app/app-shell.tsx`.
 ## 9. Secrets
 
 Local only, in `.env.local` (gitignored): `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (currently a placeholder — fill from
-Supabase → Project Settings → API if you need admin scripts). GitHub + Netlify tokens are not
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. GitHub + Netlify tokens are not
 stored in the repo. **Never commit any of these to the public repo.**
+
+**`SUPABASE_SERVICE_ROLE_KEY` is now REQUIRED** for in-app admin user management (create user + set
+password, reset password — `src/lib/supabase/admin.ts`, used only by server actions). Get it from
+Supabase → Project Settings → API → `service_role` `secret`. Set it in **both** `.env.local` AND
+**Netlify → Site configuration → Environment variables** (server-side only — it has NO
+`NEXT_PUBLIC_` prefix, so it never reaches the browser). Without it, /users shows a warning and
+create/reset are disabled (self-service password change and forced first-login change still work).
+
+**User model (admin-managed, no email):** admins create users in `/users` with an initial password;
+new users are forced to `/set-password` on first login (gated by `must_change_password` in the
+`(app)` layout via `getSessionContext`). Password reset is admin-only (`resetUserPassword` → sets a
+new temp password + re-flags must-change). The email-OTP self-reset (`/forgot`) was removed.

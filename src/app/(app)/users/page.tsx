@@ -1,21 +1,15 @@
 import { getSessionContext } from "@/lib/data";
+import { isAdminKeyConfigured } from "@/lib/supabase/admin";
 import { UsersView } from "./users-view";
 
 export default async function UsersPage() {
   const { supabase, org, isAdmin } = await getSessionContext();
 
-  const [{ data: members }, { data: invites }] = await Promise.all([
-    supabase
-      .from("organization_members")
-      .select("id, user_id, role, app_role, department, created_at")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("invites")
-      .select("id, email, app_role, department, created_at")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: true }),
-  ]);
+  const { data: members } = await supabase
+    .from("organization_members")
+    .select("id, user_id, role, app_role, department, created_at")
+    .eq("org_id", org.id)
+    .order("created_at", { ascending: true });
 
   const ids = (members ?? []).map((m) => m.user_id);
   const { data: profiles } = ids.length
@@ -33,12 +27,7 @@ export default async function UsersPage() {
     email: pmap.get(m.user_id)?.email || "",
   }));
 
-  const inviteRows = (invites ?? []).map((i) => ({
-    id: i.id as string,
-    email: i.email as string,
-    app_role: (i.app_role as string) || "",
-    department: (i.department as string) || "",
-  }));
-
-  return <UsersView members={rows} invites={inviteRows} canManage={isAdmin} />;
+  return (
+    <UsersView members={rows} canManage={isAdmin} keyReady={isAdminKeyConfigured()} />
+  );
 }
