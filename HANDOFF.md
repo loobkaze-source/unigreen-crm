@@ -68,6 +68,11 @@ Open Supabase → **SQL Editor** and run in order:
     the unique Asset ID (serial numbers aren't globally unique — can collide across brands)
 15. `0015_work_order_site.sql` — `work_orders.site_id` (FK to sites) for the WO
     customer→site→asset cascade
+16. `0016_work_order_assets.sql` — `work_order_assets` M2M (a WO can involve many
+    assets; backfilled from the single `asset_id`)
+
+**Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
+(DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
