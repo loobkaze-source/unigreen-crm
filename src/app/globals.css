@@ -143,6 +143,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Loading-art animations (see components/ui/loading-art.tsx) */
+@keyframes uc-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes uc-drip {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(16px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+}
+@keyframes uc-rotor {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes uc-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Subtle, modern scrollbars */
 ::-webkit-scrollbar {
   width: 10px;

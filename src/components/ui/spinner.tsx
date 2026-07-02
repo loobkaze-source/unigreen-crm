@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { RandomLoadingArt } from "@/components/ui/loading-art";
 
 /** Small filled cloud glyph (uses currentColor). */
 function CloudGlyph({ size }: { size: number }) {
@@ -46,7 +47,10 @@ export function CloudSpinner({
 /** Backwards-compatible alias. */
 export const TurbineSpinner = CloudSpinner;
 
-/** Centred loading screen with the cloud spinner and a label. */
+/**
+ * Centred loading screen — shows one of the random energy-themed animations
+ * (cloud / fuel nozzle / wind turbine / solar PV) with a label.
+ */
 export function LoadingScreen({
   label = "กำลังโหลด…",
   fullScreen = false,
@@ -57,11 +61,11 @@ export function LoadingScreen({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-4",
+        "flex flex-col items-center justify-center gap-3",
         fullScreen ? "min-h-screen" : "min-h-[60vh]"
       )}
     >
-      <CloudSpinner size={64} />
+      <RandomLoadingArt />
       <p className="text-sm text-muted-foreground">{label}</p>
     </div>
   );
