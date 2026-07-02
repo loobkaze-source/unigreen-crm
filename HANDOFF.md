@@ -92,6 +92,13 @@ Open Supabase → **SQL Editor** and run in order:
     condition). Case form flow: pick customer → filter sites → tick affected assets
     (checkbox, more can be added later after inspection). `cases.equipment_id` kept in
     sync with the first linked asset for backward compatibility.
+27. `0027_stage_boards.sql` — per-board pipeline stages: `stages.board_key` (department)
+    + `stages.locked` (Won/Missed are permanent — no rename/reorder/delete). Existing
+    stages → 'unigreen'; product_sales / services_sales seeded with Open/Won/Missed.
+    Admins manage stages inline on /deals (deals/stage-actions.ts, admin-gated).
+28. `0028_convert_lead_board.sql` — convert_lead is now board-aware: converts into the
+    'unigreen' board's first open stage and sets deals.department accordingly (so the
+    new deal lands on a matching board after the 0027 per-board split).
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

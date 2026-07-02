@@ -47,6 +47,10 @@ export interface Stage extends Timestamps {
   position: number;
   is_won: boolean;
   is_lost: boolean;
+  /** Department board this stage belongs to (see lib/departments.ts). */
+  board_key: string;
+  /** Permanent stage (Won / Missed) — cannot be renamed, reordered, deleted. */
+  locked: boolean;
 }
 
 export interface Company extends Mutable {

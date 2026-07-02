@@ -35,6 +35,7 @@ export default async function DealsPage() {
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
       }))}
       canSeeAll={isAdmin}
+      canManageStages={isAdmin}
       userDept={department}
     />
   );

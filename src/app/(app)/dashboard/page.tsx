@@ -13,6 +13,7 @@ import { fmtDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
+import { departmentLabel } from "@/lib/departments";
 
 export default async function DashboardPage() {
   const { supabase, org, profile, email } = await getSessionContext();
@@ -58,12 +59,21 @@ export default async function DashboardPage() {
     .reduce((sum, s) => sum + (byStage.get(s.id)?.value ?? 0), 0);
   const openLeads = agg.open_leads;
 
-  // Pipeline-by-stage breakdown (exclude lost for clarity)
+  // Pipeline-by-stage breakdown (exclude lost for clarity). Stages are now
+  // per board — only show boards that actually have deals, and prefix the
+  // stage name with the board when more than one board is in play (avoids
+  // ambiguous duplicate "Open" / "Won" rows).
+  const dealBoards = new Set(
+    stageList
+      .filter((s) => (byStage.get(s.id)?.count ?? 0) > 0)
+      .map((s) => s.board_key)
+  );
+  const multiBoard = dealBoards.size > 1;
   const breakdown = stageList
-    .filter((s) => !s.is_lost)
+    .filter((s) => !s.is_lost && dealBoards.has(s.board_key))
     .map((s) => ({
       id: s.id,
-      name: s.name,
+      name: multiBoard ? `${departmentLabel(s.board_key)} · ${s.name}` : s.name,
       is_won: s.is_won,
       count: byStage.get(s.id)?.count ?? 0,
       value: byStage.get(s.id)?.value ?? 0,

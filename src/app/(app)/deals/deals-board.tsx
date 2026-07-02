@@ -15,7 +15,17 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Building2, GripVertical, Plus, Trash2, User } from "lucide-react";
+import {
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Lock,
+  Pencil,
+  Plus,
+  Trash2,
+  User,
+} from "lucide-react";
 import type { Deal, Stage } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
@@ -28,6 +38,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
 import { DEPARTMENTS } from "@/lib/departments";
 import { saveDeal, deleteDeal, updateDealStage } from "./actions";
+import { createStage, renameStage, deleteStage, moveStage } from "./stage-actions";
 
 type Option = { id: string; name: string };
 
@@ -37,6 +48,7 @@ export function DealsBoard({
   companies,
   contacts,
   canSeeAll = true,
+  canManageStages = false,
   userDept = null,
 }: {
   stages: Stage[];
@@ -45,6 +57,8 @@ export function DealsBoard({
   contacts: Option[];
   /** Admins see every department's board; others are pinned to their own. */
   canSeeAll?: boolean;
+  /** Admins can add / rename / reorder / delete this board's stages. */
+  canManageStages?: boolean;
   userDept?: string | null;
 }) {
   const router = useRouter();
@@ -77,6 +91,33 @@ export function DealsBoard({
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [contacts]);
 
+  // Stages grouped per board, each ordered: open stages (by position), then
+  // Won, then lost stages (Missed / Cancelled / …) pinned to the end.
+  const stagesByBoard = useMemo(() => {
+    const m = new Map<string, Stage[]>();
+    for (const s of stages) {
+      const arr = m.get(s.board_key) ?? [];
+      arr.push(s);
+      m.set(s.board_key, arr);
+    }
+    for (const [k, list] of m) {
+      const open = list.filter((s) => !s.is_won && !s.is_lost);
+      const won = list.filter((s) => s.is_won);
+      const lost = list.filter((s) => s.is_lost);
+      const byPos = (a: Stage, b: Stage) => a.position - b.position;
+      m.set(k, [...open.sort(byPos), ...won.sort(byPos), ...lost.sort(byPos)]);
+    }
+    return m;
+  }, [stages]);
+  const boardStages = useMemo(
+    () => stagesByBoard.get(activeDept) ?? [],
+    [stagesByBoard, activeDept]
+  );
+  const firstStageOf = (board: string) => {
+    const list = stagesByBoard.get(board) ?? [];
+    return (list.find((s) => !s.is_won && !s.is_lost) ?? list[0])?.id ?? "";
+  };
+
   const visibleDeals = useMemo(
     () => deals.filter((d) => (d.department || "unigreen") === activeDept),
     [deals, activeDept]
@@ -84,16 +125,16 @@ export function DealsBoard({
 
   const byStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
-    stages.forEach((s) => map.set(s.id, []));
+    boardStages.forEach((s) => map.set(s.id, []));
     visibleDeals.forEach((d) => {
       if (!map.has(d.stage_id)) map.set(d.stage_id, []);
       map.get(d.stage_id)!.push(d);
     });
     return map;
-  }, [visibleDeals, stages]);
+  }, [visibleDeals, boardStages]);
 
   // ---- Modal state ----
-  const firstStage = stages[0]?.id ?? "";
+  const firstStage = firstStageOf(activeDept);
   const EMPTY = {
     title: "",
     value: "",
@@ -159,6 +200,32 @@ export function DealsBoard({
       else router.refresh();
     });
   }
+
+  // ---- Stage management (admin only) ----
+  const [newStageName, setNewStageName] = useState("");
+  const [stageBusy, setStageBusy] = useState(false);
+  function runStage(fn: () => Promise<{ ok: boolean; error?: string }>) {
+    setStageBusy(true);
+    startTransition(async () => {
+      const res = await fn();
+      setStageBusy(false);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+  function addStage() {
+    const nm = newStageName.trim();
+    if (!nm) return;
+    runStage(async () => {
+      const r = await createStage(activeDept, nm);
+      if (r.ok) setNewStageName("");
+      return r;
+    });
+  }
+  // Open (reorderable) stages of the current board, to know the move edges.
+  const openStageIds = boardStages
+    .filter((s) => !s.is_won && !s.is_lost)
+    .map((s) => s.id);
 
   // ---- Drag handlers ----
   function onDragStart(e: DragStartEvent) {
@@ -246,18 +313,63 @@ export function DealsBoard({
         onDragEnd={onDragEnd}
       >
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {stages.map((stage) => (
-            <Column
-              key={stage.id}
-              stage={stage}
-              deals={byStage.get(stage.id) ?? []}
-              companyName={companyName}
-              contactName={contactName}
-              onAdd={() => openCreate(stage.id)}
-              onEdit={openEdit}
-              onDelete={remove}
-            />
-          ))}
+          {boardStages.map((stage) => {
+            const openIdx = openStageIds.indexOf(stage.id);
+            return (
+              <Column
+                key={stage.id}
+                stage={stage}
+                deals={byStage.get(stage.id) ?? []}
+                companyName={companyName}
+                contactName={contactName}
+                onAdd={() => openCreate(stage.id)}
+                onEdit={openEdit}
+                onDelete={remove}
+                canManageStages={canManageStages}
+                stageBusy={stageBusy}
+                canMoveLeft={openIdx > 0}
+                canMoveRight={openIdx >= 0 && openIdx < openStageIds.length - 1}
+                onRenameStage={(name) => runStage(() => renameStage(stage.id, name))}
+                onDeleteStage={() =>
+                  confirm(`ลบขั้นตอน "${stage.name}"?`) &&
+                  runStage(() => deleteStage(stage.id))
+                }
+                onMoveStage={(dir) => runStage(() => moveStage(stage.id, dir))}
+              />
+            );
+          })}
+
+          {canManageStages ? (
+            <div className="flex w-64 shrink-0 flex-col">
+              <div className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+                เพิ่มขั้นตอน
+              </div>
+              <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+                <Input
+                  value={newStageName}
+                  onChange={(e) => setNewStageName(e.target.value)}
+                  placeholder="ชื่อขั้นตอนใหม่…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addStage();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addStage}
+                  disabled={stageBusy || !newStageName.trim()}
+                >
+                  <Plus className="h-4 w-4" /> เพิ่มขั้นตอน
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  ขั้นตอนใหม่จะอยู่ก่อน Won / Missed (ซึ่งเป็นขั้นตอนถาวร)
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <DragOverlay>
@@ -323,7 +435,7 @@ export function DealsBoard({
                 value={form.stage_id}
                 onChange={(e) => setForm({ ...form, stage_id: e.target.value })}
               >
-                {stages.map((s) => (
+                {(stagesByBoard.get(form.department) ?? []).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -337,7 +449,13 @@ export function DealsBoard({
               id="department"
               value={form.department}
               disabled={!canSeeAll}
-              onChange={(e) => setForm({ ...form, department: e.target.value })}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  department: e.target.value,
+                  stage_id: firstStageOf(e.target.value),
+                })
+              }
             >
               {boards.map((d) => (
                 <option key={d.value} value={d.value}>
@@ -419,6 +537,13 @@ function Column({
   onAdd,
   onEdit,
   onDelete,
+  canManageStages = false,
+  stageBusy = false,
+  canMoveLeft = false,
+  canMoveRight = false,
+  onRenameStage,
+  onDeleteStage,
+  onMoveStage,
 }: {
   stage: Stage;
   deals: Deal[];
@@ -427,17 +552,35 @@ function Column({
   onAdd: () => void;
   onEdit: (d: Deal) => void;
   onDelete: (d: Deal) => void;
+  canManageStages?: boolean;
+  stageBusy?: boolean;
+  canMoveLeft?: boolean;
+  canMoveRight?: boolean;
+  onRenameStage?: (name: string) => void;
+  onDeleteStage?: () => void;
+  onMoveStage?: (dir: "left" | "right") => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const total = deals.reduce((s, d) => s + (d.value || 0), 0);
 
+  // Inline rename (open, non-locked stages only).
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(stage.name);
+  const editable = canManageStages && !stage.locked;
+  function submitRename() {
+    const nm = nameDraft.trim();
+    setRenaming(false);
+    if (nm && nm !== stage.name) onRenameStage?.(nm);
+    else setNameDraft(stage.name);
+  }
+
   return (
     <div className="flex w-72 shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
+      <div className="group mb-2 flex items-center justify-between gap-1 px-1">
+        <div className="flex min-w-0 items-center gap-2">
           <span
             className={cn(
-              "h-2 w-2 rounded-full",
+              "h-2 w-2 shrink-0 rounded-full",
               stage.is_won
                 ? "bg-green-500"
                 : stage.is_lost
@@ -445,14 +588,78 @@ function Column({
                   : "bg-primary"
             )}
           />
-          <span className="text-sm font-semibold">{stage.name}</span>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {renaming ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={submitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitRename();
+                if (e.key === "Escape") {
+                  setNameDraft(stage.name);
+                  setRenaming(false);
+                }
+              }}
+              className="w-32 rounded border border-input bg-card px-1.5 py-0.5 text-sm font-semibold"
+            />
+          ) : (
+            <span className="truncate text-sm font-semibold">{stage.name}</span>
+          )}
+          {stage.locked ? (
+            <Lock className="h-3 w-3 shrink-0 text-muted-foreground" aria-label="ขั้นตอนถาวร" />
+          ) : null}
+          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {deals.length}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {formatCurrency(total)}
-        </span>
+        {editable && !renaming ? (
+          <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+            <button
+              type="button"
+              disabled={stageBusy || !canMoveLeft}
+              onClick={() => onMoveStage?.("left")}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
+              title="เลื่อนซ้าย"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={stageBusy || !canMoveRight}
+              onClick={() => onMoveStage?.("right")}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
+              title="เลื่อนขวา"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={stageBusy}
+              onClick={() => {
+                setNameDraft(stage.name);
+                setRenaming(true);
+              }}
+              className="rounded p-0.5 text-muted-foreground hover:bg-muted"
+              title="เปลี่ยนชื่อ"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              disabled={stageBusy}
+              onClick={() => onDeleteStage?.()}
+              className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title="ลบขั้นตอน"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {formatCurrency(total)}
+          </span>
+        )}
       </div>
 
       <div
