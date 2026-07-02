@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { HardHat, Mail, Pencil, Phone, Plus, Search, Trash2, UserCog, Users } from "lucide-react";
+import { HardHat, Mail, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, UserCog, Users, X } from "lucide-react";
 import type { Technician } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
@@ -27,12 +27,24 @@ const SKILLS = [
   "Loading Arm", "Tank Truck", "Civil", "Elec", "Tank Test", "Dispensor",
 ];
 
+/** Safety certifications ("ใบเซอร์"). The list is a starting set — any custom
+ *  certificate can be added in the form. */
+const CERTS = [
+  "จป.หัวหน้างาน",
+  "จป.บริหาร",
+  "จป.ที่สูง",
+  "จป.ไฟฟ้า",
+  "จป.ที่อับอากาศ",
+  "จป.4ผู้",
+];
+
 const EMPTY = {
   name: "",
   nickname: "",
   email: "",
   phone: "",
   skills: [] as string[],
+  certifications: [] as string[],
   active: "true",
 };
 
@@ -42,6 +54,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Technician | null>(null);
   const [form, setForm] = useState(EMPTY);
+  const [customCert, setCustomCert] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -52,7 +65,8 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       (t) =>
         t.name.toLowerCase().includes(q) ||
         (t.nickname || "").toLowerCase().includes(q) ||
-        (t.skills || []).some((s) => s.toLowerCase().includes(q))
+        (t.skills || []).some((s) => s.toLowerCase().includes(q)) ||
+        (t.certifications || []).some((c) => c.toLowerCase().includes(q))
     );
   }, [technicians, query]);
 
@@ -71,6 +85,15 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
           kind: "select",
           accessor: (t) => t.skills ?? [],
           options: SKILLS.map((s) => ({ value: s, label: s })),
+        },
+      },
+      {
+        key: "certifications",
+        header: "ใบเซอร์",
+        filter: {
+          kind: "select",
+          accessor: (t) => t.certifications ?? [],
+          options: CERTS.map((c) => ({ value: c, label: c })),
         },
       },
       {
@@ -103,6 +126,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
   function openCreate() {
     setEditing(null);
     setForm(EMPTY);
+    setCustomCert("");
     setError(null);
     setOpen(true);
   }
@@ -114,8 +138,10 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       email: t.email || "",
       phone: t.phone || "",
       skills: t.skills || [],
+      certifications: t.certifications || [],
       active: t.active ? "true" : "false",
     });
+    setCustomCert("");
     setError(null);
     setOpen(true);
   }
@@ -130,6 +156,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         email: form.email,
         phone: form.phone,
         skills: form.skills,
+        certifications: form.certifications,
         active: form.active === "true",
       });
       if (!res.ok) return setError(res.error);
@@ -152,6 +179,28 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         ? f.skills.filter((x) => x !== s)
         : [...f.skills, s],
     }));
+  }
+  function toggleCert(c: string) {
+    setForm((f) => ({
+      ...f,
+      certifications: f.certifications.includes(c)
+        ? f.certifications.filter((x) => x !== c)
+        : [...f.certifications, c],
+    }));
+  }
+  function addCustomCert() {
+    const c = customCert.trim();
+    if (!c) return;
+    setForm((f) => ({
+      ...f,
+      certifications: f.certifications.includes(c)
+        ? f.certifications
+        : [...f.certifications, c],
+    }));
+    setCustomCert("");
+  }
+  function removeCert(c: string) {
+    setForm((f) => ({ ...f, certifications: f.certifications.filter((x) => x !== c) }));
   }
   function importUsers() {
     startTransition(async () => {
@@ -238,6 +287,19 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
                         {t.skills.map((s) => (
                           <Badge key={s} tone="primary">
                             {s}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {t.certifications && t.certifications.length ? (
+                      <div className="flex flex-wrap gap-1">
+                        {t.certifications.map((c) => (
+                          <Badge key={c} tone="warning">
+                            {c}
                           </Badge>
                         ))}
                       </div>
@@ -356,6 +418,70 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
                   </button>
                 );
               })}
+            </div>
+          </div>
+          <div>
+            <Label className="flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-amber-600" /> ใบเซอร์ (เลือกได้หลายใบ)
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              {CERTS.map((c) => {
+                const on = form.certifications.includes(c);
+                return (
+                  <button
+                    type="button"
+                    key={c}
+                    onClick={() => toggleCert(c)}
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      on
+                        ? "border-amber-500 bg-amber-500 text-white"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Custom certs not in the preset list. */}
+            {form.certifications.filter((c) => !CERTS.includes(c)).length ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {form.certifications
+                  .filter((c) => !CERTS.includes(c))
+                  .map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-500 bg-amber-500 px-3 py-1 text-xs font-medium text-white"
+                    >
+                      {c}
+                      <button type="button" onClick={() => removeCert(c)} aria-label="ลบ">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            ) : null}
+            <div className="mt-2 flex gap-2">
+              <Input
+                value={customCert}
+                onChange={(e) => setCustomCert(e.target.value)}
+                placeholder="เพิ่มใบเซอร์อื่น…"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomCert();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addCustomCert}
+                disabled={!customCert.trim()}
+              >
+                <Plus className="h-4 w-4" /> เพิ่ม
+              </Button>
             </div>
           </div>
           <div>

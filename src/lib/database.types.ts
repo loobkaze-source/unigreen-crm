@@ -155,6 +155,8 @@ export interface Technician extends Mutable {
   phone: string | null;
   skill: string | null;
   skills: string[];
+  /** Safety certifications ("ใบเซอร์") — e.g. จป.หัวหน้างาน, จป.ที่สูง. */
+  certifications: string[];
   active: boolean;
 }
 

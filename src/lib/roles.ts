@@ -12,6 +12,7 @@ export const USER_ROLES = [
   "Technical Supporter",
   "Customer Service",
   "Accounting",
+  "Safety",
 ] as const;
 
 /** Roles allowed to open/manage cases (admin can always do everything). */

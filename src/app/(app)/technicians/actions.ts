@@ -15,6 +15,7 @@ export type TechnicianInput = {
   email?: string;
   phone?: string;
   skills?: string[];
+  certifications?: string[];
   active?: boolean;
 };
 
@@ -32,6 +33,7 @@ export async function saveTechnician(
     email: input.email?.trim() || null,
     phone: input.phone?.trim() || null,
     skills: input.skills ?? [],
+    certifications: input.certifications ?? [],
     active: input.active ?? true,
   };
 
@@ -90,6 +92,7 @@ export async function importTechniciansFromUsers(): Promise<ActionResult> {
       name: p?.full_name || displayUsername(p?.email) || "ช่าง",
       email: realEmail(p?.email),
       skills: [] as string[],
+      certifications: [] as string[],
       active: true,
     };
   });

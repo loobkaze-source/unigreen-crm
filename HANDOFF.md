@@ -99,6 +99,9 @@ Open Supabase → **SQL Editor** and run in order:
 28. `0028_convert_lead_board.sql` — convert_lead is now board-aware: converts into the
     'unigreen' board's first open stage and sets deals.department accordingly (so the
     new deal lands on a matching board after the 0027 per-board split).
+29. `0029_technician_certifications.sql` — `technicians.certifications` text[] (safety
+    "ใบเซอร์": จป.หัวหน้างาน / จป.ที่สูง / จป.ไฟฟ้า / จป.ที่อับอากาศ …; preset chips +
+    custom entry in the technician form). Also added the "Safety" app role (lib/roles.ts).
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.
