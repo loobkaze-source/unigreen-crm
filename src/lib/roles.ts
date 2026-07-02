@@ -10,8 +10,12 @@ export const USER_ROLES = [
   "Technician",
   "Dispatcher",
   "Technical Supporter",
+  "Customer Service",
   "Accounting",
 ] as const;
+
+/** Roles allowed to open/manage cases (admin can always do everything). */
+export const CASE_ROLES = ["Customer Service", "Dispatcher"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 

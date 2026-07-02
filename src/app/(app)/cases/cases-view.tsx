@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LifeBuoy, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { FileText, LifeBuoy, Paperclip, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
+import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
+import { DatePicker } from "@/components/ui/date-picker";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
@@ -21,9 +23,23 @@ import {
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
-import { saveCase, deleteCase } from "./actions";
+import {
+  saveCase,
+  deleteCase,
+  addCaseAttachment,
+  deleteCaseAttachment,
+} from "./actions";
 
 type Option = { id: string; name: string };
+type SiteOption = { id: string; name: string; company_id: string | null };
+type Attachment = {
+  id: string;
+  case_id: string;
+  path: string;
+  name: string;
+  mime: string;
+  url: string;
+};
 type Tone = "info" | "warning" | "success" | "muted";
 
 const STATUS: { value: CaseStatus; label: string; tone: Tone }[] = [
@@ -37,12 +53,22 @@ export function CasesView({
   cases,
   companies,
   contacts,
+  sites,
+  supporters,
+  attachments,
+  canManage,
+  orgId,
   initialQuery = "",
   limitHit = false,
 }: {
   cases: Case[];
   companies: Option[];
   contacts: Option[];
+  sites: SiteOption[];
+  supporters: Option[];
+  attachments: Attachment[];
+  canManage: boolean;
+  orgId: string;
   initialQuery?: string;
   limitHit?: boolean;
 }) {
@@ -78,11 +104,17 @@ export function CasesView({
     team: "",
     company_id: "",
     contact_id: "",
+    site_id: "",
+    supporter_id: "",
     case_date: "",
     note: "",
     action: "",
   };
   const [form, setForm] = useState(EMPTY);
+  // Files chosen in the form; uploaded after the case is saved (so a brand-new
+  // case has an id to attach to).
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -96,6 +128,11 @@ export function CasesView({
       );
     });
   }, [cases, query, statusFilter]);
+
+  const siteName = useMemo(() => {
+    const m = new Map(sites.map((s) => [s.id, s.name]));
+    return (id: string | null) => (id ? m.get(id) : undefined);
+  }, [sites]);
 
   const columns = useMemo<ColumnDef<Case>[]>(
     () => [
@@ -118,6 +155,12 @@ export function CasesView({
         filter: { kind: "text", accessor: (c) => c.employee },
       },
       {
+        key: "site",
+        header: "ไซต์",
+        sortAccessor: (c) => siteName(c.site_id) ?? null,
+        filter: { kind: "select", accessor: (c) => siteName(c.site_id) ?? null },
+      },
+      {
         key: "case_date",
         header: "วันที่",
         sortAccessor: (c) => c.case_date,
@@ -129,7 +172,7 @@ export function CasesView({
       }, // filtered via the status chips above
       { key: "_actions", header: "" },
     ],
-    []
+    [siteName]
   );
   const table = useDataTable(filtered, columns, {
     initialSort: { key: "case_date", dir: "desc" },
@@ -138,6 +181,7 @@ export function CasesView({
   function openCreate() {
     setEditing(null);
     setForm(EMPTY);
+    setNewFiles([]);
     setError(null);
     setOpen(true);
   }
@@ -152,10 +196,13 @@ export function CasesView({
       team: c.team || "",
       company_id: c.company_id || "",
       contact_id: c.contact_id || "",
+      site_id: c.site_id || "",
+      supporter_id: c.supporter_id || "",
       case_date: c.case_date ? c.case_date.slice(0, 16) : "",
       note: c.note || "",
       action: c.action || "",
     });
+    setNewFiles([]);
     setError(null);
     setOpen(true);
   }
@@ -168,11 +215,49 @@ export function CasesView({
         ...form,
         company_id: form.company_id || null,
         contact_id: form.contact_id || null,
+        site_id: form.site_id || null,
+        supporter_id: form.supporter_id || null,
         case_date: form.case_date || null,
       });
       if (!res.ok) return setError(res.error);
+
+      // Upload queued attachments now that the case has an id.
+      const caseId = res.id ?? editing?.id;
+      if (caseId && newFiles.length > 0) {
+        setUploading(true);
+        const supabase = createClient();
+        const errors = (
+          await Promise.all(
+            newFiles.map(async (file) => {
+              const ext = file.name.split(".").pop() || "bin";
+              const rand = Math.random().toString(36).slice(2, 8);
+              const path = `${orgId}/${caseId}/${Date.now()}-${rand}.${ext}`;
+              const { error: upErr } = await supabase.storage
+                .from("case-files")
+                .upload(path, file, { cacheControl: "3600", upsert: false });
+              if (upErr) return `${file.name}: ${upErr.message}`;
+              const r = await addCaseAttachment(caseId, path, file.name, file.type);
+              return r.ok ? null : `${file.name}: ${r.error}`;
+            })
+          )
+        ).filter(Boolean);
+        setUploading(false);
+        if (errors.length > 0)
+          alert("แนบไฟล์ไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
+      }
+
+      setNewFiles([]);
       setOpen(false);
       router.refresh();
+    });
+  }
+
+  function removeAttachment(a: Attachment) {
+    if (!confirm(`ลบไฟล์แนบ "${a.name}"?`)) return;
+    startTransition(async () => {
+      const res = await deleteCaseAttachment(a.id, a.path);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
     });
   }
   function remove(c: Case) {
@@ -193,9 +278,11 @@ export function CasesView({
   return (
     <div>
       <PageHeader title="เคส" subtitle="งานบริการ/คำร้องจากลูกค้า (Case Management)">
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> เพิ่มเคส
-        </Button>
+        {canManage ? (
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> เพิ่มเคส
+          </Button>
+        ) : null}
       </PageHeader>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -239,7 +326,7 @@ export function CasesView({
             cases.length ? "ปรับการค้นหาหรือตัวกรอง" : "บันทึกคำร้อง/ปัญหาจากลูกค้าเพื่อติดตามการแก้ไข"
           }
           action={
-            cases.length ? null : (
+            cases.length || !canManage ? null : (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4" /> เพิ่มเคส
               </Button>
@@ -263,7 +350,10 @@ export function CasesView({
                     className="group border-b border-border last:border-0 hover:bg-muted/30"
                   >
                     <td className="px-4 py-3">
-                      <button onClick={() => openEdit(c)} className="block text-left">
+                      <button
+                        onClick={() => canManage && openEdit(c)}
+                        className="block text-left"
+                      >
                         <div className="font-medium hover:text-primary">{c.subject}</div>
                         {c.note ? (
                           <div className="max-w-md truncate text-xs text-muted-foreground">
@@ -275,6 +365,9 @@ export function CasesView({
                     <td className="px-4 py-3 text-muted-foreground">{c.case_type || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.employee || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">
+                      {siteName(c.site_id) || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
                       {c.case_date
                         ? fmtDate(c.case_date)
                         : "—"}
@@ -283,14 +376,16 @@ export function CasesView({
                       <Badge tone={meta.tone}>{meta.label}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(c)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => remove(c)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+                      {canManage ? (
+                        <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(c)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => remove(c)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      ) : null}
                     </td>
                   </tr>
                 );
@@ -344,12 +439,10 @@ export function CasesView({
               />
             </div>
             <div>
-              <Label htmlFor="case_date">วันที่</Label>
-              <Input
-                id="case_date"
-                type="datetime-local"
+              <Label>วันที่</Label>
+              <DatePicker
                 value={form.case_date}
-                onChange={(e) => setForm({ ...form, case_date: e.target.value })}
+                onChange={(v) => setForm({ ...form, case_date: v })}
               />
             </div>
           </div>
@@ -403,6 +496,46 @@ export function CasesView({
               </Select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="site_id">ไซต์</Label>
+              <Select
+                id="site_id"
+                value={form.site_id}
+                onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {(form.company_id
+                  ? sites.filter((s) => s.company_id === form.company_id)
+                  : sites
+                ).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="supporter_id">Technical Supporter</Label>
+              <Select
+                id="supporter_id"
+                value={form.supporter_id}
+                onChange={(e) => setForm({ ...form, supporter_id: e.target.value })}
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {supporters.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+              {supporters.length === 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ยังไม่มีสมาชิก role Technical Supporter — กำหนดได้ที่หน้าผู้ใช้
+                </p>
+              ) : null}
+            </div>
+          </div>
           <div>
             <Label htmlFor="note">รายละเอียด</Label>
             <Textarea
@@ -420,12 +553,82 @@ export function CasesView({
               onChange={(e) => setForm({ ...form, action: e.target.value })}
             />
           </div>
+          <div>
+            <Label>ไฟล์แนบ (รูป / PDF เช่น จดหมายแจ้งซ่อม)</Label>
+            {editing
+              ? attachments
+                  .filter((a) => a.case_id === editing.id)
+                  .map((a) => (
+                    <div
+                      key={a.id}
+                      className="mt-1 flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-sm"
+                    >
+                      {a.mime.includes("pdf") ? (
+                        <FileText className="h-4 w-4 shrink-0 text-red-500" />
+                      ) : (
+                        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-primary hover:underline"
+                      >
+                        {a.name}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(a)}
+                        className="ml-auto text-muted-foreground hover:text-destructive"
+                        title="ลบไฟล์แนบ"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))
+              : null}
+            {newFiles.map((f, i) => (
+              <div
+                key={`${f.name}-${i}`}
+                className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-2.5 py-1.5 text-sm"
+              >
+                <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{f.name}</span>
+                <span className="text-xs text-muted-foreground">(รออัปโหลด)</span>
+                <button
+                  type="button"
+                  onClick={() => setNewFiles((fs) => fs.filter((_, j) => j !== i))}
+                  className="ml-auto text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">
+              <Plus className="h-3.5 w-3.5" /> เลือกไฟล์…
+              <input
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  const list = Array.from(e.target.files ?? []);
+                  if (list.length) setNewFiles((fs) => [...fs, ...list]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               ยกเลิก
             </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "กำลังบันทึก…" : editing ? "บันทึกการแก้ไข" : "เพิ่มเคส"}
+            <Button type="submit" disabled={pending || uploading}>
+              {pending || uploading
+                ? "กำลังบันทึก…"
+                : editing
+                  ? "บันทึกการแก้ไข"
+                  : "เพิ่มเคส"}
             </Button>
           </div>
         </form>

@@ -79,6 +79,9 @@ Open Supabase → **SQL Editor** and run in order:
     conversion (row lock kills double-convert); `deals.currency` default → THB
 22. `0022_aggregates.sql` — `contract_visit_stats` view + `dashboard_stats(p_org)` fn (SQL
     aggregation for the dashboard & contract list instead of full-table fetches)
+23. `0023_case_site_supporter_attachments.sql` — cases `site_id` + `supporter_id` (Technical
+    Supporter user), `case_attachments` table + `case-files` storage bucket (images/PDF);
+    opening/managing cases is gated to Customer Service / Dispatcher / admin (CASE_ROLES)
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

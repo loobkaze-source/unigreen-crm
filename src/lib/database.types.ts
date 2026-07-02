@@ -330,9 +330,21 @@ export interface Case extends Mutable {
   team: string | null;
   company_id: string | null;
   contact_id: string | null;
+  site_id: string | null;
+  supporter_id: string | null;
   case_date: string | null;
   source: string | null;
   owner_id: string | null;
+}
+
+export interface CaseAttachment {
+  id: string;
+  org_id: string;
+  case_id: string;
+  path: string;
+  name: string | null;
+  mime: string | null;
+  created_at: string;
 }
 
 export interface Product extends Mutable {

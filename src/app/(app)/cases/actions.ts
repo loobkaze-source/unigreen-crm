@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { CASE_ROLES } from "@/lib/roles";
 import type { CaseStatus } from "@/lib/database.types";
 
 export type CaseInput = {
@@ -17,8 +18,17 @@ export type CaseInput = {
   team?: string;
   company_id?: string | null;
   contact_id?: string | null;
+  site_id?: string | null;
+  supporter_id?: string | null;
   case_date?: string | null;
 };
+
+/** Opening/managing cases is limited to Customer Service and Dispatcher
+ *  (admin can always do everything). */
+function canManageCases(ctx: Pick<SessionContext, "isAdmin" | "appRole">) {
+  return ctx.isAdmin || CASE_ROLES.includes(ctx.appRole as (typeof CASE_ROLES)[number]);
+}
+const NO_PERMISSION = "เฉพาะ Customer Service / Dispatcher (หรือแอดมิน) เท่านั้นที่จัดการเคสได้";
 
 /** Count work orders on a case that aren't finished (completed/cancelled). */
 async function openWorkOrders(
@@ -37,7 +47,9 @@ const CLOSE_BLOCKED = (n: number) =>
   `ปิดเคสไม่ได้ — ยังมีใบสั่งงานที่ทำไม่เสร็จ ${n} รายการ (ต้องปิดงานให้เสร็จก่อน)`;
 
 export async function saveCase(input: CaseInput): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const { supabase, org } = ctx;
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
   const subject = input.subject?.trim();
   if (!subject) return fail("กรุณากรอกหัวข้อเคส");
 
@@ -58,19 +70,27 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     team: input.team?.trim() || null,
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
+    site_id: input.site_id || null,
+    supporter_id: input.supporter_id || null,
     case_date: input.case_date ? new Date(input.case_date).toISOString() : null,
   };
 
   if (input.id) {
     const { error } = await supabase.from("cases").update(payload).eq("id", input.id);
     if (error) return fail(error.message);
-  } else {
-    const { error } = await supabase.from("cases").insert(payload);
-    if (error) return fail(error.message);
+    revalidatePath("/cases");
+    return ok(input.id);
   }
+  const { data: created, error } = await supabase
+    .from("cases")
+    .insert(payload)
+    .select("id")
+    .single();
+  if (error) return fail(error.message);
 
   revalidatePath("/cases");
-  return ok();
+  // Return the id so the client can upload queued attachments for a new case.
+  return ok(created.id);
 }
 
 export async function updateCaseStatus(
@@ -89,9 +109,45 @@ export async function updateCaseStatus(
 }
 
 export async function deleteCase(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("cases").delete().eq("id", id);
+  const ctx = await getSessionContext();
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  const { error } = await ctx.supabase.from("cases").delete().eq("id", id);
   if (error) return fail(error.message);
+  revalidatePath("/cases");
+  return ok();
+}
+
+// ---- Attachments (photos / PDFs, e.g. repair-notice letters) ---------------
+export async function addCaseAttachment(
+  caseId: string,
+  path: string,
+  name: string,
+  mime: string
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  const { error } = await ctx.supabase.from("case_attachments").insert({
+    org_id: ctx.org.id,
+    case_id: caseId,
+    path,
+    name: name || null,
+    mime: mime || null,
+  });
+  if (error) return fail(error.message);
+  revalidatePath("/cases");
+  return ok();
+}
+
+export async function deleteCaseAttachment(
+  id: string,
+  path: string
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  // DB row first; an orphaned storage object is harmless by contrast.
+  const { error } = await ctx.supabase.from("case_attachments").delete().eq("id", id);
+  if (error) return fail(error.message);
+  await ctx.supabase.storage.from("case-files").remove([path]);
   revalidatePath("/cases");
   return ok();
 }
