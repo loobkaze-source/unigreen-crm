@@ -27,6 +27,7 @@ export default async function WorkOrderDetailPage({
   const [
     itemsRes,
     photosRes,
+    partsRes,
     techRes,
     companiesRes,
     contactsRes,
@@ -45,6 +46,11 @@ export default async function WorkOrderDetailPage({
       .select("*")
       .eq("work_order_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("work_order_parts")
+      .select("id, name, qty, equipment_id")
+      .eq("work_order_id", id)
+      .order("created_at", { ascending: true }),
     supabase
       .from("technicians")
       .select("id, name")
@@ -85,6 +91,7 @@ export default async function WorkOrderDetailPage({
 
   const items = rows(itemsRes);
   const photos = rows(photosRes);
+  const parts = rows(partsRes);
   const technicians = rows(techRes);
   const companies = rows(companiesRes);
   const contacts = rows(contactsRes);
@@ -127,6 +134,7 @@ export default async function WorkOrderDetailPage({
       workOrder={workOrder}
       items={items ?? []}
       photos={photosWithUrl}
+      parts={parts}
       technicians={techList}
       companies={companyList}
       contacts={contactList}

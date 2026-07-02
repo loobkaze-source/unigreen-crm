@@ -212,6 +212,39 @@ export async function deleteChecklistItem(
   return ok();
 }
 
+// ---- Parts replaced ---------------------------------------------------------
+export async function addWorkOrderPart(
+  workOrderId: string,
+  name: string,
+  qty: number,
+  equipmentId?: string | null
+): Promise<ActionResult> {
+  const { supabase, org } = await getSessionContext();
+  const label = name?.trim();
+  if (!label) return fail("กรุณากรอกชื่ออะไหล่");
+  const { error } = await supabase.from("work_order_parts").insert({
+    org_id: org.id,
+    work_order_id: workOrderId,
+    equipment_id: equipmentId || null,
+    name: label,
+    qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+  });
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
+export async function deleteWorkOrderPart(
+  id: string,
+  workOrderId: string
+): Promise<ActionResult> {
+  const { supabase } = await getSessionContext();
+  const { error } = await supabase.from("work_order_parts").delete().eq("id", id);
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
 // ---- Photos ---------------------------------------------------------------
 export async function addWorkOrderPhoto(
   workOrderId: string,

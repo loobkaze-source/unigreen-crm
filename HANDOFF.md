@@ -82,6 +82,8 @@ Open Supabase → **SQL Editor** and run in order:
 23. `0023_case_site_supporter_attachments.sql` — cases `site_id` + `supporter_id` (Technical
     Supporter user), `case_attachments` table + `case-files` storage bucket (images/PDF);
     opening/managing cases is gated to Customer Service / Dispatcher / admin (CASE_ROLES)
+24. `0024_work_order_parts.sql` — `work_order_parts` (parts replaced per WO, optional
+    equipment link); powers the /assets lifetime pages ("เปลี่ยนอะไหล่ไปกี่รอบ")
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

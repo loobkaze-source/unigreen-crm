@@ -6,6 +6,7 @@
 export const TECH_ROUTES = [
   "/service-board",
   "/sites",
+  "/assets",
   "/work-orders",
   "/cases",
   "/service-contracts",

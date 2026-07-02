@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Box,
   Building2,
   ChevronDown,
   ClipboardList,
@@ -36,6 +37,7 @@ const NAV = [
   { href: "/contacts", label: "ผู้ติดต่อ", icon: Users },
   { href: "/deals", label: "ดีล", icon: Handshake },
   { href: "/sites", label: "ไซต์งาน", icon: MapPin },
+  { href: "/assets", label: "Asset", icon: Box },
   { href: "/service-board", label: "Service Board", icon: ClipboardList },
   { href: "/cases", label: "เคส", icon: LifeBuoy },
   { href: "/work-orders", label: "งานบริการ", icon: Wrench },

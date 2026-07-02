@@ -55,8 +55,10 @@ const WorkOrderModal = dynamic(
 );
 import {
   addChecklistItem,
+  addWorkOrderPart,
   addWorkOrderPhoto,
   deleteChecklistItem,
+  deleteWorkOrderPart,
   deleteWorkOrder,
   deleteWorkOrderPhoto,
   toggleChecklistItem,
@@ -64,11 +66,18 @@ import {
 } from "../actions";
 
 type PhotoWithUrl = WorkOrderPhoto & { url: string };
+type PartRow = {
+  id: string;
+  name: string;
+  qty: number;
+  equipment_id: string | null;
+};
 
 export function WorkOrderDetail({
   workOrder,
   items,
   photos,
+  parts,
   technicians,
   companies,
   contacts,
@@ -84,6 +93,7 @@ export function WorkOrderDetail({
   workOrder: WorkOrder;
   items: WorkOrderItem[];
   photos: PhotoWithUrl[];
+  parts: PartRow[];
   technicians: Option[];
   companies: Option[];
   contacts: ContactOption[];
@@ -99,6 +109,7 @@ export function WorkOrderDetail({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [newItem, setNewItem] = useState("");
+  const [newPart, setNewPart] = useState({ name: "", qty: "1", equipment_id: "" });
   const [uploading, setUploading] = useState(false);
   const [, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -156,6 +167,29 @@ export function WorkOrderDetail({
   function removeItem(item: WorkOrderItem) {
     startTransition(async () => {
       const res = await deleteChecklistItem(item.id, workOrder.id);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+
+  function addPart(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newPart.name.trim()) return;
+    startTransition(async () => {
+      const res = await addWorkOrderPart(
+        workOrder.id,
+        newPart.name,
+        Number(newPart.qty) || 1,
+        newPart.equipment_id || null
+      );
+      if (!res.ok) return alert(res.error);
+      setNewPart({ name: "", qty: "1", equipment_id: "" });
+      router.refresh();
+    });
+  }
+  function removePart(part: PartRow) {
+    startTransition(async () => {
+      const res = await deleteWorkOrderPart(part.id, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
@@ -349,6 +383,93 @@ export function WorkOrderDetail({
               <Button type="submit" variant="secondary">
                 <Plus className="h-4 w-4" /> เพิ่ม
               </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Parts replaced */}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              อะไหล่ที่เปลี่ยน{" "}
+              <span className="text-sm font-normal text-muted-foreground">
+                ({parts.length})
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {parts.map((part) => {
+                const asset = assets.find((a) => a.id === part.equipment_id);
+                return (
+                  <div
+                    key={part.id}
+                    className="group flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-muted/40"
+                  >
+                    <span className="flex-1 text-sm">
+                      {part.name}{" "}
+                      <span className="text-muted-foreground">×{Number(part.qty)}</span>
+                      {asset ? (
+                        <span className="block text-xs text-muted-foreground">
+                          {asset.name}
+                        </span>
+                      ) : null}
+                    </span>
+                    <button
+                      onClick={() => removePart(part)}
+                      className="opacity-0 transition-opacity group-hover:opacity-100"
+                      aria-label="ลบ"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
+                  </div>
+                );
+              })}
+              {parts.length === 0 ? (
+                <p className="py-2 text-sm text-muted-foreground">
+                  ยังไม่มีการเปลี่ยนอะไหล่ในงานนี้
+                </p>
+              ) : null}
+            </div>
+
+            <form onSubmit={addPart} className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={newPart.name}
+                  onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
+                  placeholder="ชื่ออะไหล่ เช่น มอเตอร์, สายพาน…"
+                />
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={newPart.qty}
+                  onChange={(e) => setNewPart({ ...newPart, qty: e.target.value })}
+                  className="w-20"
+                  aria-label="จำนวน"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select
+                  value={newPart.equipment_id}
+                  onChange={(e) =>
+                    setNewPart({ ...newPart, equipment_id: e.target.value })
+                  }
+                  aria-label="Asset ที่เปลี่ยนอะไหล่"
+                >
+                  <option value="">— ไม่ระบุ Asset —</option>
+                  {assets
+                    .filter((a) => assetIds.includes(a.id))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                </Select>
+                <Button type="submit" variant="secondary">
+                  <Plus className="h-4 w-4" /> เพิ่ม
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
