@@ -12,6 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { saveCompany, deleteCompany } from "./actions";
 
@@ -66,6 +72,47 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
       );
     });
   }, [companies, query, tagFilter]);
+
+  const columns = useMemo<ColumnDef<Company>[]>(
+    () => [
+      {
+        key: "customer_code",
+        header: "รหัส",
+        sortAccessor: (c) => c.customer_code,
+        filter: { kind: "text", accessor: (c) => c.customer_code },
+      },
+      {
+        key: "name",
+        header: "ชื่อ",
+        sortAccessor: (c) => c.name,
+        filter: { kind: "text", accessor: (c) => c.name },
+      },
+      { key: "tags", header: "แท็ก" }, // filtered via the tag chips above
+      {
+        key: "tax_id",
+        header: "Tax ID",
+        sortAccessor: (c) => c.tax_id,
+        filter: { kind: "text", accessor: (c) => c.tax_id },
+      },
+      {
+        key: "website",
+        header: "เว็บไซต์",
+        sortAccessor: (c) => c.website,
+        filter: { kind: "text", accessor: (c) => c.website },
+      },
+      {
+        key: "phone",
+        header: "โทรศัพท์",
+        sortAccessor: (c) => c.phone,
+        filter: { kind: "text", accessor: (c) => c.phone },
+      },
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "name", dir: "asc" },
+  });
 
   const toggleFilterTag = (t: string) =>
     setTagFilter((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
@@ -135,14 +182,17 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
         </Button>
       </PageHeader>
 
-      <div className="mb-3 relative max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาลูกค้า / รหัส / Tax ID / แท็ก…"
-          className="pl-9"
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาลูกค้า / รหัส / Tax ID / แท็ก…"
+            className="pl-9"
+          />
+        </div>
+        <DataTableFilterToggle table={table} />
       </div>
 
       {allTags.length ? (
@@ -175,7 +225,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
         </div>
       ) : null}
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={Building2}
           title={companies.length ? "ไม่พบรายการ" : "ยังไม่มีบริษัท"}
@@ -195,19 +245,13 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">รหัส</th>
-                <th className="px-4 py-3 font-medium">ชื่อ</th>
-                <th className="px-4 py-3 font-medium">แท็ก</th>
-                <th className="px-4 py-3 font-medium">Tax ID</th>
-                <th className="px-4 py-3 font-medium">เว็บไซต์</th>
-                <th className="px-4 py-3 font-medium">โทรศัพท์</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={companies}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((c) => (
+              {table.rows.map((c) => (
                 <tr
                   key={c.id}
                   className="group border-b border-border last:border-0 hover:bg-muted/30"

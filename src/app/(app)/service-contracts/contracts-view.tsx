@@ -14,6 +14,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { DEPARTMENTS } from "@/lib/departments";
 import { fmtDate } from "@/lib/format";
 import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
@@ -73,6 +79,41 @@ export function ContractsView({
     if (!q) return contracts;
     return contracts.filter((c) => c.title.toLowerCase().includes(q));
   }, [contracts, query]);
+
+  const columns = useMemo<ColumnDef<ContractRow>[]>(
+    () => [
+      {
+        key: "title",
+        header: "สัญญา",
+        sortAccessor: (c) => c.title,
+        filter: {
+          kind: "select",
+          accessor: (c) => c.service_type,
+          options: SERVICE_TYPES.map((s) => ({ value: s.value, label: s.label })),
+        },
+      },
+      {
+        key: "frequency",
+        header: "รอบ",
+        sortAccessor: (c) => c.frequency_per_year,
+      },
+      {
+        key: "progress",
+        header: "ความคืบหน้า",
+        sortAccessor: (c) => (c.total ? c.done / c.total : 0),
+      },
+      {
+        key: "nextDue",
+        header: "รอบถัดไป",
+        sortAccessor: (c) => c.nextDue,
+      },
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "nextDue", dir: "asc" },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -143,17 +184,20 @@ export function ContractsView({
         </Button>
       </PageHeader>
 
-      <div className="mb-4 relative max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาสัญญา…"
-          className="pl-9"
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาสัญญา…"
+            className="pl-9"
+          />
+        </div>
+        <DataTableFilterToggle table={table} />
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={Repeat}
           title={contracts.length ? "ไม่พบรายการ" : "ยังไม่มีสัญญาบริการ"}
@@ -173,17 +217,13 @@ export function ContractsView({
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">สัญญา</th>
-                <th className="px-4 py-3 font-medium">รอบ</th>
-                <th className="px-4 py-3 font-medium">ความคืบหน้า</th>
-                <th className="px-4 py-3 font-medium">รอบถัดไป</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={contracts}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((c) => {
+              {table.rows.map((c) => {
                 const pct = c.total ? Math.round((c.done / c.total) * 100) : 0;
                 const overdue = c.nextDue && c.nextDue < today;
                 return (

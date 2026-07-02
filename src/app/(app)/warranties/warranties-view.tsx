@@ -13,6 +13,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { saveWarranty, deleteWarranty } from "./actions";
@@ -73,6 +79,38 @@ export function WarrantiesView({
       );
     });
   }, [warranties, query, kindFilter]);
+
+  const columns = useMemo<ColumnDef<Warranty>[]>(
+    () => [
+      {
+        key: "title",
+        header: "รายการ",
+        sortAccessor: (w) => w.title,
+        filter: { kind: "text", accessor: (w) => w.title },
+      },
+      {
+        key: "kind",
+        header: "ประเภท",
+        sortAccessor: (w) => kindLabel(w.kind),
+      }, // filtered via the kind chips above
+      {
+        key: "serial_number",
+        header: "Serial",
+        sortAccessor: (w) => w.serial_number,
+        filter: { kind: "text", accessor: (w) => w.serial_number },
+      },
+      {
+        key: "end_date",
+        header: "หมดอายุ",
+        sortAccessor: (w) => w.end_date,
+      },
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "end_date", dir: "asc" },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -176,9 +214,10 @@ export function WarrantiesView({
             </Chip>
           ))}
         </div>
+        <DataTableFilterToggle table={table} />
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title={warranties.length ? "ไม่พบรายการ" : "ยังไม่มีการรับประกัน"}
@@ -198,17 +237,13 @@ export function WarrantiesView({
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">รายการ</th>
-                <th className="px-4 py-3 font-medium">ประเภท</th>
-                <th className="px-4 py-3 font-medium">Serial</th>
-                <th className="px-4 py-3 font-medium">หมดอายุ</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={warranties}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((w) => (
+              {table.rows.map((w) => (
                 <tr
                   key={w.id}
                   className="group border-b border-border last:border-0 hover:bg-muted/30"

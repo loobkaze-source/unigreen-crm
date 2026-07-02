@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Trash2, UserCog, UserPlus, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES, DEPT_ROLES } from "@/lib/roles";
 import { displayUsername } from "@/lib/username";
@@ -43,6 +49,56 @@ export function UsersView({
   const [password, setPassword] = useState("123456");
   const [cuRole, setCuRole] = useState("Sales");
   const [cuDept, setCuDept] = useState<string>(DEPARTMENTS[0].value);
+
+  const columns = useMemo<ColumnDef<Member>[]>(
+    () => [
+      {
+        key: "user",
+        header: "ผู้ใช้",
+        sortAccessor: (m) => m.name || m.email,
+        filter: { kind: "text", accessor: (m) => `${m.name} ${m.email}` },
+      },
+      {
+        key: "role",
+        header: "สิทธิ์ระบบ",
+        sortAccessor: (m) => m.role,
+        filter: { kind: "select", accessor: (m) => m.role },
+      },
+      {
+        key: "app_role",
+        header: "บทบาท",
+        sortAccessor: (m) => m.app_role,
+        filter: {
+          kind: "select",
+          accessor: (m) => m.app_role,
+          options: USER_ROLES.map((r) => ({ value: r, label: r })),
+        },
+      },
+      {
+        key: "department",
+        header: "แผนก",
+        sortAccessor: (m) => m.department,
+        filter: {
+          kind: "select",
+          accessor: (m) => m.department,
+          options: DEPARTMENTS.map((d) => ({ value: d.value, label: d.label })),
+        },
+      },
+      ...(canManage
+        ? [
+            {
+              key: "_actions",
+              header: "จัดการ",
+              className: "text-right",
+            } as ColumnDef<Member>,
+          ]
+        : []),
+    ],
+    [canManage]
+  );
+  const table = useDataTable(members, columns, {
+    initialSort: { key: "user", dir: "asc" },
+  });
 
   function run(id: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setSavingId(id);
@@ -161,22 +217,27 @@ export function UsersView({
       ) : null}
 
       {/* Members */}
-      {members.length === 0 ? (
-        <EmptyState icon={UserCog} title="ยังไม่มีผู้ใช้" />
+      <div>
+      {members.length ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <DataTableFilterToggle table={table} />
+        </div>
+      ) : null}
+      {table.rows.length === 0 ? (
+        <EmptyState
+          icon={UserCog}
+          title={members.length ? "ไม่พบรายการ" : "ยังไม่มีผู้ใช้"}
+        />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">ผู้ใช้</th>
-                <th className="px-4 py-3 font-medium">สิทธิ์ระบบ</th>
-                <th className="px-4 py-3 font-medium">บทบาท</th>
-                <th className="px-4 py-3 font-medium">แผนก</th>
-                {canManage ? <th className="px-4 py-3 text-right font-medium">จัดการ</th> : null}
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={members}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {members.map((m) => {
+              {table.rows.map((m) => {
                 const deptRole = DEPT_ROLES.has(m.app_role);
                 const busy = pending && savingId === m.id;
                 const isOwner = m.role === "owner";
@@ -260,6 +321,7 @@ export function UsersView({
           </table>
         </div>
       )}
+      </div>
 
       {!canManage ? (
         <p className="text-xs text-muted-foreground">

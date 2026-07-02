@@ -20,10 +20,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate, fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
+  WO_TYPES,
   billingMeta,
   jobClassLabel,
   priorityMeta,
@@ -115,11 +122,58 @@ export function WorkOrdersView({
     });
   }, [workOrders, query, statusFilter]);
 
-  // Agenda: scheduled grouped by date, then "ยังไม่นัดหมาย"
+  const columns = useMemo<ColumnDef<WorkOrder>[]>(
+    () => [
+      {
+        key: "title",
+        header: "เลขที่ / งาน",
+        sortAccessor: (w) => w.number,
+        filter: { kind: "text", accessor: (w) => w.title },
+      },
+      {
+        key: "type",
+        header: "ประเภท",
+        sortAccessor: (w) => typeLabel(w.type),
+        filter: {
+          kind: "select",
+          accessor: (w) => w.type,
+          options: WO_TYPES.map((t) => ({ value: t.value, label: t.label })),
+        },
+      },
+      {
+        key: "status",
+        header: "สถานะ",
+        sortAccessor: (w) => statusMeta(w.status).label,
+      }, // filtered via the status chips above
+      {
+        key: "technician",
+        header: "ช่าง",
+        sortAccessor: (w) => techName(w.technician_id) ?? null,
+        filter: {
+          kind: "select",
+          accessor: (w) => techName(w.technician_id) ?? null,
+          options: technicians.map((t) => ({ value: t.name, label: t.name })),
+        },
+      },
+      {
+        key: "scheduled_start",
+        header: "นัดหมาย",
+        sortAccessor: (w) => w.scheduled_start,
+      },
+      { key: "_actions", header: "" },
+    ],
+    [techName, technicians]
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "scheduled_start", dir: "desc" },
+  });
+
+  // Agenda: scheduled grouped by date, then "ยังไม่นัดหมาย".
+  // Uses table.rows so column filters (type/technician) apply to both views.
   const agenda = useMemo(() => {
     const groups = new Map<string, WorkOrder[]>();
     const noDate: WorkOrder[] = [];
-    [...filtered]
+    [...table.rows]
       .sort((a, b) =>
         (a.scheduled_start || "").localeCompare(b.scheduled_start || "")
       )
@@ -130,7 +184,7 @@ export function WorkOrdersView({
         groups.get(key)!.push(w);
       });
     return { groups: [...groups.entries()], noDate };
-  }, [filtered]);
+  }, [table.rows]);
 
   function openCreate() {
     setEditing(null);
@@ -171,6 +225,7 @@ export function WorkOrdersView({
             className="pl-9"
           />
         </div>
+        {tab === "list" ? <DataTableFilterToggle table={table} /> : null}
         <div className="flex rounded-md border border-border bg-card p-0.5">
           <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={LayoutList}>
             รายการ
@@ -202,7 +257,7 @@ export function WorkOrdersView({
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={Wrench}
           title={workOrders.length ? "ไม่พบรายการ" : "ยังไม่มีใบสั่งงาน"}
@@ -222,18 +277,13 @@ export function WorkOrdersView({
       ) : tab === "list" ? (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">เลขที่ / งาน</th>
-                <th className="px-4 py-3 font-medium">ประเภท</th>
-                <th className="px-4 py-3 font-medium">สถานะ</th>
-                <th className="px-4 py-3 font-medium">ช่าง</th>
-                <th className="px-4 py-3 font-medium">นัดหมาย</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={workOrders}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((w) => (
+              {table.rows.map((w) => (
                 <WorkOrderRow
                   key={w.id}
                   w={w}

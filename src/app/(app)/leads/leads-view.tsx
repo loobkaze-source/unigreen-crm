@@ -13,6 +13,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn, formatCurrency } from "@/lib/utils";
 import { saveLead, deleteLead, convertLead } from "./actions";
 
@@ -59,6 +65,39 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
       );
     });
   }, [leads, query, statusFilter]);
+
+  const columns = useMemo<ColumnDef<Lead>[]>(
+    () => [
+      {
+        key: "name",
+        header: "ลูกค้ามุ่งหวัง",
+        sortAccessor: (l) => l.name,
+        filter: { kind: "text", accessor: (l) => l.name },
+      },
+      {
+        key: "status",
+        header: "สถานะ",
+        sortAccessor: (l) => l.status,
+      }, // filtered via the status chips above
+      {
+        key: "source",
+        header: "แหล่งที่มา",
+        sortAccessor: (l) => l.source,
+        filter: { kind: "text", accessor: (l) => l.source },
+      },
+      {
+        key: "value",
+        header: "มูลค่า",
+        className: "text-right",
+        sortAccessor: (l) => l.value,
+      },
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "value", dir: "desc" },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -141,6 +180,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
             className="pl-9"
           />
         </div>
+        <DataTableFilterToggle table={table} />
         <div className="flex flex-wrap gap-1">
           <FilterChip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>
             ทั้งหมด
@@ -157,7 +197,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={UserPlus}
           title={leads.length ? "ไม่พบรายการ" : "ยังไม่มีลูกค้ามุ่งหวัง"}
@@ -177,17 +217,13 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">ลูกค้ามุ่งหวัง</th>
-                <th className="px-4 py-3 font-medium">สถานะ</th>
-                <th className="px-4 py-3 font-medium">แหล่งที่มา</th>
-                <th className="px-4 py-3 font-medium text-right">มูลค่า</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={leads}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((l) => {
+              {table.rows.map((l) => {
                 const meta = statusMeta(l.status);
                 const converted = l.status === "converted";
                 return (

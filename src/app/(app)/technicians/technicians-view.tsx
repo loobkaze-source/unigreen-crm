@@ -13,6 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { saveTechnician, deleteTechnician, importTechniciansFromUsers } from "./actions";
 
@@ -49,6 +55,50 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         (t.skills || []).some((s) => s.toLowerCase().includes(q))
     );
   }, [technicians, query]);
+
+  const columns = useMemo<ColumnDef<Technician>[]>(
+    () => [
+      {
+        key: "name",
+        header: "ชื่อ",
+        sortAccessor: (t) => t.name,
+        filter: { kind: "text", accessor: (t) => t.name },
+      },
+      {
+        key: "skills",
+        header: "ความชำนาญ",
+        filter: {
+          kind: "select",
+          accessor: (t) => t.skills ?? [],
+          options: SKILLS.map((s) => ({ value: s, label: s })),
+        },
+      },
+      {
+        key: "contact",
+        header: "ติดต่อ",
+        sortAccessor: (t) => t.phone,
+        filter: { kind: "text", accessor: (t) => `${t.phone || ""} ${t.email || ""}` },
+      },
+      {
+        key: "active",
+        header: "สถานะ",
+        sortAccessor: (t) => (t.active ? "1" : "0"),
+        filter: {
+          kind: "select",
+          accessor: (t) => (t.active ? "1" : "0"),
+          options: [
+            { value: "1", label: "ใช้งาน" },
+            { value: "0", label: "พักงาน" },
+          ],
+        },
+      },
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "name", dir: "asc" },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -122,17 +172,20 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         </Button>
       </PageHeader>
 
-      <div className="mb-4 relative max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาช่าง…"
-          className="pl-9"
-        />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาช่าง…"
+            className="pl-9"
+          />
+        </div>
+        <DataTableFilterToggle table={table} />
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={HardHat}
           title={technicians.length ? "ไม่พบรายการ" : "ยังไม่มีช่าง"}
@@ -152,17 +205,13 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">ชื่อ</th>
-                <th className="px-4 py-3 font-medium">ความชำนาญ</th>
-                <th className="px-4 py-3 font-medium">ติดต่อ</th>
-                <th className="px-4 py-3 font-medium">สถานะ</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={technicians}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((t) => (
+              {table.rows.map((t) => (
                 <tr
                   key={t.id}
                   className="group border-b border-border last:border-0 hover:bg-muted/30"

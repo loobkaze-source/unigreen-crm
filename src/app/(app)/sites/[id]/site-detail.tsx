@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -31,6 +31,12 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
@@ -85,10 +91,83 @@ export function SiteDetail({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Bulk group assignment via checkboxes
+  // Per-column sort + filter for the asset table.
+  const columns = useMemo<ColumnDef<Equipment>[]>(
+    () => [
+      {
+        key: "code",
+        header: "รหัส Asset",
+        sortAccessor: (eq) => eq.code ?? null,
+        filter: { kind: "text", accessor: (eq) => assetCode(eq.code) },
+      },
+      {
+        key: "name",
+        header: "Asset",
+        sortAccessor: (eq) => eq.name,
+        filter: { kind: "text", accessor: (eq) => eq.name },
+      },
+      {
+        key: "type",
+        header: "ชนิด",
+        sortAccessor: (eq) =>
+          eq.asset_type === "project" ? "โครงการ" : catLabel(eq.category),
+        filter: {
+          kind: "select",
+          accessor: (eq) =>
+            eq.asset_type === "project" ? "โครงการ" : catLabel(eq.category),
+        },
+      },
+      {
+        key: "group",
+        header: "กลุ่ม",
+        sortAccessor: (eq) => groups.find((g) => g.id === eq.group_id)?.name ?? null,
+        filter: {
+          kind: "select",
+          accessor: (eq) => groups.find((g) => g.id === eq.group_id)?.name ?? null,
+        },
+      },
+      {
+        key: "assetId",
+        header: "Serial / เลขโครงการ",
+        sortAccessor: (eq) => assetId(eq),
+        filter: { kind: "text", accessor: (eq) => assetId(eq) },
+      },
+      {
+        key: "install_date",
+        header: "วันส่งมอบวันแรก",
+        sortAccessor: (eq) => eq.install_date,
+        filter: { kind: "text", accessor: (eq) => eq.install_date },
+      },
+      {
+        key: "warranty",
+        header: "ประกัน",
+        sortAccessor: (eq) =>
+          warrantyEnd(eq.warranty_start, eq.warranty_months)?.getTime() ?? null,
+        filter: {
+          kind: "select",
+          accessor: (eq) =>
+            warrantyState(warrantyEnd(eq.warranty_start, eq.warranty_months)),
+          options: [
+            { value: "active", label: "ในประกัน" },
+            { value: "expired", label: "หมดประกัน" },
+            { value: "none", label: "ไม่มี" },
+          ],
+        },
+      },
+      { key: "_actions", header: "" },
+    ],
+    [groups]
+  );
+  const assetTable = useDataTable(equipment, columns, {
+    initialSort: { key: "code", dir: "asc" },
+  });
+  const visibleAssets = assetTable.rows;
+
+  // Bulk group assignment via checkboxes (operates on the visible rows).
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkGroup, setBulkGroup] = useState("");
-  const allSelected = equipment.length > 0 && selected.size === equipment.length;
+  const allSelected =
+    visibleAssets.length > 0 && visibleAssets.every((e) => selected.has(e.id));
   function toggleOne(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -98,9 +177,15 @@ export function SiteDetail({
     });
   }
   function toggleAll() {
-    setSelected((prev) =>
-      prev.size === equipment.length ? new Set() : new Set(equipment.map((e) => e.id))
-    );
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (visibleAssets.every((e) => prev.has(e.id))) {
+        visibleAssets.forEach((e) => next.delete(e.id));
+      } else {
+        visibleAssets.forEach((e) => next.add(e.id));
+      }
+      return next;
+    });
   }
   function assignSelected(groupId: string | null) {
     if (selected.size === 0) return;
@@ -276,9 +361,12 @@ export function SiteDetail({
                 ({equipment.length})
               </span>
             </CardTitle>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> เพิ่ม Asset
-            </Button>
+            <div className="flex items-center gap-2">
+              <DataTableFilterToggle table={assetTable} />
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="h-4 w-4" /> เพิ่ม Asset
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {/* Asset groups (within this site) */}
@@ -373,8 +461,10 @@ export function SiteDetail({
             ) : (
               <div className="overflow-x-auto rounded-md border border-border">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+                  <DataTableHead
+                    table={assetTable}
+                    sourceRows={equipment}
+                    leading={
                       <th className="w-9 px-3 py-2">
                         <input
                           type="checkbox"
@@ -384,17 +474,10 @@ export function SiteDetail({
                           title="เลือกทั้งหมด"
                         />
                       </th>
-                      <th className="px-3 py-2 font-medium">รหัส Asset</th>
-                      <th className="px-3 py-2 font-medium">Asset</th>
-                      <th className="px-3 py-2 font-medium">ชนิด</th>
-                      <th className="px-3 py-2 font-medium">กลุ่ม</th>
-                      <th className="px-3 py-2 font-medium">Serial / เลขโครงการ</th>
-                      <th className="px-3 py-2 font-medium">ประกัน</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
+                    }
+                  />
                   <tbody>
-                    {equipment.map((eq) => {
+                    {visibleAssets.map((eq) => {
                       const wEnd = warrantyEnd(eq.warranty_start, eq.warranty_months);
                       const wState = warrantyState(wEnd);
                       return (
@@ -447,6 +530,9 @@ export function SiteDetail({
                           </td>
                           <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                             {assetId(eq)}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {eq.install_date ? fmtDate(eq.install_date) : "—"}
                           </td>
                           <td className="px-3 py-2">
                             {wState === "none" ? (
@@ -676,7 +762,7 @@ export function SiteDetail({
               />
             </div>
             <div>
-              <Label htmlFor="install_date">วันที่ติดตั้ง</Label>
+              <Label htmlFor="install_date">วันส่งมอบวันแรก</Label>
               <Input
                 id="install_date"
                 type="date"

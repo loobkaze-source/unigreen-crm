@@ -13,6 +13,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { saveCase, deleteCase } from "./actions";
@@ -91,6 +97,44 @@ export function CasesView({
     });
   }, [cases, query, statusFilter]);
 
+  const columns = useMemo<ColumnDef<Case>[]>(
+    () => [
+      {
+        key: "subject",
+        header: "เคส",
+        sortAccessor: (c) => c.subject,
+        filter: { kind: "text", accessor: (c) => c.subject },
+      },
+      {
+        key: "case_type",
+        header: "ประเภท",
+        sortAccessor: (c) => c.case_type,
+        filter: { kind: "text", accessor: (c) => c.case_type },
+      },
+      {
+        key: "employee",
+        header: "ผู้รับผิดชอบ",
+        sortAccessor: (c) => c.employee,
+        filter: { kind: "text", accessor: (c) => c.employee },
+      },
+      {
+        key: "case_date",
+        header: "วันที่",
+        sortAccessor: (c) => c.case_date,
+      },
+      {
+        key: "status",
+        header: "สถานะ",
+        sortAccessor: (c) => c.status,
+      }, // filtered via the status chips above
+      { key: "_actions", header: "" },
+    ],
+    []
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "case_date", dir: "desc" },
+  });
+
   function openCreate() {
     setEditing(null);
     setForm(EMPTY);
@@ -164,6 +208,7 @@ export function CasesView({
             className="pl-9"
           />
         </div>
+        <DataTableFilterToggle table={table} />
         <div className="flex flex-wrap gap-1">
           <Chip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>
             ทั้งหมด ({counts.all})
@@ -186,7 +231,7 @@ export function CasesView({
         </p>
       ) : null}
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={LifeBuoy}
           title={cases.length ? "ไม่พบรายการ" : "ยังไม่มีเคส"}
@@ -204,18 +249,13 @@ export function CasesView({
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">เคส</th>
-                <th className="px-4 py-3 font-medium">ประเภท</th>
-                <th className="px-4 py-3 font-medium">ผู้รับผิดชอบ</th>
-                <th className="px-4 py-3 font-medium">วันที่</th>
-                <th className="px-4 py-3 font-medium">สถานะ</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={cases}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((c) => {
+              {table.rows.map((c) => {
                 const meta = statusMeta(c.status);
                 return (
                   <tr

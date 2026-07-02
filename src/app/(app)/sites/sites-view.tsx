@@ -13,6 +13,12 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  useDataTable,
+  DataTableHead,
+  DataTableFilterToggle,
+  type ColumnDef,
+} from "@/components/ui/data-table";
 import { saveSite, deleteSite } from "./actions";
 
 type Option = { id: string; name: string };
@@ -58,6 +64,33 @@ export function SitesView({
         (s.address || "").toLowerCase().includes(q)
     );
   }, [sites, query]);
+
+  const columns = useMemo<ColumnDef<SiteRow>[]>(
+    () => [
+      {
+        key: "name",
+        header: "ไซต์",
+        sortAccessor: (s) => s.name,
+        filter: { kind: "text", accessor: (s) => s.name },
+      },
+      {
+        key: "company",
+        header: "นิติบุคคล",
+        sortAccessor: (s) => companyName(s.company_id),
+        filter: { kind: "select", accessor: (s) => companyName(s.company_id) },
+      },
+      {
+        key: "equipmentCount",
+        header: "อุปกรณ์",
+        sortAccessor: (s) => s.equipmentCount,
+      },
+      { key: "_actions", header: "" },
+    ],
+    [companyName]
+  );
+  const table = useDataTable(filtered, columns, {
+    initialSort: { key: "name", dir: "asc" },
+  });
 
   function openCreate() {
     setEditing(null);
@@ -114,17 +147,20 @@ export function SitesView({
         </Button>
       </PageHeader>
 
-      <div className="mb-4 relative max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="ค้นหาไซต์…"
-          className="pl-9"
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาไซต์…"
+            className="pl-9"
+          />
+        </div>
+        <DataTableFilterToggle table={table} />
       </div>
 
-      {filtered.length === 0 ? (
+      {table.rows.length === 0 ? (
         <EmptyState
           icon={MapPin}
           title={sites.length ? "ไม่พบรายการ" : "ยังไม่มีไซต์งาน"}
@@ -142,16 +178,13 @@ export function SitesView({
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-4 py-3 font-medium">ไซต์</th>
-                <th className="px-4 py-3 font-medium">นิติบุคคล</th>
-                <th className="px-4 py-3 font-medium">อุปกรณ์</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
+            <DataTableHead
+              table={table}
+              sourceRows={sites}
+              headClassName="uppercase tracking-wide"
+            />
             <tbody>
-              {filtered.map((s) => (
+              {table.rows.map((s) => (
                 <tr
                   key={s.id}
                   className="group border-b border-border last:border-0 hover:bg-muted/30"
