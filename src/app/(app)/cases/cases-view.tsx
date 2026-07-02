@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, LifeBuoy, Paperclip, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Box, FileText, LifeBuoy, Paperclip, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/client";
 import { PageHeader } from "@/components/app/page-header";
@@ -33,6 +33,20 @@ import {
 type Option = { id: string; name: string };
 type SiteOption = { id: string; name: string; company_id: string | null };
 type AssetOption = { id: string; name: string; site_id: string | null; status: string };
+type AssetCond = "operational" | "degraded" | "down";
+type CaseAssetLink = {
+  case_id: string;
+  equipment_id: string;
+  condition: AssetCond | null;
+};
+/** Affected-asset picker state: asset id -> reported condition ("" = unset). */
+type AssetSel = Record<string, "" | AssetCond>;
+
+const CONDITIONS: { value: AssetCond; label: string; cls: string }[] = [
+  { value: "operational", label: "ใช้งานได้", cls: "border-green-500 bg-green-50 text-green-700" },
+  { value: "degraded", label: "พอใช้งานได้", cls: "border-amber-500 bg-amber-50 text-amber-700" },
+  { value: "down", label: "ใช้งานไม่ได้", cls: "border-red-500 bg-red-50 text-red-700" },
+];
 type Attachment = {
   id: string;
   case_id: string;
@@ -56,6 +70,7 @@ export function CasesView({
   contacts,
   sites,
   assets,
+  caseAssets,
   supporters,
   attachments,
   canManage,
@@ -68,6 +83,7 @@ export function CasesView({
   contacts: Option[];
   sites: SiteOption[];
   assets: AssetOption[];
+  caseAssets: CaseAssetLink[];
   supporters: Option[];
   attachments: Attachment[];
   canManage: boolean;
@@ -109,13 +125,13 @@ export function CasesView({
     contact_id: "",
     site_id: "",
     supporter_id: "",
-    equipment_id: "",
-    asset_condition: "" as "" | "operational" | "degraded" | "down",
     case_date: "",
     note: "",
     action: "",
   };
   const [form, setForm] = useState(EMPTY);
+  // Affected assets (checkbox picker) + their reported condition.
+  const [assetSel, setAssetSel] = useState<AssetSel>({});
   // Files chosen in the form; uploaded after the case is saved (so a brand-new
   // case has an id to attach to).
   const [newFiles, setNewFiles] = useState<File[]>([]);
@@ -138,6 +154,28 @@ export function CasesView({
     const m = new Map(sites.map((s) => [s.id, s.name]));
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [sites]);
+
+  const assetName = useMemo(() => {
+    const m = new Map(assets.map((a) => [a.id, a.name]));
+    return (id: string) => m.get(id) ?? "—";
+  }, [assets]);
+
+  // Affected-asset names per case, for the list.
+  const assetsByCase = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const link of caseAssets) {
+      const arr = m.get(link.case_id) ?? [];
+      arr.push(assetName(link.equipment_id));
+      m.set(link.case_id, arr);
+    }
+    return m;
+  }, [caseAssets, assetName]);
+
+  // Assets available to tick for the form's currently-selected site.
+  const siteAssets = useMemo(
+    () => (form.site_id ? assets.filter((a) => a.site_id === form.site_id) : []),
+    [assets, form.site_id]
+  );
 
   const columns = useMemo<ColumnDef<Case>[]>(
     () => [
@@ -186,6 +224,7 @@ export function CasesView({
   function openCreate() {
     setEditing(null);
     setForm(EMPTY);
+    setAssetSel({});
     setNewFiles([]);
     setError(null);
     setOpen(true);
@@ -203,15 +242,46 @@ export function CasesView({
       contact_id: c.contact_id || "",
       site_id: c.site_id || "",
       supporter_id: c.supporter_id || "",
-      equipment_id: c.equipment_id || "",
-      asset_condition: "" as const,
       case_date: c.case_date ? c.case_date.slice(0, 16) : "",
       note: c.note || "",
       action: c.action || "",
     });
+    // Pre-tick the assets already on this case, with their saved conditions.
+    const sel: AssetSel = {};
+    for (const link of caseAssets) {
+      if (link.case_id === c.id) sel[link.equipment_id] = link.condition ?? "";
+    }
+    setAssetSel(sel);
     setNewFiles([]);
     setError(null);
     setOpen(true);
+  }
+
+  // Selecting a customer / site narrows what can be ticked — prune stale picks.
+  function changeCompany(company_id: string) {
+    setForm((f) => ({ ...f, company_id, site_id: "" }));
+    setAssetSel({});
+  }
+  function changeSite(site_id: string) {
+    setForm((f) => ({ ...f, site_id }));
+    // Keep only ticks that belong to the newly-selected site.
+    setAssetSel((sel) => {
+      const allowed = new Set(assets.filter((a) => a.site_id === site_id).map((a) => a.id));
+      const next: AssetSel = {};
+      for (const [id, cond] of Object.entries(sel)) if (allowed.has(id)) next[id] = cond;
+      return next;
+    });
+  }
+  function toggleAsset(id: string) {
+    setAssetSel((sel) => {
+      const next = { ...sel };
+      if (id in next) delete next[id];
+      else next[id] = "";
+      return next;
+    });
+  }
+  function setAssetCond(id: string, cond: AssetCond) {
+    setAssetSel((sel) => ({ ...sel, [id]: sel[id] === cond ? "" : cond }));
   }
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -224,8 +294,10 @@ export function CasesView({
         contact_id: form.contact_id || null,
         site_id: form.site_id || null,
         supporter_id: form.supporter_id || null,
-        equipment_id: form.equipment_id || null,
-        asset_condition: form.asset_condition || null,
+        assets: Object.entries(assetSel).map(([equipment_id, condition]) => ({
+          equipment_id,
+          condition: condition || null,
+        })),
         case_date: form.case_date || null,
       });
       if (!res.ok) return setError(res.error);
@@ -370,6 +442,28 @@ export function CasesView({
                           </div>
                         ) : null}
                       </button>
+                      {(() => {
+                        const names = assetsByCase.get(c.id) ?? [];
+                        if (names.length === 0) return null;
+                        const shown = names.slice(0, 3);
+                        return (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {shown.map((n, i) => (
+                              <span
+                                key={i}
+                                className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground"
+                              >
+                                <Box className="h-3 w-3" /> {n}
+                              </span>
+                            ))}
+                            {names.length > shown.length ? (
+                              <span className="text-xs text-muted-foreground">
+                                +{names.length - shown.length}
+                              </span>
+                            ) : null}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{c.case_type || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.employee || "—"}</td>
@@ -475,11 +569,11 @@ export function CasesView({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="company_id">บริษัท</Label>
+              <Label htmlFor="company_id">ลูกค้า</Label>
               <Select
                 id="company_id"
                 value={form.company_id}
-                onChange={(e) => setForm({ ...form, company_id: e.target.value })}
+                onChange={(e) => changeCompany(e.target.value)}
               >
                 <option value="">— ไม่ระบุ —</option>
                 {companies.map((c) => (
@@ -511,17 +605,19 @@ export function CasesView({
               <Select
                 id="site_id"
                 value={form.site_id}
-                onChange={(e) => setForm({ ...form, site_id: e.target.value })}
+                onChange={(e) => changeSite(e.target.value)}
+                disabled={!form.company_id}
               >
-                <option value="">— ไม่ระบุ —</option>
-                {(form.company_id
-                  ? sites.filter((s) => s.company_id === form.company_id)
-                  : sites
-                ).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
+                <option value="">
+                  {form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
+                </option>
+                {sites
+                  .filter((s) => s.company_id === form.company_id)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
               </Select>
             </div>
             <div>
@@ -545,65 +641,75 @@ export function CasesView({
               ) : null}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="equipment_id">Asset ที่มีปัญหา</Label>
-              <Select
-                id="equipment_id"
-                value={form.equipment_id}
-                onChange={(e) =>
-                  setForm({ ...form, equipment_id: e.target.value, asset_condition: "" })
-                }
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {(form.site_id
-                  ? assets.filter((a) => a.site_id === form.site_id)
-                  : assets
-                ).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label>สถานะเครื่อง (อัปเดตให้ Asset ทันทีเมื่อบันทึก)</Label>
-              <div className="mt-1 flex gap-1">
-                {(
-                  [
-                    { value: "operational", label: "ใช้งานได้", cls: "border-green-500 bg-green-50 text-green-700" },
-                    { value: "degraded", label: "พอใช้งานได้", cls: "border-amber-500 bg-amber-50 text-amber-700" },
-                    { value: "down", label: "ใช้งานไม่ได้", cls: "border-red-500 bg-red-50 text-red-700" },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    disabled={!form.equipment_id}
-                    onClick={() =>
-                      setForm({
-                        ...form,
-                        asset_condition:
-                          form.asset_condition === opt.value ? "" : opt.value,
-                      })
-                    }
-                    className={cn(
-                      "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40",
-                      form.asset_condition === opt.value
-                        ? opt.cls
-                        : "border-border bg-card text-muted-foreground hover:bg-muted"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {!form.equipment_id ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  เลือก Asset ก่อนจึงระบุสถานะได้
-                </p>
+          {/* Affected assets — tick the machines with a problem. More can be
+              added later after an on-site inspection (just edit the case). */}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label>เครื่องที่มีปัญหา</Label>
+              {Object.keys(assetSel).length > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  เลือกแล้ว {Object.keys(assetSel).length} เครื่อง
+                </span>
               ) : null}
             </div>
+            {!form.site_id ? (
+              <p className="mt-1 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                เลือกลูกค้าและไซต์ก่อน จึงจะเลือกเครื่องที่มีปัญหาได้
+              </p>
+            ) : siteAssets.length === 0 ? (
+              <p className="mt-1 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                ไซต์นี้ยังไม่มี Asset
+              </p>
+            ) : (
+              <div className="mt-1 max-h-64 space-y-1.5 overflow-y-auto rounded-md border border-border bg-muted/20 p-2">
+                {siteAssets.map((a) => {
+                  const checked = a.id in assetSel;
+                  return (
+                    <div
+                      key={a.id}
+                      className={cn(
+                        "rounded-md border px-2.5 py-2 transition-colors",
+                        checked ? "border-primary/40 bg-card" : "border-transparent"
+                      )}
+                    >
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAsset(a.id)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        <span className="text-sm font-medium">{a.name}</span>
+                      </label>
+                      {checked ? (
+                        <div className="mt-2 flex gap-1 pl-6">
+                          {CONDITIONS.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setAssetCond(a.id, opt.value)}
+                              className={cn(
+                                "flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                                assetSel[a.id] === opt.value
+                                  ? opt.cls
+                                  : "border-border bg-card text-muted-foreground hover:bg-muted"
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {form.site_id && siteAssets.length > 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                ติ๊กเครื่องที่มีปัญหา แล้วระบุสถานะ (อัปเดตให้ Asset ทันทีเมื่อบันทึก) — ตรวจเพิ่มภายหลังค่อยกลับมาติ๊กเพิ่มได้
+              </p>
+            ) : null}
           </div>
           <div>
             <Label htmlFor="note">รายละเอียด</Label>

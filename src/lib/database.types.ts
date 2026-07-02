@@ -350,6 +350,16 @@ export interface CaseAttachment {
   created_at: string;
 }
 
+/** A case can affect many assets; each link carries the reported condition. */
+export interface CaseAsset {
+  id: string;
+  org_id: string;
+  case_id: string;
+  equipment_id: string;
+  condition: "operational" | "degraded" | "down" | null;
+  created_at: string;
+}
+
 export interface Product extends Mutable {
   id: string;
   org_id: string;

@@ -76,7 +76,7 @@ export default async function CasesPage({
   // the listed cases.
   const supporterIds = members.map((m) => m.user_id as string);
   const caseIds = cases.map((c) => c.id as string);
-  const [profilesRes, attachmentsRes] = await Promise.all([
+  const [profilesRes, attachmentsRes, caseAssetsRes] = await Promise.all([
     supporterIds.length
       ? supabase.from("profiles").select("id, full_name, email").in("id", supporterIds)
       : Promise.resolve({ data: [], error: null }),
@@ -86,6 +86,12 @@ export default async function CasesPage({
           .select("id, case_id, path, name, mime")
           .in("case_id", caseIds)
           .order("created_at", { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    caseIds.length
+      ? supabase
+          .from("case_assets")
+          .select("case_id, equipment_id, condition")
+          .in("case_id", caseIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -100,6 +106,11 @@ export default async function CasesPage({
     name: (a.name as string) || "ไฟล์แนบ",
     mime: (a.mime as string) || "",
     url: `${SUPABASE_URL}/storage/v1/object/public/case-files/${a.path}`,
+  }));
+  const caseAssets = (caseAssetsRes.data ?? []).map((r) => ({
+    case_id: r.case_id as string,
+    equipment_id: r.equipment_id as string,
+    condition: (r.condition as "operational" | "degraded" | "down" | null) ?? null,
   }));
 
   return (
@@ -119,6 +130,7 @@ export default async function CasesPage({
         site_id: (a.site_id as string) ?? null,
         status: (a.status as string) ?? "operational",
       }))}
+      caseAssets={caseAssets}
       supporters={supporters}
       attachments={attachments}
       canManage={canManage}

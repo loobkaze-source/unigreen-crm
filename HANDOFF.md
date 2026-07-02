@@ -88,6 +88,10 @@ Open Supabase → **SQL Editor** and run in order:
     see lib/asset-status.ts) + `cases.equipment_id`. Status flows: case form sets it
     when reporting a problem; completing a repair WO restores degraded/down →
     operational; manual override on /assets/[id] (Dispatcher/admin; retire = admin)
+26. `0026_case_assets.sql` — `case_assets` (many assets per case, each with a reported
+    condition). Case form flow: pick customer → filter sites → tick affected assets
+    (checkbox, more can be added later after inspection). `cases.equipment_id` kept in
+    sync with the first linked asset for backward compatibility.
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

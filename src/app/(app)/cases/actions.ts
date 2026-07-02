@@ -20,12 +20,13 @@ export type CaseInput = {
   contact_id?: string | null;
   site_id?: string | null;
   supporter_id?: string | null;
-  /** Asset ที่มีปัญหา (optional). */
-  equipment_id?: string | null;
-  /** สภาพเครื่องที่รายงานมา — applied to the asset on save. */
-  asset_condition?: "operational" | "degraded" | "down" | null;
+  /** Assets affected by this case, each with a reported condition. The first
+   *  one is mirrored into cases.equipment_id for backward compatibility. */
+  assets?: { equipment_id: string; condition?: AssetCondition | null }[];
   case_date?: string | null;
 };
+
+type AssetCondition = "operational" | "degraded" | "down";
 
 /** Opening/managing cases is limited to Customer Service and Dispatcher
  *  (admin can always do everything). */
@@ -62,6 +63,16 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     if (open > 0) return fail(CLOSE_BLOCKED(open));
   }
 
+  // De-duplicate the affected-assets list; keep the last condition given.
+  const assetMap = new Map<string, AssetCondition | null>();
+  for (const a of input.assets ?? []) {
+    if (a?.equipment_id) assetMap.set(a.equipment_id, a.condition ?? null);
+  }
+  const assetList = [...assetMap.entries()].map(([equipment_id, condition]) => ({
+    equipment_id,
+    condition,
+  }));
+
   const payload = {
     org_id: org.id,
     subject,
@@ -76,30 +87,56 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     contact_id: input.contact_id || null,
     site_id: input.site_id || null,
     supporter_id: input.supporter_id || null,
-    equipment_id: input.equipment_id || null,
+    // First affected asset mirrored here for backward compatibility.
+    equipment_id: assetList[0]?.equipment_id ?? null,
     case_date: input.case_date ? new Date(input.case_date).toISOString() : null,
   };
 
-  // Reporting a problem can update the asset's operating status right away.
-  async function applyAssetCondition() {
-    if (!input.equipment_id || !input.asset_condition) return null as string | null;
-    const { error } = await supabase
-      .from("equipment")
-      .update({ status: input.asset_condition })
-      .eq("id", input.equipment_id)
-      .eq("org_id", org.id)
-      .neq("status", "retired"); // a retired asset stays retired
-    return error?.message ?? null;
+  // Reconcile the case ↔ asset links, then apply each reported condition to the
+  // asset's operating status (a retired asset stays retired).
+  async function syncCaseAssets(caseId: string): Promise<string | null> {
+    // Replace the whole set: drop links no longer present, upsert the rest.
+    const keepIds = assetList.map((a) => a.equipment_id);
+    let del = supabase.from("case_assets").delete().eq("case_id", caseId);
+    if (keepIds.length) del = del.not("equipment_id", "in", `(${keepIds.join(",")})`);
+    const { error: delErr } = await del;
+    if (delErr) return delErr.message;
+
+    if (assetList.length) {
+      const { error: upErr } = await supabase.from("case_assets").upsert(
+        assetList.map((a) => ({
+          org_id: org.id,
+          case_id: caseId,
+          equipment_id: a.equipment_id,
+          condition: a.condition,
+        })),
+        { onConflict: "case_id,equipment_id" }
+      );
+      if (upErr) return upErr.message;
+    }
+
+    for (const a of assetList) {
+      if (!a.condition) continue;
+      const { error } = await supabase
+        .from("equipment")
+        .update({ status: a.condition })
+        .eq("id", a.equipment_id)
+        .eq("org_id", org.id)
+        .neq("status", "retired");
+      if (error) return error.message;
+    }
+    return null;
   }
 
-  if (input.id) {
-    const { error } = await supabase.from("cases").update(payload).eq("id", input.id);
+  const caseId = input.id;
+  if (caseId) {
+    const { error } = await supabase.from("cases").update(payload).eq("id", caseId);
     if (error) return fail(error.message);
-    const condErr = await applyAssetCondition();
-    if (condErr) return fail("บันทึกเคสแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + condErr);
+    const aErr = await syncCaseAssets(caseId);
+    if (aErr) return fail("บันทึกเคสแล้ว แต่จัดการ Asset ไม่สำเร็จ: " + aErr);
     revalidatePath("/cases");
     revalidatePath("/assets");
-    return ok(input.id);
+    return ok(caseId);
   }
   const { data: created, error } = await supabase
     .from("cases")
@@ -107,8 +144,8 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     .select("id")
     .single();
   if (error) return fail(error.message);
-  const condErr = await applyAssetCondition();
-  if (condErr) return fail("บันทึกเคสแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + condErr);
+  const aErr = await syncCaseAssets(created.id);
+  if (aErr) return fail("บันทึกเคสแล้ว แต่จัดการ Asset ไม่สำเร็จ: " + aErr);
 
   revalidatePath("/cases");
   revalidatePath("/assets");
