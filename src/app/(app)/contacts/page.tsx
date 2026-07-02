@@ -9,7 +9,8 @@ export default async function ContactsPage() {
       .from("contacts")
       .select("*")
       .eq("org_id", org.id)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(1000),
     supabase
       .from("companies")
       .select("id, name")

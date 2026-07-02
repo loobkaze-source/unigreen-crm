@@ -8,7 +8,8 @@ export default async function ProductsPage() {
     .from("products")
     .select("*")
     .eq("org_id", org.id)
-    .order("name", { ascending: true });
+    .order("name", { ascending: true })
+    .limit(1000);
 
   return <ProductsView products={products ?? []} />;
 }

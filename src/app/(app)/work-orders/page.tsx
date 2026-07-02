@@ -1,25 +1,45 @@
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, rows } from "@/lib/data";
 import { assetCode } from "@/lib/asset";
 import { WorkOrdersView } from "./work-orders-view";
 
-export default async function WorkOrdersPage() {
+const WO_PAGE_LIMIT = 200;
+
+export default async function WorkOrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { supabase, org } = await getSessionContext();
+  const search = ((await searchParams).q ?? "").trim();
+
+  // Newest WO_PAGE_LIMIT rows; ?q= searches server-side so older rows stay
+  // reachable as the table grows.
+  let woQuery = supabase
+    .from("work_orders")
+    .select("*")
+    .eq("org_id", org.id)
+    .order("created_at", { ascending: false })
+    .limit(WO_PAGE_LIMIT);
+  if (search) {
+    // Escape ilike wildcards; drop chars that would break the .or() syntax.
+    const term = search.replace(/[%_]/g, "\\$&").replace(/[,()]/g, " ").trim();
+    const ors = [`title.ilike.%${term}%`, `site_address.ilike.%${term}%`];
+    const digits = search.replace(/\D/g, "");
+    if (digits) ors.push(`number.eq.${Number(digits)}`);
+    woQuery = woQuery.or(ors.join(","));
+  }
 
   const [
-    { data: workOrders },
-    { data: technicians },
-    { data: companies },
-    { data: contacts },
-    { data: sites },
-    { data: assets },
-    { data: cases },
-    { data: woAssets },
+    woRes,
+    techRes,
+    companiesRes,
+    contactsRes,
+    sitesRes,
+    assetsRes,
+    casesRes,
+    woAssetsRes,
   ] = await Promise.all([
-    supabase
-      .from("work_orders")
-      .select("*")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: false }),
+    woQuery,
     supabase
       .from("technicians")
       .select("id, name")
@@ -53,6 +73,15 @@ export default async function WorkOrdersPage() {
       .eq("org_id", org.id),
   ]);
 
+  const workOrders = rows(woRes);
+  const technicians = rows(techRes);
+  const companies = rows(companiesRes);
+  const contacts = rows(contactsRes);
+  const sites = rows(sitesRes);
+  const assets = rows(assetsRes);
+  const cases = rows(casesRes);
+  const woAssets = rows(woAssetsRes);
+
   const caseList = (cases ?? []).map((c) => ({
     id: c.id,
     company_id: c.company_id,
@@ -67,6 +96,8 @@ export default async function WorkOrdersPage() {
   return (
     <WorkOrdersView
       workOrders={workOrders ?? []}
+      initialQuery={search}
+      limitHit={(workOrders ?? []).length === WO_PAGE_LIMIT}
       technicians={technicians ?? []}
       companies={companies ?? []}
       contacts={(contacts ?? []).map((c) => ({

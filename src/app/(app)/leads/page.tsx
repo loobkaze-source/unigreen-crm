@@ -8,7 +8,8 @@ export default async function LeadsPage() {
     .from("leads")
     .select("*")
     .eq("org_id", org.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(1000);
 
   return <LeadsView leads={leads ?? []} />;
 }

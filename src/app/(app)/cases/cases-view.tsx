@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { LifeBuoy, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
@@ -31,13 +31,32 @@ export function CasesView({
   cases,
   companies,
   contacts,
+  initialQuery = "",
+  limitHit = false,
 }: {
   cases: Case[];
   companies: Option[];
   contacts: Option[];
+  initialQuery?: string;
+  limitHit?: boolean;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+
+  // Mirror the search box into ?q= (debounced) so the server can search the
+  // whole table — the list itself is capped to the newest rows.
+  const lastPushedQ = useRef(initialQuery);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = query.trim();
+      if (q === lastPushedQ.current) return;
+      lastPushedQ.current = q;
+      router.replace(q ? `/cases?q=${encodeURIComponent(q)}` : "/cases", {
+        scroll: false,
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, router]);
   const [statusFilter, setStatusFilter] = useState<CaseStatus | "all">("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Case | null>(null);
@@ -160,6 +179,12 @@ export function CasesView({
           ))}
         </div>
       </div>
+
+      {limitHit ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          แสดงเฉพาะรายการล่าสุด — พิมพ์ค้นหาเพื่อหารายการที่เก่ากว่า
+        </p>
+      ) : null}
 
       {filtered.length === 0 ? (
         <EmptyState

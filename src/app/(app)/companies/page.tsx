@@ -8,7 +8,8 @@ export default async function CompaniesPage() {
     .from("companies")
     .select("*")
     .eq("org_id", org.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(1000);
 
   return <CompaniesView companies={companies ?? []} />;
 }

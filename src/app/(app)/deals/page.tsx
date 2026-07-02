@@ -15,7 +15,8 @@ export default async function DealsPage() {
         .from("deals")
         .select("*")
         .eq("org_id", org.id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(1000),
       supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
       supabase
         .from("contacts")

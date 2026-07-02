@@ -8,7 +8,8 @@ export default async function TechniciansPage() {
     .from("technicians")
     .select("*")
     .eq("org_id", org.id)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(1000);
 
   return <TechniciansView technicians={technicians ?? []} />;
 }

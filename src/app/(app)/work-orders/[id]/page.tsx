@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, row, rows } from "@/lib/data";
+import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { assetCode } from "@/lib/asset";
 import { WorkOrderDetail } from "./work-order-detail";
@@ -12,25 +13,27 @@ export default async function WorkOrderDetailPage({
   const { id } = await params;
   const { supabase, org } = await getSessionContext();
 
-  const { data: workOrder } = await supabase
-    .from("work_orders")
-    .select("*")
-    .eq("id", id)
-    .eq("org_id", org.id)
-    .maybeSingle();
+  const workOrder = row<WorkOrder>(
+    await supabase
+      .from("work_orders")
+      .select("*")
+      .eq("id", id)
+      .eq("org_id", org.id)
+      .maybeSingle()
+  );
 
   if (!workOrder) notFound();
 
   const [
-    { data: items },
-    { data: photos },
-    { data: technicians },
-    { data: companies },
-    { data: contacts },
-    { data: sites },
-    { data: assets },
-    { data: cases },
-    { data: woAssets },
+    itemsRes,
+    photosRes,
+    techRes,
+    companiesRes,
+    contactsRes,
+    sitesRes,
+    assetsRes,
+    casesRes,
+    woAssetsRes,
   ] = await Promise.all([
     supabase
       .from("work_order_items")
@@ -73,6 +76,16 @@ export default async function WorkOrderDetailPage({
       .select("equipment_id")
       .eq("work_order_id", id),
   ]);
+
+  const items = rows(itemsRes);
+  const photos = rows(photosRes);
+  const technicians = rows(techRes);
+  const companies = rows(companiesRes);
+  const contacts = rows(contactsRes);
+  const sites = rows(sitesRes);
+  const assets = rows(assetsRes);
+  const cases = rows(casesRes);
+  const woAssets = rows(woAssetsRes);
 
   const caseList = (cases ?? []).map((c) => ({
     id: c.id,

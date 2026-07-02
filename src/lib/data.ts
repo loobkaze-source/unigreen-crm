@@ -1,6 +1,24 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Organization, Profile } from "@/lib/database.types";
+
+type QueryErr = { message: string } | null;
+
+/**
+ * Unwrap a Supabase list result: throws on error (surfaced by the route's
+ * error.tsx boundary) instead of silently rendering an empty page.
+ */
+export function rows<T>(res: { data: T[] | null; error: QueryErr }): T[] {
+  if (res.error) throw new Error(res.error.message);
+  return res.data ?? [];
+}
+
+/** Unwrap a single-row / rpc result: throws on error, else data (may be null). */
+export function row<T>(res: { data: T | null; error: QueryErr }): T | null {
+  if (res.error) throw new Error(res.error.message);
+  return res.data;
+}
 
 export type SessionContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -24,8 +42,11 @@ export type SessionContext = {
  * Server Components, Route Handlers and Server Actions. Redirects to /login
  * when unauthenticated. Self-heals by creating a workspace if a user somehow
  * has no organization yet.
+ *
+ * Wrapped in React cache(): the layout and the page (and any actions in the
+ * same request) share one resolution instead of re-querying.
  */
-export async function getSessionContext(): Promise<SessionContext> {
+export const getSessionContext = cache(async (): Promise<SessionContext> => {
   const supabase = await createClient();
 
   const {
@@ -33,42 +54,39 @@ export async function getSessionContext(): Promise<SessionContext> {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const { data: memberships, error: membershipsErr } = await supabase
-    .from("organization_members")
-    .select("org_id, role, app_role, department")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true });
+  // Profile and membership are independent — fetch in parallel, with the
+  // organization row embedded in the membership to save a third round trip.
+  const [profileRes, memberRes] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("organization_members")
+      .select("role, app_role, department, organizations(*)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
   // A transient failure here must NOT fall through to the workspace-creation
   // branch below, or every hiccup would mint a duplicate workspace.
-  if (membershipsErr) {
-    throw new Error("โหลดข้อมูลผู้ใช้ไม่สำเร็จ: " + membershipsErr.message);
+  if (profileRes.error) {
+    throw new Error("โหลดข้อมูลผู้ใช้ไม่สำเร็จ: " + profileRes.error.message);
+  }
+  if (memberRes.error) {
+    throw new Error("โหลดข้อมูลผู้ใช้ไม่สำเร็จ: " + memberRes.error.message);
   }
 
-  let org: Organization | null = null;
-  let role = "owner";
-  let appRole: string | null = null;
-  let department: string | null = null;
+  const profile = (profileRes.data as Profile | null) ?? null;
+  const membership = memberRes.data as {
+    role: string;
+    app_role: string | null;
+    department: string | null;
+    organizations: Organization | null;
+  } | null;
 
-  if (memberships && memberships.length > 0) {
-    role = memberships[0].role;
-    appRole = (memberships[0].app_role as string) ?? null;
-    department = (memberships[0].department as string) ?? null;
-    const { data, error: orgErr } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("id", memberships[0].org_id)
-      .maybeSingle();
-    if (orgErr) {
-      throw new Error("โหลดข้อมูลพื้นที่ทำงานไม่สำเร็จ: " + orgErr.message);
-    }
-    org = data;
-  }
+  let org: Organization | null = membership?.organizations ?? null;
+  const role = membership?.role ?? "owner";
+  const appRole = membership?.app_role ?? null;
+  const department = membership?.department ?? null;
 
   if (!org) {
     const workspaceName =
@@ -103,4 +121,4 @@ export async function getSessionContext(): Promise<SessionContext> {
       (profile as { must_change_password?: boolean } | null)?.must_change_password
     ),
   };
-}
+});

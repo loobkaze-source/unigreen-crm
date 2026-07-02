@@ -8,7 +8,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, row, rows } from "@/lib/data";
 import { fmtDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,29 +17,19 @@ import { cn, formatCurrency } from "@/lib/utils";
 export default async function DashboardPage() {
   const { supabase, org, profile, email } = await getSessionContext();
 
-  const [
-    { data: stages },
-    { data: deals },
-    { count: contactsCount },
-    { count: companiesCount },
-    { data: leads },
-    { data: upcoming },
-  ] = await Promise.all([
+  const [stagesRes, dashStatsRes, contactsRes, upcomingRes] = await Promise.all([
     supabase
       .from("stages")
       .select("*")
       .eq("org_id", org.id)
       .order("position", { ascending: true }),
-    supabase.from("deals").select("id, value, stage_id").eq("org_id", org.id),
+    // Per-stage deal count/value + open-lead count, aggregated in SQL
+    // (migration 0022) instead of pulling every deal/lead row.
+    supabase.rpc("dashboard_stats", { p_org: org.id }),
     supabase
       .from("contacts")
       .select("*", { count: "exact", head: true })
       .eq("org_id", org.id),
-    supabase
-      .from("companies")
-      .select("*", { count: "exact", head: true })
-      .eq("org_id", org.id),
-    supabase.from("leads").select("id, status").eq("org_id", org.id),
     supabase
       .from("activities")
       .select("id, subject, due_date, type")
@@ -50,36 +40,34 @@ export default async function DashboardPage() {
       .limit(6),
   ]);
 
-  const stageList = stages ?? [];
-  const dealList = deals ?? [];
-  const wonStageIds = new Set(stageList.filter((s) => s.is_won).map((s) => s.id));
-  const lostStageIds = new Set(stageList.filter((s) => s.is_lost).map((s) => s.id));
+  const stageList = rows(stagesRes);
+  const upcoming = rows(upcomingRes);
+  const contactsCount = contactsRes.count ?? 0;
+  const agg = (row(dashStatsRes) as {
+    per_stage: { stage_id: string; count: number; value: number }[];
+    open_leads: number;
+  } | null) ?? { per_stage: [], open_leads: 0 };
+  const byStage = new Map(agg.per_stage.map((s) => [s.stage_id, s]));
+  const totalDeals = agg.per_stage.reduce((s, x) => s + x.count, 0);
 
-  const openDeals = dealList.filter(
-    (d) => !wonStageIds.has(d.stage_id) && !lostStageIds.has(d.stage_id)
-  );
-  const pipelineValue = openDeals.reduce((s, d) => s + (d.value || 0), 0);
-  const wonValue = dealList
-    .filter((d) => wonStageIds.has(d.stage_id))
-    .reduce((s, d) => s + (d.value || 0), 0);
-
-  const openLeads = (leads ?? []).filter(
-    (l) => l.status !== "converted" && l.status !== "unqualified"
-  ).length;
+  const pipelineValue = stageList
+    .filter((s) => !s.is_won && !s.is_lost)
+    .reduce((sum, s) => sum + (byStage.get(s.id)?.value ?? 0), 0);
+  const wonValue = stageList
+    .filter((s) => s.is_won)
+    .reduce((sum, s) => sum + (byStage.get(s.id)?.value ?? 0), 0);
+  const openLeads = agg.open_leads;
 
   // Pipeline-by-stage breakdown (exclude lost for clarity)
   const breakdown = stageList
     .filter((s) => !s.is_lost)
-    .map((s) => {
-      const inStage = dealList.filter((d) => d.stage_id === s.id);
-      return {
-        id: s.id,
-        name: s.name,
-        is_won: s.is_won,
-        count: inStage.length,
-        value: inStage.reduce((sum, d) => sum + (d.value || 0), 0),
-      };
-    });
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      is_won: s.is_won,
+      count: byStage.get(s.id)?.count ?? 0,
+      value: byStage.get(s.id)?.value ?? 0,
+    }));
   const maxValue = Math.max(1, ...breakdown.map((b) => b.value));
 
   const greetingName = profile?.full_name?.split(" ")[0] || email?.split("@")[0] || "คุณ";
@@ -165,7 +153,7 @@ export default async function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {breakdown.length === 0 || dealList.length === 0 ? (
+            {breakdown.length === 0 || totalDeals === 0 ? (
               <EmptyState
                 icon={CircleDollarSign}
                 title="ยังไม่มีดีล"

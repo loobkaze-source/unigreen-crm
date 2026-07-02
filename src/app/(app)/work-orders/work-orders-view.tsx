@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -50,6 +50,8 @@ export function WorkOrdersView({
   assets,
   cases,
   assetIdsByWo,
+  initialQuery = "",
+  limitHit = false,
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
@@ -59,9 +61,26 @@ export function WorkOrdersView({
   assets: AssetOption[];
   cases: CaseOption[];
   assetIdsByWo: Record<string, string[]>;
+  initialQuery?: string;
+  limitHit?: boolean;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+
+  // Mirror the search box into ?q= (debounced) so the server can search the
+  // whole table — the list itself is capped to the newest rows.
+  const lastPushedQ = useRef(initialQuery);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = query.trim();
+      if (q === lastPushedQ.current) return;
+      lastPushedQ.current = q;
+      router.replace(q ? `/work-orders?q=${encodeURIComponent(q)}` : "/work-orders", {
+        scroll: false,
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, router]);
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | "all">("all");
   const [tab, setTab] = useState<"list" | "schedule">("list");
   const [open, setOpen] = useState(false);
@@ -155,6 +174,12 @@ export function WorkOrdersView({
           </TabBtn>
         </div>
       </div>
+
+      {limitHit ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          แสดงเฉพาะรายการล่าสุด — พิมพ์ค้นหาเพื่อหารายการที่เก่ากว่า
+        </p>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap gap-1">
         <Chip active={statusFilter === "all"} onClick={() => setStatusFilter("all")}>

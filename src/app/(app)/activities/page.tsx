@@ -1,10 +1,10 @@
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, rows } from "@/lib/data";
 import { ActivitiesView } from "./activities-view";
 
 export default async function ActivitiesPage() {
   const { supabase, org } = await getSessionContext();
 
-  const [{ data: activities }, { data: companies }, { data: contacts }, { data: deals }] =
+  const [activitiesRes, companiesRes, contactsRes, dealsRes] =
     await Promise.all([
       supabase
         .from("activities")
@@ -12,7 +12,8 @@ export default async function ActivitiesPage() {
         .eq("org_id", org.id)
         .order("done", { ascending: true })
         .order("due_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(500),
       supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
       supabase
         .from("contacts")
@@ -22,9 +23,14 @@ export default async function ActivitiesPage() {
       supabase.from("deals").select("id, title").eq("org_id", org.id).order("title"),
     ]);
 
+  const activities = rows(activitiesRes);
+  const companies = rows(companiesRes);
+  const contacts = rows(contactsRes);
+  const deals = rows(dealsRes);
+
   return (
     <ActivitiesView
-      activities={activities ?? []}
+      activities={activities}
       companies={companies ?? []}
       contacts={(contacts ?? []).map((c) => ({
         id: c.id,

@@ -10,7 +10,8 @@ export default async function WarrantiesPage() {
         .from("warranties")
         .select("*")
         .eq("org_id", org.id)
-        .order("end_date", { ascending: true, nullsFirst: false }),
+        .order("end_date", { ascending: true, nullsFirst: false })
+        .limit(1000),
       supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
       supabase.from("sites").select("id, name").eq("org_id", org.id).order("name"),
     ]);
