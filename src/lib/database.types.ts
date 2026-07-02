@@ -251,6 +251,8 @@ export interface Equipment extends Mutable {
   name: string;
   asset_type: AssetType;
   category: EquipmentCategory;
+  /** สถานะการใช้งาน: operational / degraded / down / retired (see lib/asset-status). */
+  status: string;
   brand: string | null;
   model: string | null;
   serial_number: string | null;
@@ -332,6 +334,7 @@ export interface Case extends Mutable {
   contact_id: string | null;
   site_id: string | null;
   supporter_id: string | null;
+  equipment_id: string | null;
   case_date: string | null;
   source: string | null;
   owner_id: string | null;

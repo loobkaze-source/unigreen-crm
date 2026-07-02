@@ -32,6 +32,7 @@ import {
 
 type Option = { id: string; name: string };
 type SiteOption = { id: string; name: string; company_id: string | null };
+type AssetOption = { id: string; name: string; site_id: string | null; status: string };
 type Attachment = {
   id: string;
   case_id: string;
@@ -54,6 +55,7 @@ export function CasesView({
   companies,
   contacts,
   sites,
+  assets,
   supporters,
   attachments,
   canManage,
@@ -65,6 +67,7 @@ export function CasesView({
   companies: Option[];
   contacts: Option[];
   sites: SiteOption[];
+  assets: AssetOption[];
   supporters: Option[];
   attachments: Attachment[];
   canManage: boolean;
@@ -106,6 +109,8 @@ export function CasesView({
     contact_id: "",
     site_id: "",
     supporter_id: "",
+    equipment_id: "",
+    asset_condition: "" as "" | "operational" | "degraded" | "down",
     case_date: "",
     note: "",
     action: "",
@@ -198,6 +203,8 @@ export function CasesView({
       contact_id: c.contact_id || "",
       site_id: c.site_id || "",
       supporter_id: c.supporter_id || "",
+      equipment_id: c.equipment_id || "",
+      asset_condition: "" as const,
       case_date: c.case_date ? c.case_date.slice(0, 16) : "",
       note: c.note || "",
       action: c.action || "",
@@ -217,6 +224,8 @@ export function CasesView({
         contact_id: form.contact_id || null,
         site_id: form.site_id || null,
         supporter_id: form.supporter_id || null,
+        equipment_id: form.equipment_id || null,
+        asset_condition: form.asset_condition || null,
         case_date: form.case_date || null,
       });
       if (!res.ok) return setError(res.error);
@@ -532,6 +541,66 @@ export function CasesView({
               {supporters.length === 0 ? (
                 <p className="mt-1 text-xs text-muted-foreground">
                   ยังไม่มีสมาชิก role Technical Supporter — กำหนดได้ที่หน้าผู้ใช้
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="equipment_id">Asset ที่มีปัญหา</Label>
+              <Select
+                id="equipment_id"
+                value={form.equipment_id}
+                onChange={(e) =>
+                  setForm({ ...form, equipment_id: e.target.value, asset_condition: "" })
+                }
+              >
+                <option value="">— ไม่ระบุ —</option>
+                {(form.site_id
+                  ? assets.filter((a) => a.site_id === form.site_id)
+                  : assets
+                ).map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>สถานะเครื่อง (อัปเดตให้ Asset ทันทีเมื่อบันทึก)</Label>
+              <div className="mt-1 flex gap-1">
+                {(
+                  [
+                    { value: "operational", label: "ใช้งานได้", cls: "border-green-500 bg-green-50 text-green-700" },
+                    { value: "degraded", label: "พอใช้งานได้", cls: "border-amber-500 bg-amber-50 text-amber-700" },
+                    { value: "down", label: "ใช้งานไม่ได้", cls: "border-red-500 bg-red-50 text-red-700" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={!form.equipment_id}
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        asset_condition:
+                          form.asset_condition === opt.value ? "" : opt.value,
+                      })
+                    }
+                    className={cn(
+                      "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:opacity-40",
+                      form.asset_condition === opt.value
+                        ? opt.cls
+                        : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {!form.equipment_id ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  เลือก Asset ก่อนจึงระบุสถานะได้
                 </p>
               ) : null}
             </div>

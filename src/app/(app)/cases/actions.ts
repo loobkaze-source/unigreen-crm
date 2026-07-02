@@ -20,6 +20,10 @@ export type CaseInput = {
   contact_id?: string | null;
   site_id?: string | null;
   supporter_id?: string | null;
+  /** Asset ที่มีปัญหา (optional). */
+  equipment_id?: string | null;
+  /** สภาพเครื่องที่รายงานมา — applied to the asset on save. */
+  asset_condition?: "operational" | "degraded" | "down" | null;
   case_date?: string | null;
 };
 
@@ -72,13 +76,29 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     contact_id: input.contact_id || null,
     site_id: input.site_id || null,
     supporter_id: input.supporter_id || null,
+    equipment_id: input.equipment_id || null,
     case_date: input.case_date ? new Date(input.case_date).toISOString() : null,
   };
+
+  // Reporting a problem can update the asset's operating status right away.
+  async function applyAssetCondition() {
+    if (!input.equipment_id || !input.asset_condition) return null as string | null;
+    const { error } = await supabase
+      .from("equipment")
+      .update({ status: input.asset_condition })
+      .eq("id", input.equipment_id)
+      .eq("org_id", org.id)
+      .neq("status", "retired"); // a retired asset stays retired
+    return error?.message ?? null;
+  }
 
   if (input.id) {
     const { error } = await supabase.from("cases").update(payload).eq("id", input.id);
     if (error) return fail(error.message);
+    const condErr = await applyAssetCondition();
+    if (condErr) return fail("บันทึกเคสแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + condErr);
     revalidatePath("/cases");
+    revalidatePath("/assets");
     return ok(input.id);
   }
   const { data: created, error } = await supabase
@@ -87,8 +107,11 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     .select("id")
     .single();
   if (error) return fail(error.message);
+  const condErr = await applyAssetCondition();
+  if (condErr) return fail("บันทึกเคสแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + condErr);
 
   revalidatePath("/cases");
+  revalidatePath("/assets");
   // Return the id so the client can upload queued attachments for a new case.
   return ok(created.id);
 }

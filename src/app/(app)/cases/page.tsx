@@ -34,7 +34,7 @@ export default async function CasesPage({
     casesQuery = casesQuery.or(ors.join(","));
   }
 
-  const [casesRes, companiesRes, contactsRes, sitesRes, membersRes] =
+  const [casesRes, companiesRes, contactsRes, sitesRes, assetsRes, membersRes] =
     await Promise.all([
       casesQuery,
       supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
@@ -52,6 +52,13 @@ export default async function CasesPage({
         .order("name")
         .limit(500),
       supabase
+        .from("equipment")
+        .select("id, name, site_id, status, code, serial_number")
+        .eq("org_id", org.id)
+        .neq("status", "retired")
+        .order("code")
+        .limit(1000),
+      supabase
         .from("organization_members")
         .select("user_id, app_role")
         .eq("org_id", org.id)
@@ -62,6 +69,7 @@ export default async function CasesPage({
   const companies = rows(companiesRes);
   const contacts = rows(contactsRes);
   const sites = rows(sitesRes);
+  const assets = rows(assetsRes);
   const members = rows(membersRes);
 
   // Technical Supporter options (user_id -> profile name) + attachments for
@@ -105,6 +113,12 @@ export default async function CasesPage({
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
       }))}
       sites={sites}
+      assets={assets.map((a) => ({
+        id: a.id as string,
+        name: `${a.name}${a.serial_number ? ` · ${a.serial_number}` : ""}`,
+        site_id: (a.site_id as string) ?? null,
+        status: (a.status as string) ?? "operational",
+      }))}
       supporters={supporters}
       attachments={attachments}
       canManage={canManage}

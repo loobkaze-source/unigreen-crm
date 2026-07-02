@@ -22,6 +22,7 @@ import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { statusMeta, typeLabel, woCode, jobClassLabel } from "../../work-orders/constants";
+import { AssetStatusControl } from "./status-control";
 
 const CATEGORIES: Record<string, string> = {
   solar_panel: "แผงโซลาร์",
@@ -46,7 +47,8 @@ export default async function AssetLifetimePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, isAdmin, appRole } = await getSessionContext();
+  const canOverride = isAdmin || appRole === "Dispatcher";
 
   const eq = row<Equipment>(
     await supabase
@@ -233,12 +235,20 @@ export default async function AssetLifetimePage({
             ) : null}
           </div>
         </div>
-        {wState !== "none" ? (
-          <Badge tone={wState === "active" ? "success" : "danger"}>
-            {wState === "active" ? "ในประกันถึง " : "หมดประกัน "}
-            {wEnd ? fmtDate(wEnd) : ""}
-          </Badge>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <AssetStatusControl
+            equipmentId={eq.id}
+            status={eq.status}
+            canOverride={canOverride}
+            canRetire={isAdmin}
+          />
+          {wState !== "none" ? (
+            <Badge tone={wState === "active" ? "success" : "danger"}>
+              {wState === "active" ? "ในประกันถึง " : "หมดประกัน "}
+              {wEnd ? fmtDate(wEnd) : ""}
+            </Badge>
+          ) : null}
+        </div>
       </div>
 
       {/* Lifetime stats */}

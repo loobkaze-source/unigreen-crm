@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Box, FolderKanban, Search } from "lucide-react";
+import { Box, FolderKanban, Search, Wrench } from "lucide-react";
 import type { Equipment } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -15,21 +15,12 @@ import {
   type ColumnDef,
 } from "@/components/ui/data-table";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
+import { assetStatusMeta } from "@/lib/asset-status";
 import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
 
 type Option = { id: string; name: string };
 
-const CATEGORIES: Record<string, string> = {
-  solar_panel: "แผงโซลาร์",
-  inverter: "อินเวอร์เตอร์",
-  ev_charger: "เครื่องชาร์จ EV",
-  battery: "แบตเตอรี่",
-  meter: "มิเตอร์",
-  other: "อื่นๆ",
-};
-const typeOf = (eq: Equipment) =>
-  eq.asset_type === "project" ? "โครงการ" : CATEGORIES[eq.category] ?? eq.category;
 const assetId = (eq: Equipment) =>
   (eq.asset_type === "project" ? eq.project_number : eq.serial_number) || "—";
 
@@ -37,12 +28,16 @@ export function AssetsView({
   equipment,
   sites,
   groups,
+  inServiceIds,
 }: {
   equipment: Equipment[];
   sites: Option[];
   groups: Option[];
+  /** Assets that appear on an unfinished work order (shown as "มีงานค้าง"). */
+  inServiceIds: string[];
 }) {
   const [query, setQuery] = useState("");
+  const inService = useMemo(() => new Set(inServiceIds), [inServiceIds]);
 
   const siteName = useMemo(() => {
     const m = new Map(sites.map((s) => [s.id, s.name]));
@@ -83,10 +78,13 @@ export function AssetsView({
         filter: { kind: "text", accessor: (eq) => eq.name },
       },
       {
-        key: "type",
-        header: "ชนิด",
-        sortAccessor: (eq) => typeOf(eq),
-        filter: { kind: "select", accessor: (eq) => typeOf(eq) },
+        key: "status",
+        header: "สถานะเครื่อง",
+        sortAccessor: (eq) => assetStatusMeta(eq.status).label,
+        filter: {
+          kind: "select",
+          accessor: (eq) => assetStatusMeta(eq.status).label,
+        },
       },
       {
         key: "site",
@@ -199,7 +197,21 @@ export function AssetsView({
                         ) : null}
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{typeOf(eq)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Badge tone={assetStatusMeta(eq.status).tone}>
+                          {assetStatusMeta(eq.status).label}
+                        </Badge>
+                        {inService.has(eq.id) ? (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-accent-foreground"
+                            title="มีใบสั่งงานที่ยังไม่เสร็จ"
+                          >
+                            <Wrench className="h-3 w-3" /> มีงานค้าง
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {eq.site_id ? (
                         <Link href={`/sites/${eq.site_id}`} className="hover:text-primary">

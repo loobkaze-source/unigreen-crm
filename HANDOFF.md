@@ -84,6 +84,10 @@ Open Supabase → **SQL Editor** and run in order:
     opening/managing cases is gated to Customer Service / Dispatcher / admin (CASE_ROLES)
 24. `0024_work_order_parts.sql` — `work_order_parts` (parts replaced per WO, optional
     equipment link); powers the /assets lifetime pages ("เปลี่ยนอะไหล่ไปกี่รอบ")
+25. `0025_asset_status.sql` — `equipment.status` (operational/degraded/down/retired,
+    see lib/asset-status.ts) + `cases.equipment_id`. Status flows: case form sets it
+    when reporting a problem; completing a repair WO restores degraded/down →
+    operational; manual override on /assets/[id] (Dispatcher/admin; retire = admin)
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

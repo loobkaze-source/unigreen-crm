@@ -112,6 +112,9 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     if (error) return fail(error.message);
     const aErr = await syncAssets(supabase, org.id, input.id, assetIds);
     if (aErr) return fail(aErr);
+    if (input.status === "completed") {
+      await restoreAssetsOnComplete(supabase, org.id, input.id);
+    }
     revalidatePath(`/work-orders/${input.id}`);
   } else {
     // New WO is owned by its creator (the Dispatcher).
@@ -132,11 +135,40 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
   return ok(input.id);
 }
 
+/**
+ * When a work order completes, machines it covered that were reported
+ * degraded/down go back to operational (retired assets are left alone).
+ */
+async function restoreAssetsOnComplete(
+  supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
+  orgId: string,
+  workOrderId: string
+) {
+  const [{ data: wo }, { data: links }] = await Promise.all([
+    supabase.from("work_orders").select("asset_id").eq("id", workOrderId).maybeSingle(),
+    supabase
+      .from("work_order_assets")
+      .select("equipment_id")
+      .eq("work_order_id", workOrderId),
+  ]);
+  const ids = new Set<string>();
+  if (wo?.asset_id) ids.add(wo.asset_id as string);
+  (links ?? []).forEach((l) => ids.add(l.equipment_id as string));
+  if (ids.size === 0) return;
+  await supabase
+    .from("equipment")
+    .update({ status: "operational" })
+    .in("id", [...ids])
+    .eq("org_id", orgId)
+    .in("status", ["degraded", "down"]);
+  revalidatePath("/assets");
+}
+
 export async function updateWorkOrderStatus(
   id: string,
   status: WorkOrderStatus
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
+  const { supabase, org } = await getSessionContext();
   const { error } = await supabase
     .from("work_orders")
     .update({
@@ -145,6 +177,7 @@ export async function updateWorkOrderStatus(
     })
     .eq("id", id);
   if (error) return fail(error.message);
+  if (status === "completed") await restoreAssetsOnComplete(supabase, org.id, id);
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${id}`);
   return ok();
