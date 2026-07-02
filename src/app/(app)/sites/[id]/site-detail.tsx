@@ -34,11 +34,13 @@ import { Modal } from "@/components/ui/modal";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   saveEquipment,
   deleteEquipment,
   saveAssetGroup,
   deleteAssetGroup,
+  assignAssetsToGroup,
 } from "../actions";
 
 const CATEGORIES: { value: EquipmentCategory; label: string }[] = [
@@ -82,6 +84,34 @@ export function SiteDetail({
   const [editing, setEditing] = useState<Equipment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Bulk group assignment via checkboxes
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkGroup, setBulkGroup] = useState("");
+  const allSelected = equipment.length > 0 && selected.size === equipment.length;
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) =>
+      prev.size === equipment.length ? new Set() : new Set(equipment.map((e) => e.id))
+    );
+  }
+  function assignSelected(groupId: string | null) {
+    if (selected.size === 0) return;
+    startTransition(async () => {
+      const res = await assignAssetsToGroup([...selected], groupId, site.id);
+      if (!res.ok) return alert(res.error);
+      setSelected(new Set());
+      setBulkGroup("");
+      router.refresh();
+    });
+  }
 
   const EMPTY = {
     name: "",
@@ -294,6 +324,48 @@ export function SiteDetail({
               </Button>
             </div>
 
+            {/* Bulk assignment bar — appears when assets are selected */}
+            {selected.size > 0 ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-accent/40 px-3 py-2 text-sm">
+                <span className="font-medium">เลือกไว้ {selected.size} รายการ</span>
+                <span className="text-muted-foreground">→ ย้ายเข้ากลุ่ม:</span>
+                <Select
+                  value={bulkGroup}
+                  onChange={(e) => setBulkGroup(e.target.value)}
+                  className="h-8 w-auto"
+                >
+                  <option value="">— เลือกกลุ่ม —</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </Select>
+                <Button
+                  size="sm"
+                  disabled={pending || !bulkGroup}
+                  onClick={() => assignSelected(bulkGroup)}
+                >
+                  ย้ายเข้ากลุ่ม
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => assignSelected(null)}
+                  title="นำ Asset ที่เลือกออกจากกลุ่ม"
+                >
+                  เอาออกจากกลุ่ม
+                </Button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ล้างการเลือก
+                </button>
+              </div>
+            ) : null}
+
             {equipment.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 ยังไม่มี Asset ในไซต์นี้
@@ -303,6 +375,15 @@ export function SiteDetail({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
+                      <th className="w-9 px-3 py-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[color:var(--primary)] align-middle"
+                          checked={allSelected}
+                          onChange={toggleAll}
+                          title="เลือกทั้งหมด"
+                        />
+                      </th>
                       <th className="px-3 py-2 font-medium">รหัส Asset</th>
                       <th className="px-3 py-2 font-medium">Asset</th>
                       <th className="px-3 py-2 font-medium">ชนิด</th>
@@ -319,8 +400,19 @@ export function SiteDetail({
                       return (
                         <tr
                           key={eq.id}
-                          className="group border-b border-border last:border-0 hover:bg-muted/30"
+                          className={cn(
+                            "group border-b border-border last:border-0 hover:bg-muted/30",
+                            selected.has(eq.id) && "bg-accent/30"
+                          )}
                         >
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-[color:var(--primary)] align-middle"
+                              checked={selected.has(eq.id)}
+                              onChange={() => toggleOne(eq.id)}
+                            />
+                          </td>
                           <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
                             {assetCode(eq.code)}
                           </td>

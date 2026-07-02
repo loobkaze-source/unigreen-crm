@@ -90,6 +90,44 @@ export async function deleteAssetGroup(id: string, siteId: string): Promise<Acti
   return ok();
 }
 
+/**
+ * Move a batch of assets into a group at once (or clear their group when
+ * groupId is null). Scoped to one site: the group must belong to that site,
+ * and only equipment on that site is touched.
+ */
+export async function assignAssetsToGroup(
+  assetIds: string[],
+  groupId: string | null,
+  siteId: string
+): Promise<ActionResult> {
+  const { supabase, org } = await getSessionContext();
+  const ids = assetIds.filter(Boolean);
+  if (ids.length === 0) return fail("ยังไม่ได้เลือก Asset");
+
+  // A group can only hold assets from its own site.
+  if (groupId) {
+    const { data: g, error: gErr } = await supabase
+      .from("asset_groups")
+      .select("site_id")
+      .eq("id", groupId)
+      .eq("org_id", org.id)
+      .maybeSingle();
+    if (gErr) return fail(gErr.message);
+    if (!g || g.site_id !== siteId) return fail("กลุ่มไม่อยู่ในไซต์นี้");
+  }
+
+  const { error } = await supabase
+    .from("equipment")
+    .update({ group_id: groupId })
+    .in("id", ids)
+    .eq("org_id", org.id)
+    .eq("site_id", siteId);
+  if (error) return fail(error.message);
+
+  revalidatePath(`/sites/${siteId}`);
+  return ok();
+}
+
 export type EquipmentInput = {
   id?: string;
   site_id: string;
