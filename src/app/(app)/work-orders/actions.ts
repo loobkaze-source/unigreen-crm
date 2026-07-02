@@ -167,16 +167,19 @@ export async function addChecklistItem(
   const text = label?.trim();
   if (!text) return fail("กรุณากรอกรายการ");
 
-  const { count } = await supabase
+  const { data: last } = await supabase
     .from("work_order_items")
-    .select("*", { count: "exact", head: true })
-    .eq("work_order_id", workOrderId);
+    .select("position")
+    .eq("work_order_id", workOrderId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const { error } = await supabase.from("work_order_items").insert({
     org_id: org.id,
     work_order_id: workOrderId,
     label: text,
-    position: count ?? 0,
+    position: (last?.position ?? -1) + 1,
   });
   if (error) return fail(error.message);
   revalidatePath(`/work-orders/${workOrderId}`);
@@ -233,9 +236,11 @@ export async function deleteWorkOrderPhoto(
   workOrderId: string
 ): Promise<ActionResult> {
   const { supabase } = await getSessionContext();
-  await supabase.storage.from("wo-photos").remove([path]);
+  // Delete the DB row first: if this fails the photo is untouched; an
+  // orphaned storage object (row gone, remove fails) is harmless by contrast.
   const { error } = await supabase.from("work_order_photos").delete().eq("id", id);
   if (error) return fail(error.message);
+  await supabase.storage.from("wo-photos").remove([path]);
   revalidatePath(`/work-orders/${workOrderId}`);
   return ok();
 }

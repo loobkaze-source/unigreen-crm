@@ -382,6 +382,7 @@ export interface Database {
       is_org_member: { Args: { _org_id: string }; Returns: boolean };
       is_org_admin: { Args: { _org_id: string }; Returns: boolean };
       shares_org_with: { Args: { _user: string }; Returns: boolean };
+      convert_lead: { Args: { p_lead_id: string }; Returns: string };
     };
     Enums: {
       member_role: MemberRole;

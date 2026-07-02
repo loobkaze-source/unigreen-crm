@@ -25,7 +25,12 @@ export async function login(
   });
 
   if (error) return { error: "ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง" };
-  redirect(redirectTo.startsWith("/") ? redirectTo : "/dashboard");
+  // Same-origin paths only: "//host" and "/\host" are protocol-relative URLs.
+  const safeRedirect =
+    redirectTo.startsWith("/") &&
+    !redirectTo.startsWith("//") &&
+    !redirectTo.startsWith("/\\");
+  redirect(safeRedirect ? redirectTo : "/dashboard");
 }
 
 export async function signup(

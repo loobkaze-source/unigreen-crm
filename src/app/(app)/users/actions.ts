@@ -20,12 +20,13 @@ async function requireAdmin() {
   return { ctx, error: null };
 }
 
-/** Create/link a technician record for a Technician-role user (idempotent). */
+/** Create/link a technician record for a Technician-role user (idempotent).
+ *  Returns an error message, or null on success. */
 async function ensureTechnician(
   supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
   orgId: string,
   userId: string
-) {
+): Promise<string | null> {
   const { data: prof } = await supabase
     .from("profiles")
     .select("full_name, email")
@@ -35,7 +36,7 @@ async function ensureTechnician(
     prof?.email && !String(prof.email).toLowerCase().endsWith(`@${USERNAME_DOMAIN}`)
       ? prof.email
       : null;
-  await supabase.from("technicians").upsert(
+  const { error } = await supabase.from("technicians").upsert(
     {
       org_id: orgId,
       user_id: userId,
@@ -46,6 +47,7 @@ async function ensureTechnician(
     },
     { onConflict: "org_id,user_id", ignoreDuplicates: true }
   );
+  return error?.message ?? null;
 }
 
 export async function updateMember(
@@ -76,7 +78,11 @@ export async function updateMember(
       .eq("id", memberId)
       .eq("org_id", ctx.org.id)
       .maybeSingle();
-    if (mem?.user_id) await ensureTechnician(ctx.supabase, ctx.org.id, mem.user_id);
+    if (mem?.user_id) {
+      const techErr = await ensureTechnician(ctx.supabase, ctx.org.id, mem.user_id);
+      if (techErr)
+        return fail("บันทึกบทบาทแล้ว แต่เพิ่มเข้าทะเบียนช่างไม่สำเร็จ: " + techErr);
+    }
   }
 
   revalidatePath("/users");
@@ -132,10 +138,23 @@ export async function createUser(input: {
 
   // Force a password change on first login.
   if (data.user) {
-    await admin.from("profiles").update({ must_change_password: true }).eq("id", data.user.id);
+    const { error: flagErr } = await admin
+      .from("profiles")
+      .update({ must_change_password: true })
+      .eq("id", data.user.id);
+    if (flagErr) {
+      revalidatePath("/users");
+      return fail(
+        "สร้างผู้ใช้สำเร็จ แต่ตั้งค่าบังคับเปลี่ยนรหัสผ่านไม่สำเร็จ: " + flagErr.message
+      );
+    }
     // A Technician user also joins the technician roster.
     if (role === "Technician") {
-      await ensureTechnician(ctx.supabase, ctx.org.id, data.user.id);
+      const techErr = await ensureTechnician(ctx.supabase, ctx.org.id, data.user.id);
+      if (techErr) {
+        revalidatePath("/users");
+        return fail("สร้างผู้ใช้สำเร็จ แต่เพิ่มเข้าทะเบียนช่างไม่สำเร็จ: " + techErr);
+      }
     }
   }
   revalidatePath("/users");
@@ -172,8 +191,15 @@ export async function resetUserPassword(
     password: newPassword,
   });
   if (e) return fail(e.message);
-  await admin.from("profiles").update({ must_change_password: true }).eq("id", mem.user_id);
+  const { error: flagErr } = await admin
+    .from("profiles")
+    .update({ must_change_password: true })
+    .eq("id", mem.user_id);
   revalidatePath("/users");
+  if (flagErr)
+    return fail(
+      "เปลี่ยนรหัสผ่านแล้ว แต่ตั้งค่าบังคับเปลี่ยนรหัสผ่านไม่สำเร็จ: " + flagErr.message
+    );
   return ok();
 }
 

@@ -39,11 +39,16 @@ export async function getSessionContext(): Promise<SessionContext> {
     .eq("id", user.id)
     .maybeSingle();
 
-  const { data: memberships } = await supabase
+  const { data: memberships, error: membershipsErr } = await supabase
     .from("organization_members")
     .select("org_id, role, app_role, department")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true });
+  // A transient failure here must NOT fall through to the workspace-creation
+  // branch below, or every hiccup would mint a duplicate workspace.
+  if (membershipsErr) {
+    throw new Error("โหลดข้อมูลผู้ใช้ไม่สำเร็จ: " + membershipsErr.message);
+  }
 
   let org: Organization | null = null;
   let role = "owner";
@@ -54,11 +59,14 @@ export async function getSessionContext(): Promise<SessionContext> {
     role = memberships[0].role;
     appRole = (memberships[0].app_role as string) ?? null;
     department = (memberships[0].department as string) ?? null;
-    const { data } = await supabase
+    const { data, error: orgErr } = await supabase
       .from("organizations")
       .select("*")
       .eq("id", memberships[0].org_id)
       .maybeSingle();
+    if (orgErr) {
+      throw new Error("โหลดข้อมูลพื้นที่ทำงานไม่สำเร็จ: " + orgErr.message);
+    }
     org = data;
   }
 

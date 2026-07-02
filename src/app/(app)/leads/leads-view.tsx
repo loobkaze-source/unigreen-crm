@@ -95,6 +95,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
   }
 
   function remove(l: Lead) {
+    if (pending) return;
     if (!confirm(`ลบลูกค้ามุ่งหวัง "${l.name}"?`)) return;
     startTransition(async () => {
       const res = await deleteLead(l.id);
@@ -104,6 +105,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
   }
 
   function convert(l: Lead) {
+    if (pending) return;
     if (
       !confirm(
         `แปลง "${l.name}" เป็นผู้ติดต่อและดีลใหม่? ` +
@@ -215,6 +217,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
                             variant="ghost"
                             size="icon"
                             title="แปลงเป็นดีล"
+                            disabled={pending}
                             onClick={() => convert(l)}
                           >
                             <ArrowRightLeft className="h-4 w-4 text-primary" />
@@ -223,7 +226,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
                         <Button variant="ghost" size="icon" onClick={() => openEdit(l)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => remove(l)}>
+                        <Button variant="ghost" size="icon" disabled={pending} onClick={() => remove(l)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>

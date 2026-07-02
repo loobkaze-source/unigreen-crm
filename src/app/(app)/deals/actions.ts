@@ -33,7 +33,7 @@ export async function saveDeal(input: DealInput): Promise<ActionResult> {
     org_id: org.id,
     title,
     value: parseValue(input.value),
-    currency: input.currency?.trim() || "USD",
+    currency: input.currency?.trim() || "THB",
     stage_id: input.stage_id,
     department: input.department || "unigreen",
     company_id: input.company_id || null,

@@ -61,11 +61,60 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
   };
 
   if (input.id) {
+    const { data: current, error: curErr } = await supabase
+      .from("service_contracts")
+      .select("start_date, frequency_per_year, duration_years")
+      .eq("id", input.id)
+      .maybeSingle();
+    if (curErr) return fail(curErr.message);
+    if (!current) return fail("ไม่พบสัญญา");
+
     const { error } = await supabase
       .from("service_contracts")
       .update(payload)
       .eq("id", input.id);
     if (error) return fail(error.message);
+
+    // When the schedule inputs change, regenerate the plan: visits already
+    // acted on (done/skipped) keep their seq; pending ones are replaced.
+    const scheduleChanged =
+      current.start_date !== payload.start_date ||
+      Number(current.frequency_per_year) !== freq ||
+      Number(current.duration_years) !== years;
+    if (scheduleChanged) {
+      const { data: keptRows, error: keptErr } = await supabase
+        .from("service_visits")
+        .select("seq")
+        .eq("contract_id", input.id)
+        .neq("status", "pending");
+      if (keptErr) return fail(keptErr.message);
+      const keptSeqs = new Set((keptRows ?? []).map((r) => r.seq));
+
+      const { error: delErr } = await supabase
+        .from("service_visits")
+        .delete()
+        .eq("contract_id", input.id)
+        .eq("status", "pending");
+      if (delErr) return fail(delErr.message);
+
+      const total = Math.max(1, Math.round(freq * years));
+      const interval = Math.max(1, Math.round(12 / freq));
+      // A failure after the delete leaves a shorter (re-editable) schedule,
+      // never corrupted data — acceptable without a transaction at this scale.
+      const visits = Array.from({ length: total }, (_, i) => ({
+        org_id: org.id,
+        contract_id: input.id as string,
+        seq: i + 1,
+        due_date: ymd(addMonths(start, i * interval)),
+      })).filter((v) => !keptSeqs.has(v.seq));
+      if (visits.length > 0) {
+        const { error: insErr } = await supabase
+          .from("service_visits")
+          .insert(visits);
+        if (insErr) return fail(insErr.message);
+      }
+    }
+
     revalidatePath(`/service-contracts/${input.id}`);
     revalidatePath("/service-contracts");
     return ok(input.id);
