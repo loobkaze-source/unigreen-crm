@@ -18,7 +18,7 @@ export default async function SiteDetailPage({
     .maybeSingle();
   if (!site) notFound();
 
-  const [{ data: equipment }, { data: groups }, { data: warranties }, { data: contracts }, { data: companies }, { data: contacts }] =
+  const [{ data: equipment }, { data: groups }, { data: warranties }, { data: contracts }, { data: companies }, { data: contacts }, { data: products }] =
     await Promise.all([
       supabase
         .from("equipment")
@@ -49,6 +49,12 @@ export default async function SiteDetailPage({
         .eq("org_id", org.id)
         .order("first_name")
         .limit(500),
+      supabase
+        .from("products")
+        .select("name, price")
+        .eq("org_id", org.id)
+        .not("price", "is", null)
+        .limit(1000),
     ]);
 
   const companyList = companies ?? [];
@@ -57,6 +63,30 @@ export default async function SiteDetailPage({
     name: [c.first_name, c.last_name].filter(Boolean).join(" "),
   }));
 
+  // Match each asset to a product by "brand model" (or model) → sale price,
+  // so the asset table can show the price on hover.
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  const priceByName = new Map<string, number>();
+  for (const p of products ?? []) {
+    if (p.price != null) priceByName.set(norm(p.name), Number(p.price));
+  }
+  const priceByAsset: Record<string, number> = {};
+  for (const eq of equipment ?? []) {
+    const keys = [
+      [eq.brand, eq.model].filter(Boolean).join(" "),
+      eq.model ?? "",
+      eq.name ?? "",
+    ];
+    for (const k of keys) {
+      if (!k) continue;
+      const price = priceByName.get(norm(k));
+      if (price != null) {
+        priceByAsset[eq.id] = price;
+        break;
+      }
+    }
+  }
+
   return (
     <SiteDetail
       site={site}
@@ -64,6 +94,7 @@ export default async function SiteDetailPage({
       groups={groups ?? []}
       warranties={warranties ?? []}
       contracts={contracts ?? []}
+      priceByAsset={priceByAsset}
       companyName={companyList.find((c) => c.id === site.company_id)?.name}
       contactName={contactList.find((c) => c.id === site.contact_id)?.name}
     />

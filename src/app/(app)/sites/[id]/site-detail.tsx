@@ -40,7 +40,7 @@ import {
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
 import { fmtDate } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   saveEquipment,
   deleteEquipment,
@@ -74,6 +74,7 @@ export function SiteDetail({
   groups,
   warranties,
   contracts,
+  priceByAsset,
   companyName,
   contactName,
 }: {
@@ -82,6 +83,7 @@ export function SiteDetail({
   groups: Group[];
   warranties: WarrantyBrief[];
   contracts: Brief[];
+  priceByAsset: Record<string, number>;
   companyName?: string;
   contactName?: string;
 }) {
@@ -506,7 +508,19 @@ export function SiteDetail({
                               ) : (
                                 <Box className="h-4 w-4 text-muted-foreground" />
                               )}
-                              <span className="font-medium">{eq.name}</span>
+                              {priceByAsset[eq.id] != null ? (
+                                <span className="group/price relative cursor-help font-medium underline decoration-dotted decoration-muted-foreground/50 underline-offset-2">
+                                  {eq.name}
+                                  <span className="pointer-events-none absolute left-0 top-full z-10 mt-1 hidden whitespace-nowrap rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-normal text-card-foreground shadow-md group-hover/price:block">
+                                    ราคาขาย:{" "}
+                                    <span className="font-semibold text-foreground">
+                                      {formatCurrency(priceByAsset[eq.id])}
+                                    </span>
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="font-medium">{eq.name}</span>
+                              )}
                             </div>
                             {eq.asset_type === "object" && (eq.brand || eq.model) ? (
                               <div className="pl-6 text-xs text-muted-foreground">
