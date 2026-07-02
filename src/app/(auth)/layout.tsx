@@ -41,7 +41,24 @@ export default function AuthLayout({
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <Image src="/brand/logo-light.png" alt="Unicloud" width={150} height={31} priority />
+            <>
+              <Image
+                src="/brand/logo-light.png"
+                alt="Unicloud"
+                width={150}
+                height={31}
+                priority
+                className="dark:hidden"
+              />
+              <Image
+                src="/brand/logo-dark.png"
+                alt="Unicloud"
+                width={150}
+                height={31}
+                priority
+                className="hidden dark:block"
+              />
+            </>
           </div>
           {children}
         </div>

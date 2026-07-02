@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 
@@ -212,6 +213,7 @@ export function AppShell({
                 <div className="truncate text-xs text-slate-400">{user.email}</div>
               </div>
             </Link>
+            <ThemeToggle className="rounded-md p-1.5 text-slate-400 hover:bg-sidebar-accent hover:text-white" />
             <Link
               href="/account"
               onClick={() => setOpen(false)}
@@ -246,7 +248,21 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Image src="/brand/logo-light.png" alt="Unicloud" width={120} height={25} />
+          <Image
+            src="/brand/logo-light.png"
+            alt="Unicloud"
+            width={120}
+            height={25}
+            className="dark:hidden"
+          />
+          <Image
+            src="/brand/logo-dark.png"
+            alt="Unicloud"
+            width={120}
+            height={25}
+            className="hidden dark:block"
+          />
+          <ThemeToggle className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-muted" />
         </div>
 
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">

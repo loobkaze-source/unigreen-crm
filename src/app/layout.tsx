@@ -20,7 +20,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" className={`${notoThai.variable} h-full`}>
+    <html lang="th" className={`${notoThai.variable} h-full`} suppressHydrationWarning>
+      <head>
+        {/* Apply the saved theme before paint so dark mode never flashes light. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(localStorage.getItem('theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

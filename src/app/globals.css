@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `dark:` utilities apply under <html class="dark">. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ===========================================================================
    Unicloud — brand design tokens
    Brand palette (from logo): azure blue #2A72E0 · interactive #2563EB
@@ -45,6 +48,47 @@
   --sidebar-accent: #15294a;
 
   --radius: 0.65rem;
+
+  color-scheme: light;
+}
+
+/* Dark theme — same tokens, night values. Toggled by <html class="dark">. */
+.dark {
+  --background: #0b1220;
+  --foreground: #e2e8f0;
+
+  --card: #121b2e;
+  --card-foreground: #e2e8f0;
+
+  --muted: #1a2438;
+  --muted-foreground: #97a5bd;
+
+  --border: #243049;
+  --input: #2c3a58;
+  --ring: #3b82f6;
+
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+
+  --accent: #1b2c4e;
+  --accent-foreground: #9dc0f9;
+
+  --secondary: #1a2438;
+  --secondary-foreground: #e2e8f0;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+
+  --brand-ink: #cbd5e1;
+
+  --sidebar: #060d1a;
+  --sidebar-foreground: #b7c4d8;
+  --sidebar-accent: #132441;
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -113,4 +157,20 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3be;
   background-clip: padding-box;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #33415c;
+  background-clip: padding-box;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #47587a;
+  background-clip: padding-box;
+}
+
+/* Soft error banners used across forms (bg-red-50 text-red-700) */
+.dark .bg-red-50 {
+  background-color: rgb(127 29 29 / 0.35);
+}
+.dark .text-red-700 {
+  color: #fca5a5;
 }

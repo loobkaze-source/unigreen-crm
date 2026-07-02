@@ -13,11 +13,11 @@ type Tone =
 const tones: Record<Tone, string> = {
   default: "bg-muted text-muted-foreground",
   primary: "bg-accent text-accent-foreground",
-  success: "bg-green-100 text-green-700",
-  warning: "bg-amber-100 text-amber-700",
-  danger: "bg-red-100 text-red-700",
-  info: "bg-sky-100 text-sky-700",
-  muted: "bg-slate-100 text-slate-600",
+  success: "bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-400",
+  warning: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400",
+  danger: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400",
+  info: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-400",
+  muted: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
 };
 
 export function Badge({
