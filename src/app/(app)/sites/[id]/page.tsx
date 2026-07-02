@@ -29,7 +29,8 @@ export default async function SiteDetailPage({
         .from("asset_groups")
         .select("id, name, site_id")
         .eq("site_id", id)
-        .order("name"),
+        .order("name")
+        .limit(500),
       supabase
         .from("warranties")
         .select("id, title, kind, status, end_date")
@@ -40,12 +41,14 @@ export default async function SiteDetailPage({
         .select("id, title, status, end_date")
         .eq("site_id", id)
         .order("created_at", { ascending: false }),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
+      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+        .limit(500),
       supabase
         .from("contacts")
         .select("id, first_name, last_name")
         .eq("org_id", org.id)
-        .order("first_name"),
+        .order("first_name")
+        .limit(500),
     ]);
 
   const companyList = companies ?? [];

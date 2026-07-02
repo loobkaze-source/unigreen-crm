@@ -49,28 +49,34 @@ export default async function WorkOrderDetailPage({
       .from("technicians")
       .select("id, name")
       .eq("org_id", org.id)
-      .order("name"),
-    supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
+      .order("name")
+        .limit(500),
+    supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+        .limit(500),
     supabase
       .from("contacts")
       .select("id, first_name, last_name, company_id")
       .eq("org_id", org.id)
-      .order("first_name"),
+      .order("first_name")
+        .limit(500),
     supabase
       .from("sites")
       .select("id, name, company_id, address, map_url")
       .eq("org_id", org.id)
-      .order("name"),
+      .order("name")
+        .limit(500),
     supabase
       .from("equipment")
       .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
       .eq("org_id", org.id)
-      .order("code"),
+      .order("code")
+        .limit(500),
     supabase
       .from("cases")
       .select("id, number, subject, company_id")
       .eq("org_id", org.id)
-      .order("number", { ascending: false }),
+      .order("number", { ascending: false })
+        .limit(500),
     supabase
       .from("work_order_assets")
       .select("equipment_id")

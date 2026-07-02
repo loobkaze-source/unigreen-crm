@@ -31,15 +31,21 @@ import {
   typeLabel,
   woCode,
 } from "./constants";
-import {
-  WorkOrderModal,
-  type Option,
-  type ContactOption,
-  type CaseOption,
-  type SiteOption,
-  type AssetOption,
+import dynamic from "next/dynamic";
+import type {
+  Option,
+  ContactOption,
+  CaseOption,
+  SiteOption,
+  AssetOption,
 } from "./work-order-modal";
 import { deleteWorkOrder } from "./actions";
+
+// Loaded on demand — the 500-line modal stays out of the list page's chunk.
+const WorkOrderModal = dynamic(
+  () => import("./work-order-modal").then((m) => m.WorkOrderModal),
+  { ssr: false }
+);
 
 export function WorkOrdersView({
   workOrders,
@@ -279,22 +285,24 @@ export function WorkOrdersView({
         </div>
       )}
 
-      <WorkOrderModal
-        open={open}
-        onClose={() => setOpen(false)}
-        editing={editing}
-        technicians={technicians}
-        companies={companies}
-        contacts={contacts}
-        sites={sites}
-        assets={assets}
-        cases={cases}
-        assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
-        onSaved={() => {
-          setOpen(false);
-          router.refresh();
-        }}
-      />
+      {open ? (
+        <WorkOrderModal
+          open={open}
+          onClose={() => setOpen(false)}
+          editing={editing}
+          technicians={technicians}
+          companies={companies}
+          contacts={contacts}
+          sites={sites}
+          assets={assets}
+          cases={cases}
+          assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
+          onSaved={() => {
+            setOpen(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -72,6 +72,13 @@ Open Supabase → **SQL Editor** and run in order:
     assets; backfilled from the single `asset_id`)
 17. `0017_work_order_case.sql` — `work_orders.case_id` (FK cases); a case can't be
     closed while it has unfinished work orders (guard in cases/actions.ts)
+18. `0018_technician_user.sql` — `technicians.user_id` (links a technician row to an auth user)
+19. `0019_asset_groups.sql` — `asset_groups` (named groups of assets within a site)
+20. `0020_customer_tax_tags.sql` — `companies.tax_id` + `tags text[]` (+ GIN index)
+21. `0021_convert_lead_fn.sql` — `convert_lead(p_lead_id)` fn: atomic lead→company/contact/deal
+    conversion (row lock kills double-convert); `deals.currency` default → THB
+22. `0022_aggregates.sql` — `contract_visit_stats` view + `dashboard_stats(p_org)` fn (SQL
+    aggregation for the dashboard & contract list instead of full-table fetches)
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

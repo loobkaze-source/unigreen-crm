@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -38,14 +39,20 @@ import {
   typeLabel,
   woCode,
 } from "../constants";
-import {
-  WorkOrderModal,
-  type Option,
-  type ContactOption,
-  type CaseOption,
-  type SiteOption,
-  type AssetOption,
+import dynamic from "next/dynamic";
+import type {
+  Option,
+  ContactOption,
+  CaseOption,
+  SiteOption,
+  AssetOption,
 } from "../work-order-modal";
+
+// Loaded on demand — keeps the modal out of the detail page's chunk.
+const WorkOrderModal = dynamic(
+  () => import("../work-order-modal").then((m) => m.WorkOrderModal),
+  { ssr: false }
+);
 import {
   addChecklistItem,
   addWorkOrderPhoto,
@@ -115,7 +122,9 @@ export function WorkOrderDetail({
         status as WorkOrder["status"]
       );
       if (!res.ok) alert(res.error);
-      else router.refresh();
+      // Refresh on failure too, so the controlled Select resyncs to the
+      // server state instead of keeping the failed value.
+      router.refresh();
     });
   }
   function removeWorkOrder() {
@@ -156,20 +165,23 @@ export function WorkOrderDetail({
     if (!files || files.length === 0) return;
     setUploading(true);
     const supabase = createClient();
-    for (const file of Array.from(files)) {
-      const ext = file.name.split(".").pop() || "jpg";
-      const rand = Math.random().toString(36).slice(2, 8);
-      const path = `${orgId}/${workOrder.id}/${Date.now()}-${rand}.${ext}`;
-      const { error } = await supabase.storage
-        .from("wo-photos")
-        .upload(path, file, { cacheControl: "3600", upsert: false });
-      if (error) {
-        alert(error.message);
-        continue;
-      }
-      const res = await addWorkOrderPhoto(workOrder.id, path);
-      if (!res.ok) alert(res.error);
-    }
+    // Upload all files in parallel; collect failures into one alert.
+    const errors = (
+      await Promise.all(
+        Array.from(files).map(async (file) => {
+          const ext = file.name.split(".").pop() || "jpg";
+          const rand = Math.random().toString(36).slice(2, 8);
+          const path = `${orgId}/${workOrder.id}/${Date.now()}-${rand}.${ext}`;
+          const { error } = await supabase.storage
+            .from("wo-photos")
+            .upload(path, file, { cacheControl: "3600", upsert: false });
+          if (error) return `${file.name}: ${error.message}`;
+          const res = await addWorkOrderPhoto(workOrder.id, path);
+          return res.ok ? null : `${file.name}: ${res.error}`;
+        })
+      )
+    ).filter(Boolean);
+    if (errors.length > 0) alert("อัปโหลดไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
     router.refresh();
@@ -374,11 +386,12 @@ export function WorkOrderDetail({
                     key={ph.id}
                     className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <Image
                       src={ph.url}
                       alt={ph.caption || "รูปหน้างาน"}
-                      className="h-full w-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 33vw, 200px"
+                      className="object-cover"
                     />
                     <button
                       onClick={() => removePhoto(ph)}
@@ -395,22 +408,24 @@ export function WorkOrderDetail({
         </Card>
       </div>
 
-      <WorkOrderModal
-        open={editing}
-        onClose={() => setEditing(false)}
-        editing={workOrder}
-        technicians={technicians}
-        companies={companies}
-        contacts={contacts}
-        sites={sites}
-        assets={assets}
-        cases={cases}
-        assetIds={assetIds}
-        onSaved={() => {
-          setEditing(false);
-          router.refresh();
-        }}
-      />
+      {editing ? (
+        <WorkOrderModal
+          open={editing}
+          onClose={() => setEditing(false)}
+          editing={workOrder}
+          technicians={technicians}
+          companies={companies}
+          contacts={contacts}
+          sites={sites}
+          assets={assets}
+          cases={cases}
+          assetIds={assetIds}
+          onSaved={() => {
+            setEditing(false);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

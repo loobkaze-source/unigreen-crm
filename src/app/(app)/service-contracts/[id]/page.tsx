@@ -25,9 +25,9 @@ export default async function ContractDetailPage({
         .select("*")
         .eq("contract_id", id)
         .order("seq", { ascending: true }),
-      supabase.from("companies").select("id, name").eq("org_id", org.id),
-      supabase.from("sites").select("id, name").eq("org_id", org.id),
-      supabase.from("technicians").select("id, name").eq("org_id", org.id),
+      supabase.from("companies").select("id, name").eq("org_id", org.id).limit(500),
+      supabase.from("sites").select("id, name").eq("org_id", org.id).limit(500),
+      supabase.from("technicians").select("id, name").eq("org_id", org.id).limit(500),
     ]);
 
   const find = (arr: { id: string; name: string }[] | null, id: string | null) =>
