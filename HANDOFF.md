@@ -1,9 +1,10 @@
 # Unicloud CRM — Project Handoff / Status
 
 > Complete working notes so this project can be continued on another machine.
-> Last updated: 2026-07-01. This file lives **in the repo** so it travels with a folder copy.
+> Last updated: 2026-07-03. This file lives **in the repo** so it travels with a folder copy.
 > **No secrets are stored here** — real keys live in `.env.local` (gitignored, but it copies
 > with the folder). The GitHub repo is **public**, so never commit keys/passwords.
+> **Start here after moving machines → §2.**
 
 ---
 
@@ -22,20 +23,60 @@ Supabase-backed CRM modeled on VenioCRM. The whole UI is in **Thai**; currency i
 
 ---
 
-## 2. Run on a new computer
+## 2. Move to another computer / run there
 
-The Supabase project is in the **cloud** and the data already exists there, so you usually only need:
+**The database is NOT in this folder.** Supabase is a cloud project, so the new machine talks to
+the same live data the moment `.env.local` is in place. You do **not** re-run migrations (§3 is
+only for a brand-new Supabase project).
+
+### 2a. Move the folder
+
+Copy the **whole `c:\CRM` folder** (a plain copy — USB / network share / cloud drive). Prefer this
+over `git clone`, because a clone leaves out gitignored files you actually need:
+
+| Item | Copy of folder | `git clone` |
+|---|---|---|
+| `.env.local` (Supabase URL + anon + service-role key) | ✅ travels | ❌ **missing** — recreate from `.env.example` |
+| `supabase/import_*.sql` (real customer data) | ✅ travels | ❌ missing |
+| `backups/*.json` | ✅ travels | ❌ missing |
+| `node_modules`, `.next` | ✅ but **delete them** — rebuild instead | ❌ (correct) |
+| source, migrations, this file | ✅ | ✅ |
+
+Safe to delete before copying (they rebuild, and they're big): `node_modules/`, `.next/`,
+`.netlify/`, `tsconfig.tsbuildinfo`.
+
+### 2b. Start working on the new machine
 
 ```bash
-npm install
+cd c:\CRM
+npm install          # Node 20+ (Netlify builds on 22)
 npm run dev          # http://localhost:3000
 ```
 
-Requirements: Node 20+ (Netlify uses 22). `.env.local` must be present (it copies with the
-folder; if missing, recreate from `.env.example` with the Supabase URL + keys).
+Then verify: `npx tsc --noEmit` and a login at localhost:3000. If login fails, `.env.local` is
+missing or wrong — recreate it from `.env.example` (Supabase → Project Settings → API).
+
+Also set git identity on the new machine (Netlify rejects builds from other contributors, §4):
+
+```bash
+git config user.email "vasawat@unigreen.solar"
+git config user.name  "Vasawat Mekaew"
+```
 
 `npm run dev` uses `.env.local`. **Do not** rely on `netlify build`/`netlify deploy` on Windows
 — the OpenNext adapter fails locally ("Failed publishing static content"). Deploy via git push (§4).
+
+### 2c. Claude Code's memory does NOT travel
+
+Claude's auto-memory lives **outside** this folder, at
+`C:\Users\<you>\.claude\projects\c--CRM\memory\` — a folder copy will not bring it. Two options:
+
+1. **Do nothing** — this HANDOFF.md is the source of truth; Claude reads it and picks up the context.
+2. **Bring it along** — copy that `memory\` folder to the same path on the new machine, and keep
+   the project at **`c:\CRM`** (the folder name `c--CRM` is derived from the project path — put the
+   project somewhere else and Claude looks in a differently-named folder).
+
+Either way, tell Claude to read `HANDOFF.md` first on the new machine.
 
 ---
 
@@ -142,10 +183,31 @@ Also in Supabase Auth settings: **turn OFF "Confirm email"** (built-in email is 
 ## 5. Modules (all built)
 
 Sales: Leads, Contacts, Companies, Deals (dnd-kit Kanban, 3 department boards), Activities, Dashboard.
-FSM: Technicians (multi-skill + nickname-as-avatar), Work Orders (checklist/photos/schedule).
+FSM: Technicians (multi-skill + nickname-as-avatar + safety certs "ใบเซอร์"), Work Orders
+(checklist/photos/schedule/parts).
 Phase 2: Sites, Equipment (by serial), Service Contracts (auto-generate visits), Warranties.
 Support: Cases. Catalog: Products. Admin: **Users** (roles + departments + invites), **Account**
 (self-service password change).
+
+**Asset** (`/assets`, `/assets/[id]`): per-asset lifetime page — delivery date, warranty start/end,
+repair rounds, parts replaced, timeline. Asset operating status (operational / degraded / down /
+retired, `src/lib/asset-status.ts`) is set from the case form, auto-restored to operational when a
+repair WO completes, and manually overridable on the asset page (Dispatcher/admin; retire = admin).
+
+**Pipeline stages are per board and admin-editable** (migration 0027): on `/deals` an admin can
+add / rename / reorder / delete a board's stages inline. **Won and Missed are locked** (permanent);
+Cancelled and custom stages are deletable (a stage that still holds deals can't be deleted).
+
+**Cases are multi-asset** (migration 0026): the form goes customer → that customer's sites →
+checkbox list of the site's assets, each with a reported condition. More assets can be added later
+after an inspection by editing the case.
+
+**UI conventions:** every main list table has per-column sort + filter (shared
+`src/components/ui/data-table.tsx` — `useDataTable` / `DataTableHead` / `DataTableFilterToggle`).
+**Dark mode** is a toggle (`theme-toggle.tsx`, `localStorage` key `theme`, `<html class="dark">`
+with a pre-paint inline script in `layout.tsx`; token overrides under `.dark` in `globals.css`).
+Loading screens show one of four random energy-themed SVG animations
+(`src/components/ui/loading-art.tsx`).
 
 Nav lives in `src/components/app/app-shell.tsx`.
 
@@ -156,7 +218,10 @@ Nav lives in `src/components/app/app-shell.tsx`.
 - `src/lib/data.ts` — `getSessionContext()` → `{supabase, userId, email, profile, org, role,
   appRole, department, isAdmin}`. Resolves the user's OLDEST membership; self-heals a workspace if none.
 - `src/lib/departments.ts` — shared `DEPARTMENTS` const (unigreen / product_sales / services_sales).
-- `src/lib/roles.ts` — shared `USER_ROLES` const (admin/Sales/Manager/Technician/Job Dispatcher/Accounting).
+- `src/lib/roles.ts` — shared consts: `USER_ROLES` (admin / Sales / Manager / Technician /
+  Dispatcher / Technical Supporter / Customer Service / Accounting / **Safety**),
+  `CASE_ROLES` (Customer Service + Dispatcher may open/manage cases), `PIPELINE_ROLES`,
+  `SERVICE_ROLES`, `DEPT_ROLES`. Admin bypasses every role gate.
 - `src/middleware.ts` + `src/lib/supabase/middleware.ts` — session refresh + auth guard.
 - Roles/departments model: **1 workspace, departments + roles** (customers shared across
   departments; deals/work scoped per department). `admin` (owner or app_role=admin) sees all;
@@ -197,9 +262,19 @@ Nav lives in `src/components/app/app-shell.tsx`.
 
 ---
 
-## 8. Pending tasks
+## 8. Current state & pending tasks
 
-- Assign a **department** to each of the 7 seeded users in `/users` (currently null → they see all boards).
+**As of 2026-07-03:** migrations `0001`–`0029` are all applied to the live cloud DB, and `main` is
+deployed (last deploy = commit `d111361`). Working tree clean, local `main` == `origin/main`.
+
+> The DB was **wiped for fresh testing on 2026-07-01** (kept: the org, the owner
+> `vasawat@uniwave.co.th`, and the pipeline stages). Pre-wipe backup:
+> `backups/unicloud-backup-2026-07-01T18-08-30.json` (~1068 rows). Playground data was then created
+> by hand (customer **ATARI**, 4 sites incl. 3 GPS clones, washers/dryers/coin machines with
+> warranties + a service contract, 3 products). So the "seeded team users" bullets below only apply
+> if those accounts are re-imported — **check `/users` before acting on them.**
+
+- Assign a **department** to each seeded user in `/users` (null → they see all boards).
 - Set the department the Manager (Thatchai) oversees.
 - Team members change their temp password `123456` at `/account`.
 - (Optional) Rename the workspace "Unigreen Power" → "Unicloud" — SQL:
