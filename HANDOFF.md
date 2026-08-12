@@ -171,6 +171,18 @@ Also in Supabase Auth settings: **turn OFF "Confirm email"** (built-in email is 
 - Code: GitHub **loobkaze-source/unigreen-crm** (branch `main`) — **PUBLIC** repo
 - `git push` to `main` → Netlify auto-builds on Linux (`@netlify/plugin-nextjs`). Env vars set on the Netlify site.
 
+**Functions region = Asia Pacific (Singapore, `sin`)** — changed 2026-07-03 from the `cmh` (Ohio)
+default. Every page is server-rendered, so all Supabase queries run from the function region:
+with compute in Ohio and the DB in Mumbai each query crossed the planet (~200ms), and the Thai
+user base was ~230ms from the compute. Set in the **Netlify UI** (Project configuration → Build &
+deploy → Continuous deployment → Functions region) — it is a site-level setting, *not* in
+`netlify.toml` — and it needs a **redeploy** to apply. Requires a Netlify **Pro** plan.
+
+> **Rule of thumb:** keep the function region and the Supabase region together. The DB is currently
+> in **South Asia (Mumbai)**; Supabase has no in-place region move (see §10), so Singapore compute +
+> Mumbai DB is the current trade-off. If the DB ever moves to Singapore, this stays `sin` and the
+> two become co-located (~2ms).
+
 **Deploy gotchas (already resolved, keep them true):**
 - Netlify free plan blocks builds of PRIVATE repos via deploy-key → repo is PUBLIC **and** the
   Netlify site's `repo.private` was set false via API. Don't flip the repo back to private.
@@ -306,3 +318,44 @@ real-email accounts keep logging in with their email. All user-facing displays u
 new users are forced to `/set-password` on first login (gated by `must_change_password` in the
 `(app)` layout via `getSessionContext`). Password reset is admin-only (`resetUserPassword` → sets a
 new temp password + re-flags must-change). The email-OTP self-reset (`/forgot`) was removed.
+
+---
+
+## 10. Regions & latency (why the app is fast/slow)
+
+The app is **server-rendered**, so nearly all Supabase traffic is `Netlify Function → Supabase`,
+not `browser → Supabase`. Latency is therefore dominated by the distance between the **function
+region** and the **database region** — keep them together.
+
+| | Region | Where it's set |
+|---|---|---|
+| Compute (Next.js SSR + server actions) | Asia Pacific **Singapore** (`sin`) | Netlify UI → Functions region (Pro plan; needs redeploy) — see §4 |
+| Database + Storage (Supabase) | South Asia **Mumbai** (`ap-south-1`) | Fixed at project creation |
+| Browser | Thailand | — |
+
+Measured 2026-07-03 from a Thai desktop: **browser → Supabase Mumbai ≈ 127ms** per REST query;
+deployed `/login` ≈ **515–540ms** warm while functions still ran in Ohio (`cmh`).
+
+### Moving Supabase to Singapore (optional, not done)
+
+Supabase has **no in-place region change** — you create a new project in the target region and
+migrate. Good news: the whole schema is reproducible from git.
+
+1. Create a new Supabase project in **Southeast Asia (Singapore)**.
+2. Run **`backups/schema-all.sql`** in its SQL Editor — that file is all 29 migrations
+   concatenated in order (regenerate it whenever `supabase/migrations/` changes:
+   `for f in supabase/migrations/*.sql; do cat "$f"; done > backups/schema-all.sql`).
+   It also creates the `wo-photos` and `case-files` storage buckets.
+3. Auth → turn **Confirm email OFF**, set **Site URL** (§3).
+4. Sign up the owner account — on a project with **zero organizations** the invite-only trigger
+   (migration 0010) lets the first signup bootstrap and become owner.
+5. Rename the workspace if wanted:
+   `update public.organizations set name = 'Uniwave Group' where name = 'Unigreen Power';`
+6. Re-import real data from `supabase/import_*.sql` (gitignored, travels with the folder).
+7. Update `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` /
+   `SUPABASE_SERVICE_ROLE_KEY` in **`.env.local` AND Netlify env vars**, then redeploy.
+8. Verify, then delete the Mumbai project.
+
+**Caveat:** user passwords are bcrypt hashes in `auth.users` and don't move via the API — recreate
+users in `/users` with temp passwords and let `must_change_password` force a reset on first login.
+Storage objects (WO photos, case attachments) must be re-uploaded if any matter.

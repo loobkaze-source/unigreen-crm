@@ -1,6 +1,15 @@
 # Netlify configuration for the Next.js 16 app.
 # The official Next.js Runtime turns the build into serverless/edge functions
 # (SSR, Server Actions, middleware/proxy, next/image all supported).
+#
+# FUNCTIONS REGION — set to Asia Pacific (Singapore, `sin`), NOT the `cmh`
+# (Ohio) default. This app is server-rendered, so every page load runs Supabase
+# queries from the function region; keeping compute near the DB and near the
+# Thai user base is the single biggest latency win.
+# It is a SITE-LEVEL setting configured in the Netlify UI (Project configuration
+# → Build & deploy → Continuous deployment → Functions region), NOT in this
+# file, and it requires a redeploy to take effect. Region selection needs a
+# Netlify **Pro** plan or higher.
 
 [build]
   command = "npm run build"
