@@ -1,49 +1,60 @@
-// Restores the business tables (and storage objects) from a backup JSON into a
-// TARGET Supabase project. Used to move the project between regions.
+// Restores the business tables (and storage objects) from a backup JSON into
+// the project that .env.local currently points at. Used to move regions.
 //
 // Run order for a region move:
-//   1. new project  ->  paste backups/schema-all.sql       (schema + buckets)
-//   2. new project  ->  paste backups/restore-users.sql    (auth users, org, memberships)
-//   3. this script                                          (everything else + files)
+//   1. new project -> paste backups/schema-all.sql      (schema + buckets)
+//   2. new project -> paste backups/restore-users.sql   (auth users, org, memberships)
+//   3. point .env.local at the NEW project
+//   4. this script
 //
-// Usage (PowerShell), target credentials passed as env vars so they never end
-// up in a file or in shell history alongside the source project's:
-//   $env:RESTORE_URL="https://<new-ref>.supabase.co"
-//   $env:RESTORE_KEY="sb_secret_..."
+// Table rows come from the JSON, so the old project is only needed to download
+// storage objects. Point SOURCE_ENV_FILE at an env file still holding the OLD
+// project's credentials; omit it to skip the file copy.
+//
+//   $env:SOURCE_ENV_FILE="D:\some\old\.env.local"
 //   node scripts/restore.mjs --confirm
 //
-// Without --confirm it does a dry run and only prints what it would write.
-import { readFileSync, readdirSync } from "node:fs";
+// Without --confirm it is a dry run and writes nothing.
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
 const CONFIRM = process.argv.includes("--confirm");
 
-const env = Object.fromEntries(
-  readFileSync("c:/CRM/.env.local", "utf8")
-    .split(/\r?\n/)
-    .filter((l) => l && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    })
-);
-
-const SRC_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const SRC_KEY = env.SUPABASE_SERVICE_ROLE_KEY;
-const DST_URL = process.env.RESTORE_URL;
-const DST_KEY = process.env.RESTORE_KEY;
-
-if (!DST_URL || !DST_KEY) {
-  console.error("set RESTORE_URL and RESTORE_KEY (the NEW project's url + secret key)");
-  process.exit(1);
+function readEnv(path) {
+  return Object.fromEntries(
+    readFileSync(path, "utf8")
+      .split(/\r?\n/)
+      .filter((l) => l && !l.startsWith("#") && l.includes("="))
+      .map((l) => {
+        const i = l.indexOf("=");
+        return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+      })
+  );
 }
-if (DST_URL.replace(/\/$/, "") === (SRC_URL || "").replace(/\/$/, "")) {
-  console.error("REFUSING: target is the same project as the source in .env.local");
+
+const target = readEnv("c:/CRM/.env.local");
+const DST_URL = target.NEXT_PUBLIC_SUPABASE_URL;
+const DST_KEY = target.SUPABASE_SERVICE_ROLE_KEY;
+if (!DST_URL || !DST_KEY || DST_KEY.startsWith("your-")) {
+  console.error("c:/CRM/.env.local must hold the TARGET project url + service role key");
   process.exit(1);
 }
 
-// Parent-before-child. organizations / profiles / organization_members are NOT
-// here — restore-users.sql creates those together with the auth users.
+const srcFile = process.env.SOURCE_ENV_FILE;
+let src = null;
+if (srcFile && existsSync(srcFile)) {
+  const s = readEnv(srcFile);
+  if (new URL(s.NEXT_PUBLIC_SUPABASE_URL).host === new URL(DST_URL).host) {
+    console.error("REFUSING: SOURCE_ENV_FILE points at the same project as the target");
+    process.exit(1);
+  }
+  src = createClient(s.NEXT_PUBLIC_SUPABASE_URL, s.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
+}
+
+// Parent-before-child. organizations / profiles / organization_members are not
+// here — restore-users.sql creates those alongside the auth users.
 const ORDER = [
   "stages", "companies", "contacts", "contact_companies", "leads", "deals",
   "activities", "sites", "asset_groups", "equipment", "products", "technicians",
@@ -53,6 +64,11 @@ const ORDER = [
   "service_contracts", "service_visits", "warranties", "board_assignments",
 ];
 
+// Inserting the organization fires on_org_created (migration 0001), which seeds
+// six default pipeline stages. Those are not in the backup, so drop any row the
+// backup doesn't know about before restoring this table.
+const PRUNE = new Set(["stages"]);
+
 const dir = "c:/CRM/backups";
 const file = readdirSync(dir)
   .filter((f) => f.startsWith("unicloud-backup-") && f.endsWith(".json"))
@@ -61,12 +77,12 @@ const file = readdirSync(dir)
 const backup = JSON.parse(readFileSync(`${dir}/${file}`, "utf8"));
 
 console.log(`backup : ${file}`);
-console.log(`source : ${SRC_URL}`);
+console.log(`from   : ${backup.source}`);
 console.log(`target : ${DST_URL}`);
+console.log(`files  : ${src ? "will copy from SOURCE_ENV_FILE" : "SKIPPED (no SOURCE_ENV_FILE)"}`);
 console.log(CONFIRM ? "mode   : WRITE\n" : "mode   : dry run (pass --confirm to write)\n");
 
 const dst = createClient(DST_URL, DST_KEY, { auth: { persistSession: false } });
-const src = createClient(SRC_URL, SRC_KEY, { auth: { persistSession: false } });
 
 let failed = 0;
 for (const table of ORDER) {
@@ -76,10 +92,20 @@ for (const table of ORDER) {
     continue;
   }
   if (!CONFIRM) {
-    console.log(`  ${table}: would insert ${rows.length}`);
+    console.log(`  ${table}: would insert ${rows.length}${PRUNE.has(table) ? " (+prune extras)" : ""}`);
     continue;
   }
-  // Chunked so a big table can't blow the request size.
+
+  if (PRUNE.has(table)) {
+    const keep = rows.map((r) => r.id);
+    const { error, count } = await dst
+      .from(table)
+      .delete({ count: "exact" })
+      .not("id", "in", `(${keep.join(",")})`);
+    if (error) console.log(`  ${table}: prune failed — ${error.message}`);
+    else if (count) console.log(`  ${table}: pruned ${count} pre-seeded row(s)`);
+  }
+
   let done = 0;
   let err = null;
   for (let i = 0; i < rows.length; i += 200) {
@@ -107,8 +133,8 @@ const FILES = [
 
 console.log(`\nstorage objects: ${FILES.length}`);
 for (const [bucket, path] of FILES) {
-  if (!CONFIRM) {
-    console.log(`  would copy ${bucket}/${path}`);
+  if (!CONFIRM || !src) {
+    console.log(`  ${src ? "would copy" : "skip"} ${bucket}/${path}`);
     continue;
   }
   const dl = await src.storage.from(bucket).download(path);
