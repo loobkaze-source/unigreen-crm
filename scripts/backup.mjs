@@ -23,13 +23,19 @@ const svcValid = SVC.length >= 40 && !/your-|placeholder/i.test(SVC);
 const LOGIN_EMAIL = process.env.BACKUP_EMAIL || "nudach0318@gmail.com";
 const LOGIN_PW = process.env.BACKUP_PW || "123456";
 
+// Every table created by supabase/migrations/*.sql, roughly parent-before-child
+// so the list doubles as a restore order. Keep in sync when a migration adds a
+// table — verify with:
+//   grep -ohiE "create table[[:space:]]+(if not exists[[:space:]]+)?public\.[a-zA-Z_]+" \
+//     supabase/migrations/*.sql | awk '{print $NF}' | sed 's/public\.//' | sort -u
 const TABLES = [
   "organizations", "organization_members", "profiles", "invites",
   "stages", "companies", "contacts", "contact_companies", "leads", "deals",
-  "activities", "cases", "products",
+  "activities", "cases", "case_attachments", "case_assets", "products",
   "sites", "asset_groups", "equipment",
   "technicians", "work_orders", "work_order_items", "work_order_assets",
-  "work_order_photos", "service_contracts", "service_visits", "warranties",
+  "work_order_photos", "work_order_parts",
+  "service_contracts", "service_visits", "warranties",
   "board_assignments",
 ];
 
