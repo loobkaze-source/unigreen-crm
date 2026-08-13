@@ -86,6 +86,7 @@ export function WorkOrderDetail({
   cases,
   assetIds,
   orgId,
+  canEdit = true,
   technicianName,
   companyName,
   contactName,
@@ -102,6 +103,8 @@ export function WorkOrderDetail({
   cases: CaseOption[];
   assetIds: string[];
   orgId: string;
+  /** Field technicians work the job but never restructure or remove it. */
+  canEdit?: boolean;
   technicianName?: string;
   companyName?: string;
   contactName?: string;
@@ -272,12 +275,16 @@ export function WorkOrderDetail({
               </option>
             ))}
           </Select>
-          <Button variant="secondary" onClick={() => setEditing(true)}>
-            <Pencil className="h-4 w-4" /> แก้ไข
-          </Button>
-          <Button variant="ghost" size="icon" onClick={removeWorkOrder}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {canEdit ? (
+            <>
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                <Pencil className="h-4 w-4" /> แก้ไข
+              </Button>
+              <Button variant="ghost" size="icon" onClick={removeWorkOrder}>
+                <Trash2 className="h-4 w-4 text-destructive" />
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 

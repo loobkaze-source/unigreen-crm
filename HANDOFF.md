@@ -274,6 +274,10 @@ Nav lives in `src/components/app/app-shell.tsx`.
   (checklist / photos / parts); `work-orders/[id]/page.tsx` then `notFound()`s any job not assigned
   to their `technicians` row, which is the check that actually holds against a guessed URL.
   Someone who is Technician *and* something else keeps the full nav. `/users` is admin-only.
+- **What a field technician can do to a job:** accept it, change its status, and add checklist
+  ticks / photos / parts. They cannot create, edit or delete a work order — `saveWorkOrder` and
+  `deleteWorkOrder` refuse them, and the detail page hides แก้ไข / ลบ via `canEdit`. `/my-jobs`
+  filters by งานใหม่ (unaccepted) / รับแล้ว / เสร็จแล้ว on top of the time grouping.
 - Branding: `src/app/globals.css` (`@theme` tokens, azure blue #2A72E0 / #2563EB, navy sidebar).
   Logos in `public/brand/` (`logo-dark.png` white wordmark for dark bg, `logo-light.png` blue for
   light bg). App icon `src/app/icon.png` + `src/app/favicon.ico` (white cloud on blue). Cloud

@@ -42,6 +42,17 @@ export type Job = {
 
 const DONE: WorkOrderStatus[] = ["completed", "cancelled"];
 
+/** The three buckets a technician filters by. */
+type Cat = "new" | "accepted" | "done";
+const catOf = (j: Job): Cat =>
+  DONE.includes(j.status) ? "done" : j.accepted_at ? "accepted" : "new";
+
+const CATS: { key: Cat; label: string }[] = [
+  { key: "new", label: "งานใหม่" },
+  { key: "accepted", label: "รับแล้ว" },
+  { key: "done", label: "เสร็จแล้ว" },
+];
+
 /** Local midnight boundaries — jobs are scheduled in the technician's own day. */
 function dayBounds() {
   const start = new Date();
@@ -64,9 +75,22 @@ export function MyJobsView({
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Which buckets are shown. All on by default; tapping a chip filters it out.
+  const [shown, setShown] = useState<Cat[]>(["new", "accepted", "done"]);
+  const toggleCat = (c: Cat) =>
+    setShown((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+
+  const counts = useMemo(() => {
+    const m: Record<Cat, number> = { new: 0, accepted: 0, done: 0 };
+    for (const j of jobs) m[catOf(j)]++;
+    return m;
+  }, [jobs]);
+
+  const visible = useMemo(() => jobs.filter((j) => shown.includes(catOf(j))), [jobs, shown]);
+
   const groups = useMemo(() => {
     const { start, end } = dayBounds();
-    const open = jobs.filter((j) => !DONE.includes(j.status));
+    const open = visible.filter((j) => !DONE.includes(j.status));
     const at = (j: Job) => (j.scheduled_start ? new Date(j.scheduled_start) : null);
 
     return [
@@ -107,10 +131,10 @@ export function MyJobsView({
         key: "done",
         label: "เสร็จแล้ว",
         tone: "text-muted-foreground",
-        items: jobs.filter((j) => DONE.includes(j.status)).slice(0, 20),
+        items: visible.filter((j) => DONE.includes(j.status)).slice(0, 20),
       },
     ].filter((g) => g.items.length > 0);
-  }, [jobs]);
+  }, [visible]);
 
   function run(job: Job, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusyId(job.id);
@@ -151,11 +175,41 @@ export function MyJobsView({
         }
       />
 
+      {/* Filter chips — big enough to hit with a thumb. */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {CATS.map((c) => {
+          const on = shown.includes(c.key);
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => toggleCat(c.key)}
+              aria-pressed={on}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                on
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-card text-muted-foreground"
+              )}
+            >
+              {c.label}
+              <span className={cn("ml-1.5", on ? "text-white/80" : "text-muted-foreground")}>
+                {counts[c.key]}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {groups.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
-          title="ยังไม่มีงานที่มอบหมาย"
-          description="เมื่อมีการมอบหมายใบสั่งงานให้คุณ งานจะขึ้นที่นี่"
+          title={jobs.length === 0 ? "ยังไม่มีงานที่มอบหมาย" : "ไม่มีงานในตัวกรองนี้"}
+          description={
+            jobs.length === 0
+              ? "เมื่อมีการมอบหมายใบสั่งงานให้คุณ งานจะขึ้นที่นี่"
+              : "แตะปุ่มด้านบนเพื่อเปิดหมวดที่ถูกกรองออกกลับมา"
+          }
         />
       ) : (
         <div className="space-y-6">

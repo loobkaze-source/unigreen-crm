@@ -28,7 +28,8 @@ export default async function WorkOrderDetailPage({
   // A pure field technician may only open jobs assigned to them. The nav is
   // already limited to /my-jobs, but this is the check that actually holds —
   // otherwise a guessed URL would expose someone else's job.
-  if (!isAdmin && isTechnicianOnly(appRoles)) {
+  const fieldOnly = !isAdmin && isTechnicianOnly(appRoles);
+  if (fieldOnly) {
     const { data: tech } = await supabase
       .from("technicians")
       .select("id")
@@ -157,6 +158,7 @@ export default async function WorkOrderDetailPage({
       cases={caseList}
       assetIds={assetIds}
       orgId={org.id}
+      canEdit={!fieldOnly}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
       companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}
       contactName={contactList.find((c) => c.id === workOrder.contact_id)?.name}

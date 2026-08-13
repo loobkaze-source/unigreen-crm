@@ -70,8 +70,13 @@ async function syncAssets(
   return null;
 }
 
+/** A field-only technician works jobs; they don't create, edit or delete them. */
+const NO_EDIT = "ช่างไม่มีสิทธิ์สร้าง แก้ไข หรือลบใบสั่งงาน";
+
 export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult> {
-  const { supabase, org, userId } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const { supabase, org, userId } = ctx;
+  if (!ctx.isAdmin && isTechnicianOnly(ctx.appRoles)) return fail(NO_EDIT);
   const title = input.title?.trim();
   if (!title) return fail("กรุณากรอกชื่องาน");
 
@@ -258,10 +263,16 @@ export async function updateWorkOrderStatus(
 }
 
 export async function deleteWorkOrder(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("work_orders").delete().eq("id", id);
+  const ctx = await getSessionContext();
+  if (!ctx.isAdmin && isTechnicianOnly(ctx.appRoles)) return fail(NO_EDIT);
+  const { error } = await ctx.supabase
+    .from("work_orders")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
   revalidatePath("/work-orders");
+  revalidatePath("/my-jobs");
   return ok();
 }
 
