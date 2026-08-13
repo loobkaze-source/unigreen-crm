@@ -30,6 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PhotoViewer } from "@/components/ui/photo-viewer";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
@@ -122,6 +123,9 @@ export function WorkOrderDetail({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [newItem, setNewItem] = useState("");
+  // Which photo the full-screen viewer is showing (null = closed).
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
   const [remark, setRemark] = useState(workOrder.technician_remark ?? "");
   const [savingRemark, setSavingRemark] = useState(false);
   function submitRemark() {
@@ -481,21 +485,28 @@ export function WorkOrderDetail({
               </p>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                {photos.map((ph) => (
+                {photos.map((ph, i) => (
                   <div
                     key={ph.id}
                     className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
                   >
-                    <Image
-                      src={ph.url}
-                      alt={ph.caption || "รูปหน้างาน"}
-                      fill
-                      sizes="(max-width: 640px) 33vw, 200px"
-                      className="object-cover"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setViewerIndex(i)}
+                      className="absolute inset-0"
+                      aria-label="เปิดดูรูป"
+                    >
+                      <Image
+                        src={ph.url}
+                        alt={ph.caption || "รูปหน้างาน"}
+                        fill
+                        sizes="(max-width: 640px) 33vw, 200px"
+                        className="object-cover"
+                      />
+                    </button>
                     <button
                       onClick={() => removePhoto(ph)}
-                      className="absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      className="absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white transition-opacity md:opacity-0 md:group-hover:opacity-100"
                       aria-label="ลบรูป"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -507,6 +518,13 @@ export function WorkOrderDetail({
           </CardContent>
         </Card>
       </div>
+
+      <PhotoViewer
+        photos={photos}
+        index={viewerIndex}
+        onClose={() => setViewerIndex(null)}
+        onIndexChange={setViewerIndex}
+      />
 
       {editing ? (
         <WorkOrderModal
