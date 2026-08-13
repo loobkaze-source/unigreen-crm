@@ -259,9 +259,13 @@ Nav lives in `src/components/app/app-shell.tsx`.
   email into the org (with role/department) on signup instead of creating a personal workspace.
 - Deals board (`src/app/(app)/deals/deals-board.tsx`): admins see all 3 board tabs; a
   department-scoped user sees only their board.
-- Role-based nav (`src/lib/nav-access.ts` + `app-shell.tsx`): a **Technician** (app_role) sees only
-  field-service routes (Sites → Activities, i.e. `TECH_ROUTES`); `/users` is admin-only. AppShell
-  filters the sidebar and client-guards restricted routes (redirects Technicians to `/sites`).
+- Role-based nav (`src/lib/nav-access.ts` + `app-shell.tsx`): a member whose **only** role is
+  Technician (see `isTechnicianOnly`) sees **just `/my-jobs`** — customers, sites, assets, the
+  org-wide work-order list, contracts and products are all hidden, and they land there instead of
+  the dashboard. The work-order **detail** route stays reachable so a job can actually be worked
+  (checklist / photos / parts); `work-orders/[id]/page.tsx` then `notFound()`s any job not assigned
+  to their `technicians` row, which is the check that actually holds against a guessed URL.
+  Someone who is Technician *and* something else keeps the full nav. `/users` is admin-only.
 - Branding: `src/app/globals.css` (`@theme` tokens, azure blue #2A72E0 / #2563EB, navy sidebar).
   Logos in `public/brand/` (`logo-dark.png` white wordmark for dark bg, `logo-light.png` blue for
   light bg). App icon `src/app/icon.png` + `src/app/favicon.ico` (white cloud on blue). Cloud

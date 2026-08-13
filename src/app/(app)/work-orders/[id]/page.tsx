@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows } from "@/lib/data";
+import { isTechnicianOnly } from "@/lib/roles";
 import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { assetCode } from "@/lib/asset";
@@ -11,7 +12,7 @@ export default async function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, userId, isAdmin, appRoles } = await getSessionContext();
 
   const workOrder = row<WorkOrder>(
     await supabase
@@ -23,6 +24,19 @@ export default async function WorkOrderDetailPage({
   );
 
   if (!workOrder) notFound();
+
+  // A pure field technician may only open jobs assigned to them. The nav is
+  // already limited to /my-jobs, but this is the check that actually holds —
+  // otherwise a guessed URL would expose someone else's job.
+  if (!isAdmin && isTechnicianOnly(appRoles)) {
+    const { data: tech } = await supabase
+      .from("technicians")
+      .select("id")
+      .eq("org_id", org.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!tech || workOrder.technician_id !== tech.id) notFound();
+  }
 
   const [
     itemsRes,

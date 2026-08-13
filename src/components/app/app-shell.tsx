@@ -89,12 +89,15 @@ export function AppShell({
   });
 
   // Phone/tablet shortcut bar for field technicians: the handful of screens
-  // they use on site, one tap away instead of behind the hamburger.
-  const tabBar = isFieldTech
+  // they use on site, one tap away instead of behind the hamburger. A pure
+  // technician only has /my-jobs, so the bar would be a single tab — not worth
+  // the screen space, hence the length check.
+  const tabCandidates = isFieldTech
     ? visibleNav.filter((i) =>
         [TECH_HOME, "/work-orders", "/assets", "/cases"].includes(i.href)
       )
     : [];
+  const tabBar = tabCandidates.length > 1 ? tabCandidates : [];
 
   const [settingsOpen, setSettingsOpen] = useState(
     () => pathname.startsWith("/users") || pathname.startsWith("/settings")
