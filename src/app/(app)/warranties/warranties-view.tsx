@@ -264,7 +264,7 @@ export function WarrantiesView({
                   </td>
                   <td className="px-4 py-3">{expiryBadge(w)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex justify-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(w)}>
                         <Pencil className="h-4 w-4" />
                       </Button>

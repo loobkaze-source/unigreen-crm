@@ -247,7 +247,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
                       {formatCurrency(l.value)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex justify-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                         {!converted ? (
                           <Button
                             variant="ghost"

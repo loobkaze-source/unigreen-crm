@@ -379,7 +379,7 @@ export function WorkOrderDetail({
                   </span>
                   <button
                     onClick={() => removeItem(item)}
-                    className="opacity-0 transition-opacity group-hover:opacity-100"
+                    className="transition-opacity md:opacity-0 md:group-hover:opacity-100"
                     aria-label="ลบ"
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -673,7 +673,7 @@ function PartsCard({
                 ) : null}
                 <button
                   onClick={() => remove(part)}
-                  className="opacity-0 transition-opacity group-hover:opacity-100"
+                  className="transition-opacity md:opacity-0 md:group-hover:opacity-100"
                   aria-label="ลบ"
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />

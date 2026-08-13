@@ -250,7 +250,7 @@ export function ActivitiesView({
                       {fmtDateTime(a.due_date)}
                     </span>
                   ) : null}
-                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                     <Button variant="ghost" size="icon" onClick={() => openEdit(a)}>
                       <Pencil className="h-4 w-4" />
                     </Button>

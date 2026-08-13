@@ -614,7 +614,7 @@ function Column({
           </span>
         </div>
         {editable && !renaming ? (
-          <div className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex items-center transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <button
               type="button"
               disabled={stageBusy || !canMoveLeft}
@@ -728,7 +728,7 @@ function DealCard({
           </button>
           <button
             onClick={onDelete}
-            className="opacity-0 transition-opacity group-hover:opacity-100"
+            className="transition-opacity md:opacity-0 md:group-hover:opacity-100"
             aria-label="ลบดีล"
           >
             <Trash2 className="h-3.5 w-3.5 text-destructive" />

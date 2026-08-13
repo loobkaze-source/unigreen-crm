@@ -559,7 +559,7 @@ export function SiteDetail({
                             )}
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <div className="flex justify-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                               <Button variant="ghost" size="icon" onClick={() => openEdit(eq)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
