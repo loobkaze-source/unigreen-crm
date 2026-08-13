@@ -193,6 +193,8 @@ export interface WorkOrder extends Mutable {
   /** When the assigned technician acknowledged the job ("รับงาน"). */
   accepted_at: string | null;
   accepted_by: string | null;
+  /** The technician's own note from site (dispatcher's brief is `description`). */
+  technician_remark: string | null;
 }
 
 export interface WorkOrderItem extends Timestamps {

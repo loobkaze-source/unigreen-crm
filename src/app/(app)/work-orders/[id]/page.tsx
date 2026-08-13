@@ -63,7 +63,7 @@ export default async function WorkOrderDetailPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("work_order_parts")
-      .select("id, name, qty, equipment_id")
+      .select("id, name, qty, equipment_id, unit, unit_price, source")
       .eq("work_order_id", id)
       .order("created_at", { ascending: true }),
     supabase

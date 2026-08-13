@@ -335,18 +335,47 @@ export async function addWorkOrderPart(
   workOrderId: string,
   name: string,
   qty: number,
-  equipmentId?: string | null
+  equipmentId?: string | null,
+  unit?: string | null,
+  unitPrice?: number | null,
+  source: "material" | "store" = "material"
 ): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
   const label = name?.trim();
   if (!label) return fail("กรุณากรอกชื่ออะไหล่");
-  const { error } = await supabase.from("work_order_parts").insert({
-    org_id: org.id,
+  const price = Number(unitPrice);
+  const { error } = await ctx.supabase.from("work_order_parts").insert({
+    org_id: ctx.org.id,
     work_order_id: workOrderId,
     equipment_id: equipmentId || null,
     name: label,
     qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
+    unit: unit?.trim() || null,
+    unit_price: Number.isFinite(price) && price >= 0 ? price : null,
+    source: source === "store" ? "store" : "material",
   });
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
+/** The technician's note from site. Editable by whoever may work the job. */
+export async function saveTechnicianRemark(
+  workOrderId: string,
+  remark: string
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  const { error } = await ctx.supabase
+    .from("work_orders")
+    .update({ technician_remark: remark.trim() || null })
+    .eq("id", workOrderId)
+    .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
   revalidatePath(`/work-orders/${workOrderId}`);
   return ok();
@@ -356,8 +385,14 @@ export async function deleteWorkOrderPart(
   id: string,
   workOrderId: string
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("work_order_parts").delete().eq("id", id);
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+  const { error } = await ctx.supabase
+    .from("work_order_parts")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
   revalidatePath(`/work-orders/${workOrderId}`);
   return ok();

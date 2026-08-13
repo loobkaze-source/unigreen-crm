@@ -29,8 +29,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
@@ -56,6 +57,7 @@ const WorkOrderModal = dynamic(
 import {
   addChecklistItem,
   addWorkOrderPart,
+  saveTechnicianRemark,
   addWorkOrderPhoto,
   deleteChecklistItem,
   deleteWorkOrderPart,
@@ -71,6 +73,9 @@ type PartRow = {
   name: string;
   qty: number;
   equipment_id: string | null;
+  unit: string | null;
+  unit_price: number | null;
+  source: string | null;
 };
 
 export function WorkOrderDetail({
@@ -117,7 +122,18 @@ export function WorkOrderDetail({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [newItem, setNewItem] = useState("");
-  const [newPart, setNewPart] = useState({ name: "", qty: "1", equipment_id: "" });
+  const [remark, setRemark] = useState(workOrder.technician_remark ?? "");
+  const [savingRemark, setSavingRemark] = useState(false);
+  function submitRemark() {
+    setSavingRemark(true);
+    startTransition(async () => {
+      const res = await saveTechnicianRemark(workOrder.id, remark);
+      setSavingRemark(false);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+
   const [uploading, setUploading] = useState(false);
   const [, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -180,28 +196,6 @@ export function WorkOrderDetail({
     });
   }
 
-  function addPart(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newPart.name.trim()) return;
-    startTransition(async () => {
-      const res = await addWorkOrderPart(
-        workOrder.id,
-        newPart.name,
-        Number(newPart.qty) || 1,
-        newPart.equipment_id || null
-      );
-      if (!res.ok) return alert(res.error);
-      setNewPart({ name: "", qty: "1", equipment_id: "" });
-      router.refresh();
-    });
-  }
-  function removePart(part: PartRow) {
-    startTransition(async () => {
-      const res = await deleteWorkOrderPart(part.id, workOrder.id);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
-    });
-  }
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -408,90 +402,54 @@ export function WorkOrderDetail({
           </CardContent>
         </Card>
 
-        {/* Parts replaced */}
+        {/* Materials used on the job, and anything drawn from company stock.
+            Same shape, same totals — one component, two sources. */}
+        <PartsCard
+          title="วัสดุที่ใช้"
+          emptyText="ยังไม่มีวัสดุที่ใช้ในงานนี้"
+          source="material"
+          parts={parts.filter((p) => p.source !== "store")}
+          assets={assets}
+          assetIds={assetIds}
+          workOrderId={workOrder.id}
+          onChanged={() => router.refresh()}
+        />
+
+        <PartsCard
+          title="ของที่เบิกจาก store"
+          emptyText="ยังไม่มีการเบิกของจาก store สำหรับงานนี้"
+          source="store"
+          parts={parts.filter((p) => p.source === "store")}
+          assets={assets}
+          assetIds={assetIds}
+          workOrderId={workOrder.id}
+          onChanged={() => router.refresh()}
+        />
+
+        {/* Technician's note from site */}
         <Card>
           <CardHeader>
-            <CardTitle>
-              อะไหล่ที่เปลี่ยน{" "}
-              <span className="text-sm font-normal text-muted-foreground">
-                ({parts.length})
-              </span>
-            </CardTitle>
+            <CardTitle>หมายเหตุจากช่าง</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {parts.map((part) => {
-                const asset = assets.find((a) => a.id === part.equipment_id);
-                return (
-                  <div
-                    key={part.id}
-                    className="group flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-muted/40"
-                  >
-                    <span className="flex-1 text-sm">
-                      {part.name}{" "}
-                      <span className="text-muted-foreground">×{Number(part.qty)}</span>
-                      {asset ? (
-                        <span className="block text-xs text-muted-foreground">
-                          {asset.name}
-                        </span>
-                      ) : null}
-                    </span>
-                    <button
-                      onClick={() => removePart(part)}
-                      className="opacity-0 transition-opacity group-hover:opacity-100"
-                      aria-label="ลบ"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </button>
-                  </div>
-                );
-              })}
-              {parts.length === 0 ? (
-                <p className="py-2 text-sm text-muted-foreground">
-                  ยังไม่มีการเปลี่ยนอะไหล่ในงานนี้
-                </p>
+            <Textarea
+              rows={4}
+              value={remark}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setRemark(e.target.value)}
+              placeholder="บันทึกสิ่งที่พบหน้างาน อาการ วิธีแก้ ข้อควรระวังครั้งหน้า…"
+            />
+            <div className="mt-2 flex items-center justify-end gap-2">
+              {remark !== (workOrder.technician_remark ?? "") ? (
+                <span className="text-xs text-muted-foreground">ยังไม่ได้บันทึก</span>
               ) : null}
+              <Button
+                variant="secondary"
+                onClick={submitRemark}
+                disabled={savingRemark || remark === (workOrder.technician_remark ?? "")}
+              >
+                {savingRemark ? "กำลังบันทึก…" : "บันทึกหมายเหตุ"}
+              </Button>
             </div>
-
-            <form onSubmit={addPart} className="mt-3 space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  value={newPart.name}
-                  onChange={(e) => setNewPart({ ...newPart, name: e.target.value })}
-                  placeholder="ชื่ออะไหล่ เช่น มอเตอร์, สายพาน…"
-                />
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={newPart.qty}
-                  onChange={(e) => setNewPart({ ...newPart, qty: e.target.value })}
-                  className="w-20"
-                  aria-label="จำนวน"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Select
-                  value={newPart.equipment_id}
-                  onChange={(e) =>
-                    setNewPart({ ...newPart, equipment_id: e.target.value })
-                  }
-                  aria-label="Asset ที่เปลี่ยนอะไหล่"
-                >
-                  <option value="">— ไม่ระบุ Asset —</option>
-                  {assets
-                    .filter((a) => assetIds.includes(a.id))
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                </Select>
-                <Button type="submit" variant="secondary">
-                  <Plus className="h-4 w-4" /> เพิ่ม
-                </Button>
-              </div>
-            </form>
           </CardContent>
         </Card>
 
@@ -589,5 +547,198 @@ function Info({
         <div className="text-sm">{value}</div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One card for a list of consumable lines — วัสดุที่ใช้ or ของที่เบิกจาก store.
+ * Both record the same thing (name, qty, unit, unit price, optional asset) and
+ * both want a cost total, so they share this component and differ only by the
+ * `source` written to work_order_parts.
+ */
+function PartsCard({
+  title,
+  emptyText,
+  source,
+  parts,
+  assets,
+  assetIds,
+  workOrderId,
+  onChanged,
+}: {
+  title: string;
+  emptyText: string;
+  source: "material" | "store";
+  parts: PartRow[];
+  assets: AssetOption[];
+  assetIds: string[];
+  workOrderId: string;
+  onChanged: () => void;
+}) {
+  const [, startTransition] = useTransition();
+  const [draft, setDraft] = useState({
+    name: "",
+    qty: "1",
+    unit: "",
+    unit_price: "",
+    equipment_id: "",
+  });
+
+  // Derived, never stored: a stored total would drift from the lines.
+  const total = parts.reduce(
+    (sum, p) => sum + (p.unit_price != null ? Number(p.qty) * Number(p.unit_price) : 0),
+    0
+  );
+  const priceless = parts.filter((p) => p.unit_price == null).length;
+
+  function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!draft.name.trim()) return;
+    startTransition(async () => {
+      const res = await addWorkOrderPart(
+        workOrderId,
+        draft.name,
+        Number(draft.qty) || 1,
+        draft.equipment_id || null,
+        draft.unit || null,
+        draft.unit_price === "" ? null : Number(draft.unit_price),
+        source
+      );
+      if (!res.ok) return alert(res.error);
+      setDraft({ name: "", qty: "1", unit: "", unit_price: "", equipment_id: "" });
+      onChanged();
+    });
+  }
+
+  function remove(part: PartRow) {
+    startTransition(async () => {
+      const res = await deleteWorkOrderPart(part.id, workOrderId);
+      if (!res.ok) alert(res.error);
+      else onChanged();
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {title}{" "}
+          <span className="text-sm font-normal text-muted-foreground">({parts.length})</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          {parts.map((part) => {
+            const asset = assets.find((a) => a.id === part.equipment_id);
+            return (
+              <div
+                key={part.id}
+                className="group flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-muted/40"
+              >
+                <span className="flex-1 text-sm">
+                  {part.name}{" "}
+                  <span className="text-muted-foreground">
+                    ×{Number(part.qty)}
+                    {part.unit ? ` ${part.unit}` : ""}
+                    {part.unit_price != null
+                      ? ` · ${formatCurrency(Number(part.unit_price))}/หน่วย`
+                      : ""}
+                  </span>
+                  {asset ? (
+                    <span className="block text-xs text-muted-foreground">{asset.name}</span>
+                  ) : null}
+                </span>
+                {part.unit_price != null ? (
+                  <span className="whitespace-nowrap text-sm font-medium">
+                    {formatCurrency(Number(part.qty) * Number(part.unit_price))}
+                  </span>
+                ) : null}
+                <button
+                  onClick={() => remove(part)}
+                  className="opacity-0 transition-opacity group-hover:opacity-100"
+                  aria-label="ลบ"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              </div>
+            );
+          })}
+          {parts.length === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
+          ) : null}
+        </div>
+
+        {parts.length > 0 ? (
+          <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+            <span className="text-sm font-medium">รวม</span>
+            <div className="text-right">
+              <div className="text-base font-bold">{formatCurrency(total)}</div>
+              {priceless > 0 ? (
+                <div className="text-xs text-muted-foreground">
+                  ยังไม่ได้ระบุราคา {priceless} รายการ
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        <form onSubmit={add} className="mt-3 space-y-2">
+          <div className="flex gap-2">
+            <Input
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              placeholder="ชื่อรายการ เช่น มอเตอร์, สายพาน…"
+            />
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={draft.qty}
+              onChange={(e) => setDraft({ ...draft, qty: e.target.value })}
+              className="w-20"
+              aria-label="จำนวน"
+              placeholder="จำนวน"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={draft.unit}
+              onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
+              className="w-28"
+              aria-label="หน่วย"
+              placeholder="หน่วย เช่น ชิ้น"
+            />
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={draft.unit_price}
+              onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })}
+              aria-label="ราคาต่อหน่วย"
+              placeholder="ราคาต่อหน่วย (บาท)"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Select
+              value={draft.equipment_id}
+              onChange={(e) => setDraft({ ...draft, equipment_id: e.target.value })}
+              aria-label="Asset ที่เกี่ยวข้อง"
+            >
+              <option value="">— ไม่ระบุ Asset —</option>
+              {assets
+                .filter((a) => assetIds.includes(a.id))
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </Select>
+            <Button type="submit" variant="secondary">
+              <Plus className="h-4 w-4" /> เพิ่ม
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
