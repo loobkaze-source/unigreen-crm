@@ -237,8 +237,13 @@ export function AppShell({
         </div>
       </aside>
 
-      {/* Main column */}
-      <div className="flex min-h-screen flex-col">
+      {/* Main column. min-w-0 matters: as a grid/flex item this defaults to
+          min-width:auto, so a wide child (the deals board) would stretch the
+          whole column past the viewport and scroll the entire page sideways —
+          carrying the page header and its buttons out of reach. With min-w-0
+          the column stays viewport-width and inner overflow-x-auto containers
+          do the scrolling themselves. */}
+      <div className="flex min-h-screen min-w-0 flex-col">
         {/* Mobile top bar */}
         <div className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 lg:hidden">
           <button
@@ -265,7 +270,7 @@ export function AppShell({
           <ThemeToggle className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-muted" />
         </div>
 
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
           {blocked ? <LoadingScreen label="กำลังเปลี่ยนหน้า…" /> : children}
         </main>
       </div>
