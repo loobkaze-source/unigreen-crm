@@ -8,6 +8,7 @@ import {
   Box,
   Building2,
   ChevronDown,
+  ClipboardCheck,
   ClipboardList,
   HardHat,
   Handshake,
@@ -30,10 +31,11 @@ import {
 import { cn, initials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LoadingScreen } from "@/components/ui/spinner";
-import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
+import { TECH_ROUTES, TECH_HOME, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 import { isTechnicianOnly } from "@/lib/roles";
 
 const NAV = [
+  { href: "/my-jobs", label: "งานของฉัน", icon: ClipboardCheck },
   { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
   { href: "/companies", label: "ลูกค้า", icon: Building2 },
   { href: "/contacts", label: "ผู้ติดต่อ", icon: Users },
@@ -78,9 +80,21 @@ export function AppShell({
   // Sales or Safety still needs the rest of the app.
   const isTechnician = !isAdmin && isTechnicianOnly(appRoles);
 
-  const visibleNav = NAV.filter(
-    (item) => !isTechnician || TECH_ROUTES.some((r) => r === item.href)
-  );
+  const isFieldTech = appRoles.includes("Technician");
+
+  const visibleNav = NAV.filter((item) => {
+    // "งานของฉัน" only means something for someone on the technician roster.
+    if (item.href === TECH_HOME && !isFieldTech) return false;
+    return !isTechnician || TECH_ROUTES.some((r) => r === item.href);
+  });
+
+  // Phone/tablet shortcut bar for field technicians: the handful of screens
+  // they use on site, one tap away instead of behind the hamburger.
+  const tabBar = isFieldTech
+    ? visibleNav.filter((i) =>
+        [TECH_HOME, "/work-orders", "/assets", "/cases"].includes(i.href)
+      )
+    : [];
 
   const [settingsOpen, setSettingsOpen] = useState(
     () => pathname.startsWith("/users") || pathname.startsWith("/settings")
@@ -89,7 +103,7 @@ export function AppShell({
   const blocked = isTechnician && !isTechnicianAllowed(pathname);
 
   useEffect(() => {
-    if (blocked) router.replace("/sites");
+    if (blocked) router.replace(TECH_HOME);
   }, [blocked, router]);
 
   return (
@@ -273,10 +287,41 @@ export function AppShell({
           <ThemeToggle className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-muted" />
         </div>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          className={cn(
+            "min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8",
+            // Room for the fixed tab bar so the last row is never covered.
+            tabBar.length > 0 && "pb-24 lg:pb-6"
+          )}
+        >
           {blocked ? <LoadingScreen label="กำลังเปลี่ยนหน้า…" /> : children}
         </main>
       </div>
+
+      {/* Field-technician tab bar — phones and tablets only. */}
+      {tabBar.length > 0 ? (
+        <nav
+          className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+          style={{ gridTemplateColumns: `repeat(${tabBar.length}, minmax(0, 1fr))` }}
+        >
+          {tabBar.map((item) => {
+            const active = routeMatches(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium active:bg-muted",
+                  active ? "text-primary" : "text-muted-foreground"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
     </div>
   );
 }

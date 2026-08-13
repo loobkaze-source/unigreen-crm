@@ -1,9 +1,13 @@
+/** Where a field technician lands — their own job list, not the dashboard. */
+export const TECH_HOME = "/my-jobs";
+
 /**
  * Routes a Technician may reach — everything from "ไซต์งาน" (Sites) down in the
  * nav, minus the admin-only Users page. Used to filter the sidebar and to guard
  * access both server-side (layout) and client-side (app-shell).
  */
 export const TECH_ROUTES = [
+  "/my-jobs",
   "/service-board",
   "/sites",
   "/assets",

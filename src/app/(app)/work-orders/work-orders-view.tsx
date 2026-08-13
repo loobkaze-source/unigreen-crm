@@ -275,27 +275,42 @@ export function WorkOrdersView({
           }
         />
       ) : tab === "list" ? (
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <table className="w-full text-sm">
-            <DataTableHead
-              table={table}
-              sourceRows={workOrders}
-              headClassName="uppercase tracking-wide"
-            />
-            <tbody>
-              {table.rows.map((w) => (
-                <WorkOrderRow
-                  key={w.id}
-                  w={w}
-                  techName={techName(w.technician_id)}
-                  companyName={companyName(w.company_id)}
-                  onEdit={(e) => openEdit(w, e)}
-                  onDelete={(e) => remove(w, e)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Phones get cards — the full table has too many columns to read on
+              a narrow screen, and technicians work from this list on site. */}
+          <div className="space-y-2 md:hidden">
+            {table.rows.map((w) => (
+              <ScheduleCard
+                key={w.id}
+                w={w}
+                techName={techName(w.technician_id)}
+                companyName={companyName(w.company_id)}
+              />
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm md:block">
+            <table className="w-full text-sm">
+              <DataTableHead
+                table={table}
+                sourceRows={workOrders}
+                headClassName="uppercase tracking-wide"
+              />
+              <tbody>
+                {table.rows.map((w) => (
+                  <WorkOrderRow
+                    key={w.id}
+                    w={w}
+                    techName={techName(w.technician_id)}
+                    companyName={companyName(w.company_id)}
+                    onEdit={(e) => openEdit(w, e)}
+                    onDelete={(e) => remove(w, e)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <div className="space-y-6">
           {agenda.groups.map(([date, items]) => (
