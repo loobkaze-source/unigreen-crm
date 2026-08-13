@@ -11,6 +11,7 @@ import {
   Navigation,
   Phone,
   PlayCircle,
+  User,
   ThumbsUp,
 } from "lucide-react";
 import type { WorkOrderPriority, WorkOrderStatus, WorkOrderType } from "@/lib/database.types";
@@ -35,6 +36,8 @@ export type Job = {
   accepted_at: string | null;
   company: string | null;
   companyPhone: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
   siteName: string | null;
   address: string | null;
   mapUrl: string | null;
@@ -253,6 +256,8 @@ function JobCard({
   const pr = priorityMeta(job.priority);
   const done = DONE.includes(job.status);
   const needsAccept = !done && !job.accepted_at;
+  // The person on site beats the company switchboard.
+  const callNumber = job.contactPhone ?? job.companyPhone;
 
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
@@ -283,6 +288,20 @@ function JobCard({
               <span>{fmtDateTime(job.scheduled_start)}</span>
             </div>
           ) : null}
+          {/* Shown as plain text, not a tel: link — the whole card is already a
+              link to the job, and nesting anchors is invalid. Dialling happens
+              from the full-width button below, which is easier to hit anyway. */}
+          {job.contactName || job.contactPhone ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <User className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">
+                {job.contactName ?? "ผู้ติดต่อ"}
+                {job.contactPhone ? (
+                  <span className="font-medium text-foreground"> · {job.contactPhone}</span>
+                ) : null}
+              </span>
+            </div>
+          ) : null}
           {job.siteName || job.address ? (
             <div className="flex items-start gap-2 text-muted-foreground">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
@@ -309,12 +328,13 @@ function JobCard({
             <Navigation className="h-4 w-4" /> นำทาง
           </a>
         ) : null}
-        {job.companyPhone ? (
+        {callNumber ? (
           <a
-            href={`tel:${job.companyPhone}`}
+            href={`tel:${callNumber}`}
             className="flex flex-1 items-center justify-center gap-1.5 bg-card py-3 text-sm font-medium text-primary active:bg-muted"
           >
-            <Phone className="h-4 w-4" /> โทร
+            <Phone className="h-4 w-4" />
+            {job.contactPhone ? "โทรผู้ติดต่อ" : "โทรลูกค้า"}
           </a>
         ) : null}
         {needsAccept ? (

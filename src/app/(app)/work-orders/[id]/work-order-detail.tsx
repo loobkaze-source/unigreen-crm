@@ -87,6 +87,8 @@ export function WorkOrderDetail({
   assetIds,
   orgId,
   canEdit = true,
+  backHref = "/work-orders",
+  backLabel = "กลับไปงานบริการ",
   technicianName,
   companyName,
   contactName,
@@ -105,6 +107,9 @@ export function WorkOrderDetail({
   orgId: string;
   /** Field technicians work the job but never restructure or remove it. */
   canEdit?: boolean;
+  /** Where "back" goes — a field technician can't reach the work-order list. */
+  backHref?: string;
+  backLabel?: string;
   technicianName?: string;
   companyName?: string;
   contactName?: string;
@@ -235,11 +240,13 @@ export function WorkOrderDetail({
 
   return (
     <div>
+      {/* Deliberately loud: on a phone this is the only way out of the job,
+          and a muted text link was easy to miss. */}
       <Link
-        href="/work-orders"
-        className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        href={backHref}
+        className="mb-4 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors hover:border-primary hover:text-primary active:bg-muted"
       >
-        <ArrowLeft className="h-4 w-4" /> กลับไปงานบริการ
+        <ArrowLeft className="h-4.5 w-4.5" /> {backLabel}
       </Link>
 
       {/* Header */}

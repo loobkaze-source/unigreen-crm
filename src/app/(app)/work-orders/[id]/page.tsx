@@ -159,6 +159,8 @@ export default async function WorkOrderDetailPage({
       assetIds={assetIds}
       orgId={org.id}
       canEdit={!fieldOnly}
+      backHref={fieldOnly ? "/my-jobs" : "/work-orders"}
+      backLabel={fieldOnly ? "กลับไปงานของฉัน" : "กลับไปงานบริการ"}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
       companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}
       contactName={contactList.find((c) => c.id === workOrder.contact_id)?.name}
