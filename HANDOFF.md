@@ -1,7 +1,7 @@
 # Unicloud CRM — Project Handoff / Status
 
 > Complete working notes so this project can be continued on another machine.
-> Last updated: 2026-07-03. This file lives **in the repo** so it travels with a folder copy.
+> Last updated: 2026-08-13. This file lives **in the repo** so it travels with a folder copy.
 > **No secrets are stored here** — real keys live in `.env.local` (gitignored, but it copies
 > with the folder). The GitHub repo is **public**, so never commit keys/passwords.
 > **Start here after moving machines → §2.**
@@ -171,17 +171,24 @@ Also in Supabase Auth settings: **turn OFF "Confirm email"** (built-in email is 
 - Code: GitHub **loobkaze-source/unigreen-crm** (branch `main`) — **PUBLIC** repo
 - `git push` to `main` → Netlify auto-builds on Linux (`@netlify/plugin-nextjs`). Env vars set on the Netlify site.
 
-**Functions region = Asia Pacific (Singapore, `sin`)** — changed 2026-07-03 from the `cmh` (Ohio)
+**Functions region = Asia Pacific (Singapore, `sin`)** — changed from the `cmh` (Ohio)
 default. Every page is server-rendered, so all Supabase queries run from the function region:
 with compute in Ohio and the DB in Mumbai each query crossed the planet (~200ms), and the Thai
 user base was ~230ms from the compute. Set in the **Netlify UI** (Project configuration → Build &
 deploy → Continuous deployment → Functions region) — it is a site-level setting, *not* in
 `netlify.toml` — and it needs a **redeploy** to apply. Requires a Netlify **Pro** plan.
 
-> **Rule of thumb:** keep the function region and the Supabase region together. The DB is currently
-> in **South Asia (Mumbai)**; Supabase has no in-place region move (see §10), so Singapore compute +
-> Mumbai DB is the current trade-off. If the DB ever moves to Singapore, this stays `sin` and the
-> two become co-located (~2ms).
+> **Rule of thumb:** keep the function region and the Supabase region together. Both are now in
+> Singapore (the DB was moved out of Mumbai on 2026-08-13 — see §10), so a query from a server
+> component costs ~20ms instead of ~200ms.
+
+**Deploy key:** Netlify pulls the repo over SSH with a deploy key. If builds start failing at
+`preparing repo` with `git@github.com: Permission denied (publickey)`, the key was removed from the
+GitHub repo — re-link the repository in Netlify (Build & deploy → Continuous deployment), or add
+Netlify's public deploy key back under GitHub → repo Settings → Deploy keys. This happened once
+while rotating GitHub credentials, and three deploys failed silently before anyone noticed: the
+site kept serving the previous build, so the app looked fine while the new code never shipped.
+Check with `npx netlify-cli api listSiteDeploys --data '{"site_id":"<id>"}'`.
 
 **Deploy gotchas (already resolved, keep them true):**
 - Netlify free plan blocks builds of PRIVATE repos via deploy-key → repo is PUBLIC **and** the
@@ -276,23 +283,23 @@ Nav lives in `src/components/app/app-shell.tsx`.
 
 ## 8. Current state & pending tasks
 
-**As of 2026-07-03:** migrations `0001`–`0029` are all applied to the live cloud DB, and `main` is
-deployed (last deploy = commit `d111361`). Working tree clean, local `main` == `origin/main`.
+**As of 2026-08-13:** migrations `0001`–`0029` are applied; the database lives in the **Singapore**
+Supabase project `ciuvozghgryjxvifrqzl` (the old Mumbai project `tkhyojqywrxuuvbjeznx` was still
+around at the time of writing — delete it once you are happy). Netlify functions also run in
+Singapore. See §10 for the move and the numbers.
 
-> The DB was **wiped for fresh testing on 2026-07-01** (kept: the org, the owner
-> `vasawat@uniwave.co.th`, and the pipeline stages). Pre-wipe backup:
-> `backups/unicloud-backup-2026-07-01T18-08-30.json` (~1068 rows). Playground data was then created
-> by hand (customer **ATARI**, 4 sites incl. 3 GPS clones, washers/dryers/coin machines with
-> warranties + a service contract, 3 products). So the "seeded team users" bullets below only apply
-> if those accounts are re-imported — **check `/users` before acting on them.**
+> **Every account has the temporary password `Uniwave#2026`** and `must_change_password = true`,
+> because password hashes could not be carried across projects. The app forces a reset at
+> `/set-password` on first login. The new project also has a new JWT secret, so every previous
+> session was invalidated — everyone signs in again.
 
-- Assign a **department** to each seeded user in `/users` (null → they see all boards).
-- Set the department the Manager (Thatchai) oversees.
-- Team members change their temp password `123456` at `/account`.
-- (Optional) Rename the workspace "Unigreen Power" → "Unicloud" — SQL:
-  `update public.organizations set name='Unicloud' where name='Unigreen Power';`
+- Tell the 7 team members to sign in and set a real password.
+- Delete the old Mumbai Supabase project once production has been exercised for a while.
+- Assign a **department** to each member in `/users` (null → they see all boards).
 - (Security) Rotate the GitHub PAT, Netlify token, and Supabase keys used during setup; keep the
   service_role key server-side only.
+- (Perf, optional) `src/lib/supabase/middleware.ts` calls `auth.getUser()` on every request — a
+  full round trip before rendering. Verifying the JWT locally would remove it; see §10.
 
 ---
 
@@ -321,41 +328,63 @@ new temp password + re-flags must-change). The email-OTP self-reset (`/forgot`) 
 
 ---
 
-## 10. Regions & latency (why the app is fast/slow)
+## 10. Regions & latency
 
 The app is **server-rendered**, so nearly all Supabase traffic is `Netlify Function → Supabase`,
-not `browser → Supabase`. Latency is therefore dominated by the distance between the **function
-region** and the **database region** — keep them together.
+not `browser → Supabase`. Latency is dominated by the distance between the **function region** and
+the **database region** — keep them together.
 
 | | Region | Where it's set |
 |---|---|---|
 | Compute (Next.js SSR + server actions) | Asia Pacific **Singapore** (`sin`) | Netlify UI → Functions region (Pro plan; needs redeploy) — see §4 |
-| Database + Storage (Supabase) | South Asia **Mumbai** (`ap-south-1`) | Fixed at project creation |
-| Browser | Thailand | — |
+| Database + Storage (Supabase) | Southeast Asia **Singapore** (`ap-southeast-1`) | Fixed at project creation |
 
-Measured 2026-07-03 from a Thai desktop: **browser → Supabase Mumbai ≈ 127ms** per REST query;
-deployed `/login` ≈ **515–540ms** warm while functions still ran in Ohio (`cmh`).
+Both moved on 2026-08-13. Measured from production afterwards (`/auth/diag` probe, since removed):
 
-### Moving Supabase to Singapore (optional, not done)
+| | before (Ohio + Mumbai) | after (Singapore + Singapore) |
+|---|---|---|
+| function → Supabase | ~200 ms | **18–23 ms** |
+| `/login` server time (warm, TLS excluded) | ~515–675 ms | **~323–341 ms** |
 
-Supabase has **no in-place region change** — you create a new project in the target region and
-migrate. Good news: the whole schema is reproducible from git.
+**The remaining ~320ms is not the database.** With queries at ~20ms, the rest is per-request
+overhead: `src/lib/supabase/middleware.ts` calls `supabase.auth.getUser()` on **every** request,
+which is a full network round trip to Supabase Auth before the page even renders, plus Next.js
+render and Netlify function init. Cutting it further means changing code (e.g. verifying the JWT
+locally instead of calling the auth server), not moving regions again.
 
-1. Create a new Supabase project in **Southeast Asia (Singapore)**.
-2. Run **`backups/schema-all.sql`** in its SQL Editor — that file is all 29 migrations
-   concatenated in order (regenerate it whenever `supabase/migrations/` changes:
-   `for f in supabase/migrations/*.sql; do cat "$f"; done > backups/schema-all.sql`).
-   It also creates the `wo-photos` and `case-files` storage buckets.
-3. Auth → turn **Confirm email OFF**, set **Site URL** (§3).
-4. Sign up the owner account — on a project with **zero organizations** the invite-only trigger
-   (migration 0010) lets the first signup bootstrap and become owner.
-5. Rename the workspace if wanted:
-   `update public.organizations set name = 'Uniwave Group' where name = 'Unigreen Power';`
-6. Re-import real data from `supabase/import_*.sql` (gitignored, travels with the folder).
-7. Update `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` /
-   `SUPABASE_SERVICE_ROLE_KEY` in **`.env.local` AND Netlify env vars**, then redeploy.
-8. Verify, then delete the Mumbai project.
+> **Measurement trap that cost time here:** latency probes that ignore the HTTP status. A wrong
+> API key returns `401` *fast*, which looks like a great result. Always assert `HTTP 200` before
+> believing a timing number.
 
-**Caveat:** user passwords are bcrypt hashes in `auth.users` and don't move via the API — recreate
-users in `/users` with temp passwords and let `must_change_password` force a reset on first login.
-Storage objects (WO photos, case attachments) must be re-uploaded if any matter.
+### Moving a Supabase project to another region
+
+Supabase has **no in-place region change** — create a new project and migrate. This was done once
+(Mumbai → Singapore, 2026-08-13) and the tooling is kept for next time:
+
+1. New project in the target region.
+2. SQL Editor → **`backups/schema-all.sql`** (all migrations concatenated; also creates the
+   `wo-photos` / `case-files` buckets). Regenerate after adding migrations:
+   `for f in supabase/migrations/*.sql; do cat "$f"; done > backups/schema-all.sql`
+3. `node scripts/backup.mjs` against the OLD project → JSON of all 28 tables.
+4. `node scripts/gen-restore-users.mjs [tempPassword]` → **`backups/restore-users.sql`**; paste it
+   into the new project. It recreates the auth users with their **original uuids** (so every
+   `owner_id` / `supporter_id` / `user_id` still resolves), plus the org, profiles and memberships.
+5. Point `.env.local` at the new project, then
+   `SOURCE_ENV_FILE=<old .env.local> node scripts/restore.mjs --confirm` — the other 24 tables plus
+   the storage objects.
+6. `node scripts/verify-restore.mjs` — compares every table count against the backup and HEADs
+   each file. Expect "every table and file matches".
+7. Update the three Netlify env vars, redeploy, verify, then delete the old project.
+
+**Gotchas hit during the real run:**
+- `alter table auth.users disable trigger …` fails with `42501 must be owner` — auth.users belongs
+  to `supabase_auth_admin`. Swap `public.handle_new_user()` for a no-op instead and restore it
+  afterwards (gen-restore-users.mjs does this).
+- Inserting the organization fires `on_org_created`, which seeds 6 default pipeline stages that are
+  not in the backup. `restore.mjs` prunes them before restoring the real ones.
+- Passwords do not survive: hashes live in `auth.users`, which the REST API does not expose, so
+  everyone gets a temp password and `must_change_password = true`.
+- The new project has a **new JWT secret and new API keys** — every session is invalidated, and all
+  three env vars must be swapped. Copying the URL and service key but leaving the *old anon key* is
+  an easy mistake; it surfaces as "invalid login credentials" in the UI, not as a key error.
+- Storage objects must be copied separately (restore.mjs does it via SOURCE_ENV_FILE).
