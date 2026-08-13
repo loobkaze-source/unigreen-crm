@@ -209,7 +209,7 @@ export function WorkOrdersView({
 
   return (
     <div>
-      <PageHeader title="งานบริการ" subtitle="ใบสั่งงานสำรวจ ติดตั้ง และบำรุงรักษาหน้างาน">
+      <PageHeader title="ใบงาน" subtitle="ใบสั่งงานสำรวจ ติดตั้ง และบำรุงรักษาหน้างาน">
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> สร้างใบสั่งงาน
         </Button>

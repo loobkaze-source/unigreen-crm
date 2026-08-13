@@ -156,7 +156,7 @@ export function ServiceBoardView({
         {/* Open work orders */}
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-            <Wrench className="h-4 w-4 text-primary" /> งานบริการที่เปิดอยู่ ({boardWOs.length})
+            <Wrench className="h-4 w-4 text-primary" /> ใบงานที่เปิดอยู่ ({boardWOs.length})
           </div>
           {boardWOs.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">ไม่มีงานที่เปิดอยู่</p>

@@ -93,7 +93,7 @@ export function WorkOrderDetail({
   orgId,
   canEdit = true,
   backHref = "/work-orders",
-  backLabel = "กลับไปงานบริการ",
+  backLabel = "กลับไปใบงาน",
   technicianName,
   companyName,
   contactName,
