@@ -11,6 +11,7 @@ import {
   Navigation,
   Phone,
   PlayCircle,
+  ThumbsUp,
 } from "lucide-react";
 import type { WorkOrderPriority, WorkOrderStatus, WorkOrderType } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
@@ -19,7 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
 import { statusMeta, priorityMeta, typeLabel, woCode, jobClassLabel } from "../work-orders/constants";
-import { updateWorkOrderStatus } from "../work-orders/actions";
+import { acceptWorkOrder, updateWorkOrderStatus } from "../work-orders/actions";
 
 export type Job = {
   id: string;
@@ -31,6 +32,7 @@ export type Job = {
   job_class: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
+  accepted_at: string | null;
   company: string | null;
   companyPhone: string | null;
   siteName: string | null;
@@ -110,15 +112,18 @@ export function MyJobsView({
     ].filter((g) => g.items.length > 0);
   }, [jobs]);
 
-  function setStatus(job: Job, status: WorkOrderStatus) {
+  function run(job: Job, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusyId(job.id);
     startTransition(async () => {
-      const res = await updateWorkOrderStatus(job.id, status);
+      const res = await fn();
       setBusyId(null);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
   }
+  const setStatus = (job: Job, status: WorkOrderStatus) =>
+    run(job, () => updateWorkOrderStatus(job.id, status));
+  const accept = (job: Job) => run(job, () => acceptWorkOrder(job.id));
 
   const openCount = jobs.filter((j) => !DONE.includes(j.status)).length;
 
@@ -167,6 +172,7 @@ export function MyJobsView({
                     job={job}
                     busy={pending && busyId === job.id}
                     onStatus={(s) => setStatus(job, s)}
+                    onAccept={() => accept(job)}
                   />
                 ))}
               </div>
@@ -182,14 +188,17 @@ function JobCard({
   job,
   busy,
   onStatus,
+  onAccept,
 }: {
   job: Job;
   busy: boolean;
   onStatus: (s: WorkOrderStatus) => void;
+  onAccept: () => void;
 }) {
   const st = statusMeta(job.status);
   const pr = priorityMeta(job.priority);
   const done = DONE.includes(job.status);
+  const needsAccept = !done && !job.accepted_at;
 
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
@@ -202,6 +211,7 @@ function JobCard({
               {job.priority === "urgent" || job.priority === "high" ? (
                 <Badge tone={pr.tone}>{pr.label}</Badge>
               ) : null}
+              {needsAccept ? <Badge tone="warning">รอรับงาน</Badge> : null}
             </div>
             <div className="mt-1 font-medium leading-snug">{job.title}</div>
             <div className="mt-0.5 text-xs text-muted-foreground">
@@ -253,7 +263,18 @@ function JobCard({
             <Phone className="h-4 w-4" /> โทร
           </a>
         ) : null}
-        {!done ? (
+        {needsAccept ? (
+          // Acknowledge first — the dispatcher needs to know the job was seen.
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onAccept}
+            className="flex flex-[2] items-center justify-center gap-1.5 bg-primary py-3 text-sm font-semibold text-white active:opacity-90 disabled:opacity-50"
+          >
+            <ThumbsUp className="h-4 w-4" />
+            {busy ? "กำลังบันทึก…" : "รับงาน"}
+          </button>
+        ) : !done ? (
           <button
             type="button"
             disabled={busy}

@@ -152,6 +152,14 @@ Open Supabase → **SQL Editor** and run in order:
     single string. Two consequences worth knowing: a **department** applies when *any* held role is
     department-scoped, and the reduced technician nav only kicks in when Technician is that
     member's **only** role.
+31. `0031_work_order_accept.sql` — `work_orders.accepted_at` + `accepted_by`: the assigned
+    technician acknowledges a job ("กดรับงาน") from /my-jobs. Deliberately *not* a new
+    `work_order_status` enum value — "has the technician taken this job" is a different fact from
+    "how far along is the work", and keeping them apart gives dispatchers a response time.
+    Only the assigned technician can accept (an admin accepting on their behalf would make the
+    timestamp meaningless). `updateWorkOrderStatus` gained the authorization it never had:
+    it now scopes the update by `org_id` and refuses a field-only technician touching a job that
+    is not theirs (`assertMayWork` in work-orders/actions.ts).
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

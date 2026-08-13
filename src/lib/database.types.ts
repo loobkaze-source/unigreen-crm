@@ -190,6 +190,9 @@ export interface WorkOrder extends Mutable {
   description: string | null;
   completed_at: string | null;
   owner_id: string | null;
+  /** When the assigned technician acknowledged the job ("รับงาน"). */
+  accepted_at: string | null;
+  accepted_by: string | null;
 }
 
 export interface WorkOrderItem extends Timestamps {

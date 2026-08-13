@@ -252,6 +252,13 @@ export function WorkOrderDetail({
           <h1 className="mt-1 text-xl font-bold tracking-tight">
             {workOrder.title}
           </h1>
+          {workOrder.technician_id ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {workOrder.accepted_at
+                ? `ช่างรับงานแล้ว · ${fmtDateTime(workOrder.accepted_at)}`
+                : "รอช่างกดรับงาน"}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <Select

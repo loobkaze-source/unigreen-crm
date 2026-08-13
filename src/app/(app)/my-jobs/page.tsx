@@ -66,6 +66,7 @@ export default async function MyJobsPage() {
       job_class: w.job_class,
       scheduled_start: w.scheduled_start,
       scheduled_end: w.scheduled_end,
+      accepted_at: w.accepted_at,
       company: w.company_id ? (companyById.get(w.company_id)?.name ?? null) : null,
       companyPhone: w.company_id ? (companyById.get(w.company_id)?.phone ?? null) : null,
       siteName: site?.name ?? null,

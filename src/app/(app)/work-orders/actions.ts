@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { isTechnicianOnly } from "@/lib/roles";
 import type {
   WorkOrderPriority,
   WorkOrderStatus,
@@ -164,20 +165,93 @@ async function restoreAssetsOnComplete(
   revalidatePath("/assets");
 }
 
+/**
+ * The technician record for the signed-in user, or null. A member is "field
+ * only" when Technician is their sole role — those users may act on the jobs
+ * assigned to them and nothing else.
+ */
+async function myTechnicianId(
+  ctx: Awaited<ReturnType<typeof getSessionContext>>
+): Promise<string | null> {
+  const { data } = await ctx.supabase
+    .from("technicians")
+    .select("id")
+    .eq("org_id", ctx.org.id)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  return (data?.id as string) ?? null;
+}
+
+const NOT_YOURS = "ใบสั่งงานนี้ไม่ได้มอบหมายให้คุณ";
+
+/** Guard: a field-only technician may only touch their own work order. */
+async function assertMayWork(
+  ctx: Awaited<ReturnType<typeof getSessionContext>>,
+  workOrderId: string
+): Promise<string | null> {
+  if (ctx.isAdmin || !isTechnicianOnly(ctx.appRoles)) return null;
+  const techId = await myTechnicianId(ctx);
+  if (!techId) return NOT_YOURS;
+  const { data } = await ctx.supabase
+    .from("work_orders")
+    .select("technician_id")
+    .eq("id", workOrderId)
+    .eq("org_id", ctx.org.id)
+    .maybeSingle();
+  return data && data.technician_id === techId ? null : NOT_YOURS;
+}
+
+/** The assigned technician acknowledges the job ("กดรับงาน"). */
+export async function acceptWorkOrder(id: string): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const { supabase, org, userId } = ctx;
+
+  const techId = await myTechnicianId(ctx);
+  const { data: wo } = await supabase
+    .from("work_orders")
+    .select("technician_id, accepted_at")
+    .eq("id", id)
+    .eq("org_id", org.id)
+    .maybeSingle();
+  if (!wo) return fail("ไม่พบใบสั่งงาน");
+  // Only the technician it was assigned to can accept it — not an admin on
+  // their behalf, otherwise the timestamp would not mean anything.
+  if (!techId || wo.technician_id !== techId) return fail(NOT_YOURS);
+  if (wo.accepted_at) return ok(id); // already accepted, nothing to do
+
+  const { error } = await supabase
+    .from("work_orders")
+    .update({ accepted_at: new Date().toISOString(), accepted_by: userId })
+    .eq("id", id)
+    .eq("org_id", org.id);
+  if (error) return fail(error.message);
+  revalidatePath("/my-jobs");
+  revalidatePath("/work-orders");
+  revalidatePath(`/work-orders/${id}`);
+  return ok(id);
+}
+
 export async function updateWorkOrderStatus(
   id: string,
   status: WorkOrderStatus
 ): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const { supabase, org } = ctx;
+
+  const denied = await assertMayWork(ctx, id);
+  if (denied) return fail(denied);
+
   const { error } = await supabase
     .from("work_orders")
     .update({
       status,
       completed_at: status === "completed" ? new Date().toISOString() : null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   if (status === "completed") await restoreAssetsOnComplete(supabase, org.id, id);
+  revalidatePath("/my-jobs");
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${id}`);
   return ok();
