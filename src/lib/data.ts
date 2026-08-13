@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { primaryRole } from "@/lib/roles";
 import type { Organization, Profile } from "@/lib/database.types";
 
 type QueryErr = { message: string } | null;
@@ -27,7 +28,9 @@ export type SessionContext = {
   profile: Profile | null;
   org: Organization;
   role: string;
-  /** Business role assigned by an admin (admin/Sales/Manager/…). */
+  /** Every business role this member holds (admin/Sales/Manager/…). */
+  appRoles: string[];
+  /** Primary role — 'admin' when held, else the first. Prefer `appRoles`. */
   appRole: string | null;
   /** Department the user is scoped to (null = all / admin). */
   department: string | null;
@@ -60,7 +63,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     supabase
       .from("organization_members")
-      .select("role, app_role, department, organizations(*)")
+      .select("role, app_role, app_roles, department, organizations(*)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: true })
       .limit(1)
@@ -79,13 +82,21 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   const membership = memberRes.data as {
     role: string;
     app_role: string | null;
+    app_roles: string[] | null;
     department: string | null;
     organizations: Organization | null;
   } | null;
 
   let org: Organization | null = membership?.organizations ?? null;
   const role = membership?.role ?? "owner";
-  const appRole = membership?.app_role ?? null;
+  // app_roles is the source of truth; fall back to the mirrored single role so
+  // a membership written before migration 0030 still resolves.
+  const appRoles = membership?.app_roles?.length
+    ? membership.app_roles
+    : membership?.app_role
+      ? [membership.app_role]
+      : [];
+  const appRole = primaryRole(appRoles);
   const department = membership?.department ?? null;
 
   if (!org) {
@@ -105,7 +116,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
   }
 
   const isAdmin =
-    role === "owner" || role === "admin" || appRole === "admin";
+    role === "owner" || role === "admin" || appRoles.includes("admin");
 
   return {
     supabase,
@@ -114,6 +125,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext> => {
     profile: profile ?? null,
     org,
     role,
+    appRoles,
     appRole,
     department,
     isAdmin,

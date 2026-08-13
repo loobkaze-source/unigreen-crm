@@ -17,14 +17,16 @@ import {
   type ColumnDef,
 } from "@/components/ui/data-table";
 import { DEPARTMENTS } from "@/lib/departments";
-import { USER_ROLES, DEPT_ROLES } from "@/lib/roles";
+import { USER_ROLES, isDeptScoped } from "@/lib/roles";
+import { RoleMultiSelect } from "./role-multi-select";
 import { displayUsername } from "@/lib/username";
 import { updateMember, createUser, resetUserPassword, removeMember } from "./actions";
 
 type Member = {
   id: string;
   role: string;
-  app_role: string;
+  /** Every role this member holds. */
+  app_roles: string[];
   department: string;
   name: string;
   email: string;
@@ -47,7 +49,7 @@ export function UsersView({
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("123456");
-  const [cuRole, setCuRole] = useState("Sales");
+  const [cuRoles, setCuRoles] = useState<string[]>(["Sales"]);
   const [cuDept, setCuDept] = useState<string>(DEPARTMENTS[0].value);
 
   const columns = useMemo<ColumnDef<Member>[]>(
@@ -65,12 +67,13 @@ export function UsersView({
         filter: { kind: "select", accessor: (m) => m.role },
       },
       {
-        key: "app_role",
+        key: "app_roles",
         header: "บทบาท",
-        sortAccessor: (m) => m.app_role,
+        sortAccessor: (m) => m.app_roles.join(", "),
         filter: {
+          // Array accessor -> the row matches if ANY of its roles is picked.
           kind: "select",
-          accessor: (m) => m.app_role,
+          accessor: (m) => m.app_roles,
           options: USER_ROLES.map((r) => ({ value: r, label: r })),
         },
       },
@@ -112,7 +115,7 @@ export function UsersView({
 
   function saveMember(m: Member, next: Partial<Member>) {
     run(m.id, () =>
-      updateMember(m.id, next.app_role ?? m.app_role, next.department ?? m.department)
+      updateMember(m.id, next.app_roles ?? m.app_roles, next.department ?? m.department)
     );
   }
 
@@ -123,8 +126,8 @@ export function UsersView({
         username,
         fullName: name,
         password,
-        appRole: cuRole,
-        department: DEPT_ROLES.has(cuRole) ? cuDept : "",
+        appRoles: cuRoles,
+        department: isDeptScoped(cuRoles) ? cuDept : "",
       });
       if (res.ok) {
         setName("");
@@ -190,15 +193,11 @@ export function UsersView({
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">บทบาท</label>
-              <Select value={cuRole} onChange={(e) => setCuRole(e.target.value)}>
-                {USER_ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </Select>
+              <RoleMultiSelect value={cuRoles} onChange={setCuRoles} />
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">แผนก</label>
-              <Select value={cuDept} disabled={!DEPT_ROLES.has(cuRole)} onChange={(e) => setCuDept(e.target.value)}>
+              <Select value={cuDept} disabled={!isDeptScoped(cuRoles)} onChange={(e) => setCuDept(e.target.value)}>
                 {DEPARTMENTS.map((d) => (
                   <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
@@ -238,7 +237,7 @@ export function UsersView({
             />
             <tbody>
               {table.rows.map((m) => {
-                const deptRole = DEPT_ROLES.has(m.app_role);
+                const deptRole = isDeptScoped(m.app_roles);
                 const busy = pending && savingId === m.id;
                 const isOwner = m.role === "owner";
                 return (
@@ -256,20 +255,15 @@ export function UsersView({
                       <Badge tone={isOwner || m.role === "admin" ? "primary" : "muted"}>{m.role}</Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Select
-                        value={m.app_role}
+                      <RoleMultiSelect
+                        value={m.app_roles}
                         disabled={!canManage || isOwner || busy}
-                        onChange={(e) => saveMember(m, { app_role: e.target.value })}
-                        className="max-w-[170px]"
-                      >
-                        <option value="">— ยังไม่กำหนด —</option>
-                        {USER_ROLES.map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </Select>
+                        onChange={(roles) => saveMember(m, { app_roles: roles })}
+                        className="max-w-[230px]"
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      {isOwner || m.app_role === "admin" ? (
+                      {isOwner || m.app_roles.includes("admin") ? (
                         <span className="text-xs text-muted-foreground">ทุกแผนก</span>
                       ) : (
                         <Select

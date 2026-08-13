@@ -31,6 +31,7 @@ import { cn, initials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
+import { isTechnicianOnly } from "@/lib/roles";
 
 const NAV = [
   { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
@@ -59,13 +60,13 @@ const SETTINGS_NAV = [
 export function AppShell({
   user,
   orgName,
-  appRole = null,
+  appRoles = [],
   isAdmin = false,
   children,
 }: {
   user: { name: string; email: string };
   orgName: string;
-  appRole?: string | null;
+  appRoles?: string[];
   isAdmin?: boolean;
   children: React.ReactNode;
 }) {
@@ -73,7 +74,9 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  const isTechnician = !isAdmin && appRole === "Technician";
+  // Only a pure field technician gets the reduced nav — someone who is also
+  // Sales or Safety still needs the rest of the app.
+  const isTechnician = !isAdmin && isTechnicianOnly(appRoles);
 
   const visibleNav = NAV.filter(
     (item) => !isTechnician || TECH_ROUTES.some((r) => r === item.href)

@@ -15,7 +15,7 @@ export type OrgUser = {
   user_id: string;
   name: string;
   email: string;
-  app_role: string;
+  app_roles: string[];
 };
 export type Assignment = { id: string; board_key: string; user_id: string };
 
@@ -38,7 +38,7 @@ export function BoardAssignView({
   const [pending, startTransition] = useTransition();
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  const eligible = users.filter((u) => eligibleRoles.includes(u.app_role));
+  const eligible = users.filter((u) => u.app_roles.some((r) => eligibleRoles.includes(r)));
   const userById = new Map(users.map((u) => [u.user_id, u]));
 
   function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
@@ -78,7 +78,7 @@ export function BoardAssignView({
                         <Avatar name={u?.name || displayUsername(u?.email) || "?"} className="h-7 w-7 text-[10px]" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">{u?.name || "—"}</div>
-                          <div className="truncate text-xs text-muted-foreground">{u?.app_role}</div>
+                          <div className="truncate text-xs text-muted-foreground">{u?.app_roles.join(" · ")}</div>
                         </div>
                         <button
                           className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
@@ -113,7 +113,7 @@ export function BoardAssignView({
                   </option>
                   {addable.map((u) => (
                     <option key={u.user_id} value={u.user_id}>
-                      {(u.name || displayUsername(u.email)) + " · " + u.app_role}
+                      {(u.name || displayUsername(u.email)) + " · " + u.app_roles.join(", ")}
                     </option>
                   ))}
                 </Select>

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
-import { CASE_ROLES } from "@/lib/roles";
+import { CASE_ROLES, hasRole } from "@/lib/roles";
 import type { CaseStatus } from "@/lib/database.types";
 
 export type CaseInput = {
@@ -30,8 +30,8 @@ type AssetCondition = "operational" | "degraded" | "down";
 
 /** Opening/managing cases is limited to Customer Service and Dispatcher
  *  (admin can always do everything). */
-function canManageCases(ctx: Pick<SessionContext, "isAdmin" | "appRole">) {
-  return ctx.isAdmin || CASE_ROLES.includes(ctx.appRole as (typeof CASE_ROLES)[number]);
+function canManageCases(ctx: Pick<SessionContext, "isAdmin" | "appRoles">) {
+  return ctx.isAdmin || hasRole(ctx.appRoles, ...CASE_ROLES);
 }
 const NO_PERMISSION = "เฉพาะ Customer Service / Dispatcher (หรือแอดมิน) เท่านั้นที่จัดการเคสได้";
 

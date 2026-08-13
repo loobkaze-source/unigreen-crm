@@ -1,6 +1,6 @@
 import { getSessionContext, rows } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
-import { CASE_ROLES } from "@/lib/roles";
+import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { CasesView } from "./cases-view";
 
 const CASES_PAGE_LIMIT = 200;
@@ -10,10 +10,9 @@ export default async function CasesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { supabase, org, isAdmin, appRole } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
   const search = ((await searchParams).q ?? "").trim();
-  const canManage =
-    isAdmin || CASE_ROLES.includes(appRole as (typeof CASE_ROLES)[number]);
+  const canManage = isAdmin || hasRole(appRoles, ...CASE_ROLES);
 
   let casesQuery = supabase
     .from("cases")
@@ -60,9 +59,10 @@ export default async function CasesPage({
         .limit(1000),
       supabase
         .from("organization_members")
-        .select("user_id, app_role")
+        .select("user_id, app_roles")
         .eq("org_id", org.id)
-        .eq("app_role", "Technical Supporter"),
+        // A member can hold several roles, so match membership of the set.
+        .contains("app_roles", ["Technical Supporter"]),
     ]);
 
   const cases = rows(casesRes);

@@ -54,7 +54,7 @@ export async function saveTechnician(
 }
 
 /**
- * Create technician records for every user with app_role = 'Technician' that
+ * Create technician records for every user holding the 'Technician' role that
  * isn't already linked to one. Idempotent.
  */
 export async function importTechniciansFromUsers(): Promise<ActionResult> {
@@ -64,7 +64,7 @@ export async function importTechniciansFromUsers(): Promise<ActionResult> {
     .from("organization_members")
     .select("user_id")
     .eq("org_id", org.id)
-    .eq("app_role", "Technician");
+    .contains("app_roles", ["Technician"]);
   const userIds = [...new Set((members ?? []).map((m) => m.user_id as string))];
   if (!userIds.length) return ok();
 

@@ -14,11 +14,11 @@ export async function updateAssetStatus(
   status: AssetStatus
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
-  const { supabase, org, isAdmin, appRole } = ctx;
+  const { supabase, org, isAdmin, appRoles } = ctx;
 
   if (!ASSET_STATUSES.some((s) => s.value === status))
     return fail("สถานะไม่ถูกต้อง");
-  if (!isAdmin && appRole !== "Dispatcher")
+  if (!isAdmin && !appRoles.includes("Dispatcher"))
     return fail("เฉพาะ Dispatcher หรือแอดมินเท่านั้นที่ปรับสถานะเครื่องได้");
 
   if (!isAdmin) {

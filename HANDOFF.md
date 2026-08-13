@@ -143,6 +143,15 @@ Open Supabase → **SQL Editor** and run in order:
 29. `0029_technician_certifications.sql` — `technicians.certifications` text[] (safety
     "ใบเซอร์": จป.หัวหน้างาน / จป.ที่สูง / จป.ไฟฟ้า / จป.ที่อับอากาศ …; preset chips +
     custom entry in the technician form). Also added the "Safety" app role (lib/roles.ts).
+30. `0030_multi_role.sql` — a member can hold **several roles at once**:
+    `organization_members.app_roles text[]` (+ GIN index) and `invites.app_roles`, backfilled from
+    the single `app_role`, which is kept mirrored to the primary role ('admin' if held, else the
+    first) so older queries still work. `handle_new_user` copies the whole set from the invite.
+    Ask "does this member hold role X" via the helpers in `lib/roles.ts`
+    (`hasRole` / `primaryRole` / `isDeptScoped` / `isTechnicianOnly`) rather than comparing a
+    single string. Two consequences worth knowing: a **department** applies when *any* held role is
+    department-scoped, and the reduced technician nav only kicks in when Technician is that
+    member's **only** role.
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

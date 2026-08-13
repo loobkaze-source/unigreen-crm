@@ -5,11 +5,16 @@ import { getSessionContext } from "@/lib/data";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
-import { USER_ROLES } from "@/lib/roles";
+import { USER_ROLES, primaryRole, isDeptScoped } from "@/lib/roles";
 import { toAuthEmail, isValidLoginId, displayUsername, USERNAME_DOMAIN } from "@/lib/username";
 
 const isRole = (v: string) =>
   USER_ROLES.includes(v as (typeof USER_ROLES)[number]) ? v : null;
+/** Keep only known roles, de-duplicated and in USER_ROLES order. */
+const cleanRoles = (v: readonly string[] | undefined) => {
+  const set = new Set((v ?? []).filter((r): r is string => Boolean(isRole(r))));
+  return USER_ROLES.filter((r) => set.has(r)) as string[];
+};
 const isDept = (v: string) =>
   DEPARTMENTS.some((d) => d.value === v) ? v : null;
 
@@ -52,18 +57,23 @@ async function ensureTechnician(
 
 export async function updateMember(
   memberId: string,
-  appRole: string,
+  appRoles: string[],
   department: string
 ): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
-  const role = isRole(appRole);
-  const membershipRole = role === "admin" ? "admin" : "member";
+  const roles = cleanRoles(appRoles);
+  if (roles.length === 0) return fail("กรุณาเลือกบทบาทอย่างน้อย 1 อย่าง");
+  const primary = primaryRole(roles);
+  const membershipRole = primary === "admin" ? "admin" : "member";
   const { error: e } = await ctx.supabase
     .from("organization_members")
     .update({
-      app_role: role,
-      department: role === "admin" ? null : isDept(department),
+      app_roles: roles,
+      app_role: primary,
+      // Admins see every department; otherwise a department only applies when
+      // one of the held roles is department-scoped.
+      department: primary === "admin" || !isDeptScoped(roles) ? null : isDept(department),
       role: membershipRole,
     })
     .eq("id", memberId)
@@ -71,7 +81,7 @@ export async function updateMember(
     .neq("role", "owner");
   if (e) return fail(e.message);
 
-  if (role === "Technician") {
+  if (roles.includes("Technician")) {
     const { data: mem } = await ctx.supabase
       .from("organization_members")
       .select("user_id")
@@ -95,7 +105,7 @@ export async function createUser(input: {
   username: string;
   fullName: string;
   password: string;
-  appRole: string;
+  appRoles: string[];
   department: string;
 }): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
@@ -114,13 +124,16 @@ export async function createUser(input: {
     return fail(e instanceof Error ? e.message : "ตั้งค่า service key ไม่ถูกต้อง");
   }
 
-  const role = isRole(input.appRole);
-  const department = role === "admin" ? null : isDept(input.department);
+  const roles = cleanRoles(input.appRoles);
+  if (roles.length === 0) return fail("กรุณาเลือกบทบาทอย่างน้อย 1 อย่าง");
+  const role = primaryRole(roles);
+  const department =
+    role === "admin" || !isDeptScoped(roles) ? null : isDept(input.department);
 
   // Pre-create an invite so the signup trigger routes the new account into this
-  // org with the right role/department (and satisfies invite-only signup).
+  // org with the right roles/department (and satisfies invite-only signup).
   const { error: invErr } = await ctx.supabase.from("invites").upsert(
-    { org_id: ctx.org.id, email, app_role: role, department },
+    { org_id: ctx.org.id, email, app_role: role, app_roles: roles, department },
     { onConflict: "org_id,email" }
   );
   if (invErr) return fail(invErr.message);

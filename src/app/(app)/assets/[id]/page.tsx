@@ -47,8 +47,8 @@ export default async function AssetLifetimePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org, isAdmin, appRole } = await getSessionContext();
-  const canOverride = isAdmin || appRole === "Dispatcher";
+  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  const canOverride = isAdmin || appRoles.includes("Dispatcher");
 
   const eq = row<Equipment>(
     await supabase

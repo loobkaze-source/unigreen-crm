@@ -11,7 +11,7 @@ export default async function AppLayout({
 }) {
   if (!isSupabaseConfigured()) redirect("/setup");
 
-  const { profile, email, org, appRole, isAdmin, mustChangePassword } =
+  const { profile, email, org, appRoles, isAdmin, mustChangePassword } =
     await getSessionContext();
 
   // Force a password change before any app page is reachable.
@@ -24,7 +24,7 @@ export default async function AppLayout({
         email: displayUsername(email),
       }}
       orgName={org.name}
-      appRole={appRole}
+      appRoles={appRoles}
       isAdmin={isAdmin}
     >
       {children}

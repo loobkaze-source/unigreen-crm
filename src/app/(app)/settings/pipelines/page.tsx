@@ -8,7 +8,7 @@ export default async function PipelinesSettingsPage() {
   if (!isAdmin) redirect("/dashboard");
 
   const [{ data: members }, { data: assignments }] = await Promise.all([
-    supabase.from("organization_members").select("user_id, app_role").eq("org_id", org.id),
+    supabase.from("organization_members").select("user_id, app_role, app_roles").eq("org_id", org.id),
     supabase
       .from("board_assignments")
       .select("id, board_key, user_id")
@@ -24,7 +24,11 @@ export default async function PipelinesSettingsPage() {
 
   const users: OrgUser[] = (members ?? []).map((m) => ({
     user_id: m.user_id as string,
-    app_role: (m.app_role as string) || "",
+    app_roles: ((m.app_roles as string[] | null)?.length
+      ? (m.app_roles as string[])
+      : m.app_role
+        ? [m.app_role as string]
+        : []),
     name: pmap.get(m.user_id)?.full_name || "",
     email: pmap.get(m.user_id)?.email || "",
   }));

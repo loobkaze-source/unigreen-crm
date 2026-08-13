@@ -7,7 +7,7 @@ export default async function UsersPage() {
 
   const { data: members } = await supabase
     .from("organization_members")
-    .select("id, user_id, role, app_role, department, created_at")
+    .select("id, user_id, role, app_role, app_roles, department, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: true });
 
@@ -21,7 +21,12 @@ export default async function UsersPage() {
   const rows = (members ?? []).map((m) => ({
     id: m.id,
     role: m.role as string,
-    app_role: (m.app_role as string) || "",
+    // app_roles is the source of truth; app_role is only the mirrored primary.
+    app_roles: ((m.app_roles as string[] | null)?.length
+      ? (m.app_roles as string[])
+      : m.app_role
+        ? [m.app_role as string]
+        : []),
     department: (m.department as string) || "",
     name: pmap.get(m.user_id)?.full_name || "",
     email: pmap.get(m.user_id)?.email || "",
