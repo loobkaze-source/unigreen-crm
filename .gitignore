@@ -42,6 +42,8 @@ yarn-error.log*
 # local data / imports (contain real customer data — do NOT commit)
 /venio database/
 /supabase/import_*.sql
+# filled-in copies of the templates in /import-templates
+/import-data/
 
 # typescript
 *.tsbuildinfo
