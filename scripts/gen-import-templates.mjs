@@ -19,11 +19,89 @@ const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "import-temp
 //  Column specs — one entry per spreadsheet column
 //    key      column header (the name an importer reads)
 //    req      true → header painted in the "required" colour
+//    rec      true → header painted amber: optional, but other templates
+//                    match on it, so leaving it blank breaks the chain
 //    type     shown in the guide sheet
 //    list     dropdown values (also documented in the guide)
 //    width    column width in Excel units
 //    desc     Thai explanation for the guide sheet
 // ---------------------------------------------------------------------------
+
+const LEGEND =
+  "หัวคอลัมน์สีส้ม = จำเป็นต้องกรอก / สีเหลือง = ไม่บังคับ แต่แนะนำอย่างยิ่ง / สีเขียว = เว้นว่างได้";
+
+const COMPANIES = {
+  file: "import-template-companies.xlsx",
+  title: "เทมเพลตนำเข้าลูกค้า (companies)",
+  table: "public.companies",
+  intro: [
+    "กรอกข้อมูลในชีต “ข้อมูล” เท่านั้น — แถวที่ 1 เป็นหัวคอลัมน์ ห้ามแก้ ห้ามสลับลำดับ ห้ามลบ",
+    LEGEND,
+    "ดูตัวอย่างการกรอกได้ที่ชีต “ตัวอย่าง” — ห้ามกรอกข้อมูลจริงลงในชีตนั้น",
+    "นำเข้าไฟล์นี้เป็นอันดับแรก — ผู้ติดต่อ ไซต์งาน และสัญญาบริการ ล้วนอ้างถึงลูกค้าด้วย customer_code",
+    "customer_code ต้องไม่ซ้ำกันในไฟล์ ระบบไม่ได้บังคับความไม่ซ้ำให้ ถ้าซ้ำการจับคู่ของไฟล์อื่นจะได้บริษัทผิดตัว",
+  ],
+  cols: [
+    { key: "name", req: true, type: "ข้อความ", width: 34,
+      desc: "ชื่อลูกค้า/นิติบุคคล เช่น “บริษัท ไทยรุ่งเรือง จำกัด” — ถ้าเว้นว่างแถวนั้นจะถูกข้าม" },
+    { key: "customer_code", rec: true, type: "ข้อความ", width: 16,
+      desc: "รหัสลูกค้า (รหัสเดิมจาก Venio) — เป็นกุญแจที่เทมเพลตผู้ติดต่อ ไซต์งาน และสัญญาใช้อ้างถึงลูกค้ารายนี้ ควรกรอกทุกแถว" },
+    { key: "tax_id", type: "ข้อความ", width: 18, fmt: "text",
+      desc: "เลขประจำตัวผู้เสียภาษี 13 หลัก — ตั้งรูปแบบช่องเป็น Text ไว้แล้ว เลข 0 นำหน้าจะไม่หาย" },
+    { key: "tags", type: "ข้อความ คั่นด้วย ,", width: 26,
+      desc: "แท็กสำหรับกรองในหน้ารายชื่อ ใส่ได้หลายอันคั่นด้วยจุลภาค เช่น “Shell, โรงงาน” · ที่ใช้กันบ่อย: Shell / PTT / BCP / บ้าน / โรงงาน / โรงแรม (พิมพ์แท็กใหม่เองได้)" },
+    { key: "industry", type: "ข้อความ", width: 20, desc: "ประเภทธุรกิจ เช่น โรงงานอุตสาหกรรม, ค้าปลีก" },
+    { key: "phone", type: "ข้อความ", width: 16, fmt: "text", desc: "เบอร์โทรหลักของบริษัท" },
+    { key: "website", type: "URL", width: 26, desc: "เว็บไซต์บริษัท" },
+    { key: "address", type: "ข้อความ", width: 42,
+      desc: "ที่อยู่จดทะเบียน/ที่อยู่ออกใบกำกับภาษี (คนละอันกับที่อยู่ไซต์งาน ซึ่งอยู่ในเทมเพลตไซต์งาน)" },
+    { key: "notes", type: "ข้อความ", width: 30, desc: "หมายเหตุ เช่น เงื่อนไขเครดิต ผู้ดูแลหลัก" },
+  ],
+  examples: [
+    ["บริษัท ไทยรุ่งเรือง จำกัด", "C-00142", "0105536000123", "โรงงาน, PTT", "โรงงานอุตสาหกรรม",
+      "02-123-4567", "https://thairungruang.co.th", "99/1 ถ.พระราม 3 แขวงบางโพงพาง เขตยานนาวา กรุงเทพฯ 10120", "เครดิต 30 วัน"],
+    ["บริษัท เอ็นเนอร์ยี่ พลัส จำกัด", "C-00187", "0105551000456", "โรงงาน", "พลังงานทดแทน",
+      "02-987-6543", "", "45 ซ.ลาดพร้าว 101 แขวงคลองจั่น เขตบางกะปิ กรุงเทพฯ 10240", ""],
+    ["โรงแรมสุขสบาย ระยอง", "C-00203", "0215559000789", "โรงแรม", "โรงแรม",
+      "038-111-222", "", "77 ถ.ชายหาด ต.เพ อ.เมืองระยอง จ.ระยอง 21160", "ติดต่อผ่านฝ่ายวิศวกรรมเท่านั้น"],
+  ],
+};
+
+const CONTACTS = {
+  file: "import-template-contacts.xlsx",
+  title: "เทมเพลตนำเข้าผู้ติดต่อ (contacts)",
+  table: "public.contacts",
+  intro: [
+    "กรอกข้อมูลในชีต “ข้อมูล” เท่านั้น — แถวที่ 1 เป็นหัวคอลัมน์ ห้ามแก้ ห้ามสลับลำดับ ห้ามลบ",
+    LEGEND,
+    "ต้องนำเข้าลูกค้า (companies) ให้เสร็จก่อน — ผู้ติดต่อผูกกับบริษัทด้วย customer_code",
+    "จับคู่บริษัทจาก customer_code ก่อน ถ้าเว้นว่างจึงใช้ company_name",
+    "ชื่อ-นามสกุลแยกกันคนละช่อง (first_name / last_name) เพราะระบบเก็บแยกกัน",
+    "ผู้ติดต่อ 1 คนผูกได้ 1 บริษัทผ่านเทมเพลตนี้ — ถ้าคนเดียวดูแลหลายบริษัท ให้ผูกบริษัทเพิ่มในแอปทีหลัง",
+  ],
+  cols: [
+    { key: "first_name", req: true, type: "ข้อความ", width: 18,
+      desc: "ชื่อจริง — ถ้าเว้นว่างแถวนั้นจะถูกข้าม" },
+    { key: "last_name", type: "ข้อความ", width: 18, desc: "นามสกุล" },
+    { key: "customer_code", rec: true, type: "ข้อความ", width: 16,
+      desc: "รหัสลูกค้าของบริษัทที่สังกัด (ตรงกับ customer_code ในเทมเพลตลูกค้า) — วิธีจับคู่ที่แม่นที่สุด" },
+    { key: "company_name", type: "ข้อความ", width: 32,
+      desc: "ชื่อบริษัทที่สังกัด — ใช้จับคู่เมื่อไม่ได้ใส่ customer_code ต้องสะกดตรงกับที่มีในระบบ" },
+    { key: "title", type: "ข้อความ", width: 22, desc: "ตำแหน่งงาน เช่น ผู้จัดการฝ่ายวิศวกรรม" },
+    { key: "phone", type: "ข้อความ", width: 16, fmt: "text",
+      desc: "เบอร์โทร — ตั้งรูปแบบช่องเป็น Text ไว้แล้ว เลข 0 นำหน้าจะไม่หาย" },
+    { key: "email", type: "อีเมล", width: 28, desc: "อีเมล" },
+    { key: "notes", type: "ข้อความ", width: 30, desc: "หมายเหตุ เช่น ช่วงเวลาที่ติดต่อสะดวก" },
+  ],
+  examples: [
+    ["สมชาย", "ใจดี", "C-00142", "บริษัท ไทยรุ่งเรือง จำกัด", "ผู้จัดการฝ่ายวิศวกรรม",
+      "081-234-5678", "somchai@thairungruang.co.th", "ติดต่อสะดวก จ-ศ ช่วงบ่าย"],
+    ["วราภรณ์", "ศรีสุข", "C-00187", "บริษัท เอ็นเนอร์ยี่ พลัส จำกัด", "เจ้าหน้าที่จัดซื้อ",
+      "089-876-5432", "waraporn@energyplus.co.th", ""],
+    ["ณัฐพงษ์", "", "", "โรงแรมสุขสบาย ระยอง", "หัวหน้าช่างอาคาร",
+      "038-111-333", "", "ไม่มีนามสกุลในข้อมูลเดิม"],
+  ],
+};
 
 const SITES = {
   file: "import-template-sites.xlsx",
@@ -31,15 +109,15 @@ const SITES = {
   table: "public.sites",
   intro: [
     "กรอกข้อมูลในชีต “ข้อมูล” เท่านั้น — แถวที่ 1 เป็นหัวคอลัมน์ ห้ามแก้ ห้ามสลับลำดับ ห้ามลบ",
-    "หัวคอลัมน์สีส้ม = จำเป็นต้องกรอก / สีเขียว = ไม่บังคับ (เว้นว่างได้)",
+    LEGEND,
     "ดูตัวอย่างการกรอกได้ที่ชีต “ตัวอย่าง” — ห้ามกรอกข้อมูลจริงลงในชีตนั้น",
     "บริษัทลูกค้าจับคู่จาก customer_code ก่อน ถ้าเว้นว่างจึงใช้ company_name — บริษัทต้องมีอยู่ในระบบแล้ว",
   ],
   cols: [
     { key: "name", req: true, type: "ข้อความ", width: 30,
       desc: "ชื่อไซต์งาน เช่น “โรงงานบางปู เฟส 2” — ถ้าเว้นว่างแถวนั้นจะถูกข้าม" },
-    { key: "customer_code", type: "ข้อความ", width: 16,
-      desc: "รหัสลูกค้า (ตรงกับ companies.customer_code ที่ย้ายมาจาก Venio) — วิธีจับคู่บริษัทที่แม่นที่สุด" },
+    { key: "customer_code", rec: true, type: "ข้อความ", width: 16,
+      desc: "รหัสลูกค้า (ตรงกับ customer_code ในเทมเพลตลูกค้า) — วิธีจับคู่บริษัทที่แม่นที่สุด" },
     { key: "company_name", type: "ข้อความ", width: 30,
       desc: "ชื่อบริษัทลูกค้า — ใช้จับคู่เมื่อไม่ได้ใส่ customer_code ต้องสะกดตรงกับที่มีในระบบ" },
     { key: "address", type: "ข้อความ", width: 42,
@@ -48,7 +126,7 @@ const SITES = {
       desc: "ลิงก์ Google Maps ของไซต์ ช่างจะกดเปิดนำทางจากหน้าใบงานได้เลย" },
     { key: "contact_name", type: "ข้อความ", width: 22,
       desc: "ชื่อผู้ติดต่อประจำไซต์ (ชื่อ เว้นวรรค นามสกุล) ต้องเป็นผู้ติดต่อที่มีอยู่แล้วในระบบ" },
-    { key: "contact_phone", type: "ข้อความ", width: 16,
+    { key: "contact_phone", type: "ข้อความ", width: 16, fmt: "text",
       desc: "เบอร์ผู้ติดต่อ — ใช้ช่วยแยกกรณีชื่อซ้ำกัน ไม่ได้บันทึกลงไซต์โดยตรง" },
     { key: "notes", type: "ข้อความ", width: 34, desc: "หมายเหตุอื่นๆ เช่น เงื่อนไขการเข้าพื้นที่ เวลาเปิด-ปิด" },
   ],
@@ -68,7 +146,7 @@ const ASSETS = {
   table: "public.equipment",
   intro: [
     "กรอกข้อมูลในชีต “ข้อมูล” เท่านั้น — แถวที่ 1 เป็นหัวคอลัมน์ ห้ามแก้ ห้ามสลับลำดับ ห้ามลบ",
-    "หัวคอลัมน์สีส้ม = จำเป็นต้องกรอก / สีเขียว = ไม่บังคับ (เว้นว่างได้)",
+    LEGEND,
     "ต้องนำเข้าไซต์งานให้เสร็จก่อน — ทุก Asset ต้องผูกกับไซต์ที่มีอยู่แล้ว (จับคู่ด้วย site_name)",
     "รหัส Asset (AS-0001, AS-0002, …) ระบบออกให้อัตโนมัติ ไม่ต้องกรอกและไม่มีคอลัมน์นี้ในเทมเพลต",
     "asset_type = object ให้กรอก serial_number / asset_type = project ให้กรอก project_number (อีกช่องระบบจะล้างทิ้ง)",
@@ -116,13 +194,13 @@ const ASSETS = {
   ],
 };
 
-const CONTRACTS = {
+const SERVICE_CONTRACTS = {
   file: "import-template-service-contracts.xlsx",
   title: "เทมเพลตนำเข้าสัญญาบริการ (service_contracts)",
   table: "public.service_contracts",
   intro: [
     "กรอกข้อมูลในชีต “ข้อมูล” เท่านั้น — แถวที่ 1 เป็นหัวคอลัมน์ ห้ามแก้ ห้ามสลับลำดับ ห้ามลบ",
-    "หัวคอลัมน์สีส้ม = จำเป็นต้องกรอก / สีเขียว = ไม่บังคับ (เว้นว่างได้)",
+    LEGEND,
     "ควรนำเข้าไซต์งานก่อน เพื่อให้ site_name จับคู่ได้",
     "ไม่มีคอลัมน์ end_date — ระบบคำนวณให้เอง = start_date + (duration_years × 12) เดือน",
     "รอบเข้าบริการ (service_visits) ระบบสร้างให้อัตโนมัติ = frequency_per_year × duration_years รอบ",
@@ -132,7 +210,7 @@ const CONTRACTS = {
   cols: [
     { key: "title", req: true, type: "ข้อความ", width: 34,
       desc: "ชื่อสัญญา เช่น “สัญญาล้างแผง โรงงานบางปู 5 ปี”" },
-    { key: "customer_code", type: "ข้อความ", width: 16,
+    { key: "customer_code", rec: true, type: "ข้อความ", width: 16,
       desc: "รหัสลูกค้า — วิธีจับคู่บริษัทที่แม่นที่สุด ใช้ก่อน company_name" },
     { key: "company_name", type: "ข้อความ", width: 30,
       desc: "ชื่อบริษัทคู่สัญญา — ใช้เมื่อไม่ได้ใส่ customer_code" },
@@ -260,14 +338,19 @@ const S = {
   DEFAULT: 0,
   HEAD_OPT: 1,   // green header
   HEAD_REQ: 2,   // orange header — required column
-  TEXT: 3,       // body cell forced to Text format (dates)
+  TEXT: 3,       // body cell forced to Text format (dates, phones, tax ids)
   BODY: 4,       // plain body cell with border
   NOTE: 5,       // italic grey
   TITLE: 6,      // large bold title
   GUIDE_HEAD: 7, // guide table header
   WRAP: 8,       // bordered + wrapped body cell
   EX_BODY: 9,    // example row cell (light grey fill)
+  HEAD_REC: 10,  // amber header — optional, but other templates match on it
 };
+
+/** Header fill for a column, and how the guide sheet labels it. */
+const headStyle = (c) => (c.req ? S.HEAD_REQ : c.rec ? S.HEAD_REC : S.HEAD_OPT);
+const headNeed = (c) => (c.req ? "ใช่" : c.rec ? "แนะนำ" : "—");
 
 const STYLES =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
@@ -280,12 +363,13 @@ const STYLES =
   `<font><i/><sz val="10"/><color rgb="FF6B7280"/><name val="Calibri"/><family val="2"/></font>` +
   `<font><b/><sz val="14"/><color rgb="FF111827"/><name val="Calibri"/><family val="2"/></font>` +
   `</fonts>` +
-  `<fills count="5">` +
+  `<fills count="6">` +
   `<fill><patternFill patternType="none"/></fill>` +
   `<fill><patternFill patternType="gray125"/></fill>` +
   `<fill><patternFill patternType="solid"><fgColor rgb="FF15803D"/><bgColor indexed="64"/></patternFill></fill>` +
   `<fill><patternFill patternType="solid"><fgColor rgb="FFC2410C"/><bgColor indexed="64"/></patternFill></fill>` +
   `<fill><patternFill patternType="solid"><fgColor rgb="FFF3F4F6"/><bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFB45309"/><bgColor indexed="64"/></patternFill></fill>` +
   `</fills>` +
   `<borders count="2">` +
   `<border><left/><right/><top/><bottom/><diagonal/></border>` +
@@ -293,7 +377,7 @@ const STYLES =
   `<top style="thin"><color rgb="FFD1D5DB"/></top><bottom style="thin"><color rgb="FFD1D5DB"/></bottom><diagonal/></border>` +
   `</borders>` +
   `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-  `<cellXfs count="10">` +
+  `<cellXfs count="11">` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
   `<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
   `<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
@@ -304,6 +388,7 @@ const STYLES =
   `<xf numFmtId="0" fontId="2" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
   `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
   `<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>` +
+  `<xf numFmtId="0" fontId="1" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
   `</cellXfs>` +
   `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
   `</styleSheet>`;
@@ -400,7 +485,7 @@ function buildDataSheet(spec) {
     width: c.width,
     style: c.fmt === "text" ? S.TEXT : undefined,
   }));
-  const header = { height: 32, cells: spec.cols.map((c) => ({ v: c.key, s: c.req ? S.HEAD_REQ : S.HEAD_OPT })) };
+  const header = { height: 32, cells: spec.cols.map((c) => ({ v: c.key, s: headStyle(c) })) };
   const validations = spec.cols
     .map((c, i) =>
       c.list ? { sqref: `${colName(i + 1)}2:${colName(i + 1)}${LAST_DATA_ROW}`, values: c.list } : null)
@@ -418,7 +503,7 @@ function buildDataSheet(spec) {
 function buildExampleSheet(spec) {
   const cols = spec.cols.map((c) => ({ width: c.width }));
   const rows = [
-    { height: 32, cells: spec.cols.map((c) => ({ v: c.key, s: c.req ? S.HEAD_REQ : S.HEAD_OPT })) },
+    { height: 32, cells: spec.cols.map((c) => ({ v: c.key, s: headStyle(c) })) },
     ...spec.examples.map((ex) => ({
       cells: spec.cols.map((_, i) => ({ v: ex[i] ?? "", s: S.EX_BODY })),
     })),
@@ -450,7 +535,7 @@ function buildGuideSheet(spec) {
       cells: [
         { v: colName(i + 1), s: S.BODY },
         { v: c.key, s: S.BODY },
-        { v: c.req ? "ใช่" : "—", s: S.BODY },
+        { v: headNeed(c), s: S.BODY },
         { v: c.list ? `ตัวเลือก: ${c.list.join(" / ")}` : c.type, s: S.WRAP },
         { v: c.desc, s: S.WRAP },
       ],
@@ -514,7 +599,8 @@ function buildWorkbook(spec) {
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
-for (const spec of [SITES, ASSETS, CONTRACTS]) {
+// Emitted in the order they must be imported.
+for (const spec of [COMPANIES, CONTACTS, SITES, ASSETS, SERVICE_CONTRACTS]) {
   const out = join(OUT_DIR, spec.file);
   writeFileSync(out, buildWorkbook(spec));
   console.log(`✓ ${spec.file}  (${spec.cols.length} คอลัมน์, ${spec.examples.length} แถวตัวอย่าง)`);
