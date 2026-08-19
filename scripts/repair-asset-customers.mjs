@@ -71,10 +71,13 @@ const h = (sheet.rows[0] ?? []).map(s);
 const ORIGINAL = /ข้อความเดิมจากระบบเก่า:\s*(.+)/;
 
 const wanted = new Map(); // original location string -> correct company name
+const wantedRow = new Map(); // …and the whole row, for the name
 for (const r of sheet.rows.slice(1)) {
   const row = Object.fromEntries(h.map((k, i) => [k, s(r[i])]));
   const m = ORIGINAL.exec(row.notes ?? "");
-  if (m && row.company_name) wanted.set(norm(m[1]), row.company_name);
+  if (!m) continue;
+  if (row.company_name) wanted.set(norm(m[1]), row.company_name);
+  if (row.name) wantedRow.set(norm(m[1]), row);
 }
 
 const companies = await loadAll("companies", "id, name, notes");
@@ -134,6 +137,65 @@ if (APPLY) {
     }
   }
   console.log(`\n✓ ย้ายไซต์แล้ว ${done}/${moves.length}`);
+}
+
+// ---- names that have moved on since the sites were loaded -------------------
+/**
+ * The converter has been corrected several times since the first load — a brand
+ * prefix came off, a station code went on — so a site can be left under a name
+ * the converter no longer produces. Renaming keeps the two in step; without it
+ * the next import fails to find the site and inserts a second copy.
+ *
+ * A rename that would collide with another site of the same customer is skipped:
+ * two sites sharing a name under one customer is exactly what the loader cannot
+ * tell apart.
+ */
+const renames = [];
+const collides = [];
+/** Names already spoken for after this pass — current ones, plus what is being renamed to. */
+const claimed = new Set(sites.map((x) => `${x.company_id}|${norm(x.name)}`));
+for (const site of sites) {
+  const m = ORIGINAL.exec(site.notes ?? "");
+  if (!m) continue;
+  const row = wantedRow.get(norm(m[1]));
+  if (!row || norm(row.name) === norm(site.name)) continue;
+
+  // Two sites renaming to the same thing each look fine on their own; the clash
+  // only appears once both have moved, so the target has to be claimed as we go.
+  const key = `${site.company_id}|${norm(row.name)}`;
+  if (claimed.has(key)) {
+    collides.push({ site, to: row.name });
+    continue;
+  }
+  claimed.delete(`${site.company_id}|${norm(site.name)}`);
+  claimed.add(key);
+  renames.push({ site, to: row.name });
+}
+
+console.log(`
+ชื่อไซต์ที่ต่างจากตัวแปลงตอนนี้: ${renames.length + collides.length}`);
+renames.slice(0, 20).forEach((r) => console.log(`   ${r.site.name.slice(0, 44)}
+      → ${r.to.slice(0, 50)}`));
+if (renames.length > 20) console.log(`   … อีก ${renames.length - 20} ไซต์`);
+if (collides.length) {
+  console.log(`
+⚠ เปลี่ยนชื่อไม่ได้ จะไปชนกับไซต์อื่นของลูกค้าเดียวกัน ${collides.length} แห่ง`);
+  collides.forEach((c) => console.log(`   ${c.site.name.slice(0, 44)}  →  ${c.to.slice(0, 44)}`));
+}
+
+if (APPLY && renames.length) {
+  let n = 0;
+  for (const r of renames) {
+    const { error } = await sb
+      .from("sites").update({ name: r.to }).eq("id", r.site.id).eq("org_id", ORG.id);
+    if (error) console.log(`   ✗ ${r.site.name} — ${error.message}`);
+    else {
+      n++;
+      r.site.name = r.to;
+    }
+  }
+  console.log(`
+✓ เปลี่ยนชื่อไซต์แล้ว ${n}/${renames.length}`);
 }
 
 // ---- customers this import created that now hold nothing --------------------

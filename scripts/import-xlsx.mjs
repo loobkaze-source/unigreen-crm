@@ -203,6 +203,34 @@ function findCompany(row) {
 
 const fullName = (c) => norm([c.first_name, c.last_name].filter(Boolean).join(" "));
 
+/**
+ * A site by name, narrowed by customer where one is known.
+ *
+ * Names repeat legitimately — nine customers have a site called "ระยอง", six
+ * operators one called "PTT Station" — so name alone picks whichever happens to
+ * come first, which is a wrong answer that looks like a right one. With a
+ * customer it is unambiguous; without, an ambiguous name is refused and said
+ * so, because filing a machine at the wrong company's station is worse than
+ * not filing it.
+ */
+function findSite(name, companyId) {
+  const wanted = norm(name);
+  const all = db.sites.filter((x) => norm(x.name) === wanted);
+  if (all.length === 0) return { site: null, error: `หาไซต์ “${s(name)}” ไม่เจอ` };
+  if (all.length === 1) return { site: all[0], error: null };
+
+  const mine = companyId ? all.filter((x) => x.company_id === companyId) : [];
+  if (mine.length === 1) return { site: mine[0], error: null };
+
+  const owners = [...new Set(all.map((x) => db.companies.find((c) => c.id === x.company_id)?.name ?? "ไม่มีลูกค้า"))];
+  return {
+    site: null,
+    error:
+      `ไซต์ชื่อ “${s(name)}” มี ${all.length} แห่ง (${owners.join(" · ")}) — ` +
+      "ระบุลูกค้าในแถวนี้ หรือแก้ชื่อไซต์ให้ต่างกัน",
+  };
+}
+
 // ---------------------------------------------------------------------------
 //  Per-template row handlers
 //
@@ -374,8 +402,10 @@ const handlers = {
       if (!name) return { action: "skip", key: "—", errors: ["ไม่มี name"] };
       if (!siteName) return { action: "skip", key: name, errors: ["ไม่มี site_name"] };
 
-      const site = db.sites.find((x) => norm(x.name) === norm(siteName));
-      if (!site) return { action: "skip", key: name, errors: [`หาไซต์ “${siteName}” ไม่เจอ`] };
+      const owner = findCompany(row);
+      const found = findSite(siteName, owner.hit?.id);
+      if (!found.site) return { action: "skip", key: name, errors: [found.error] };
+      const site = found.site;
 
       const spec = SPECS.find((x) => x.file === "import-template-assets.xlsx");
       const listOf = (k) => spec.cols.find((c) => c.key === k).list;
@@ -479,8 +509,9 @@ const handlers = {
 
       let site = null;
       if (!blank(row.site_name)) {
-        site = db.sites.find((x) => norm(x.name) === norm(row.site_name)) ?? null;
-        if (!site) errors.push(`หาไซต์ “${s(row.site_name)}” ไม่เจอ`);
+        const found = findSite(row.site_name, co.hit?.id);
+        site = found.site;
+        if (found.error) errors.push(found.error);
       }
 
       let techId;

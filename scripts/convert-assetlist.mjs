@@ -435,6 +435,7 @@ const assetRows = rows.map((r) => {
   const p = byLoc.get(r[C.loc]);
   return {
     site_name: p ? p.site : "",
+    company_name: p ? p.customer : "",
     name: s(r[C.type]) || "อุปกรณ์",
     asset_tag: s(r[C.tag]),
     asset_type: "object",
