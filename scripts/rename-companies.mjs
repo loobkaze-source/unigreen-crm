@@ -7,6 +7,9 @@
  *   node scripts/rename-companies.mjs            # dry run
  *   node scripts/rename-companies.mjs --apply    # rename / merge
  *
+ *   node scripts/rename-companies.mjs --merge-dupes           # customers already sharing a name
+ *   node scripts/rename-companies.mjs --merge-dupes --apply
+ *
  * Renaming alone is not always enough. Tatsuno was in the CRM twice — in Thai
  * from one source with its customer code and contact, in English from another
  * with the site — so the two had to become one. Where a record already exists
@@ -24,6 +27,7 @@ import { S, colName, sheetXml, buildXlsx } from "./xlsx-write.mjs";
 const args = process.argv.slice(2);
 const EXPORT = args.includes("--export");
 const APPLY = args.includes("--apply");
+const MERGE_DUPES = args.includes("--merge-dupes");
 const SHEET = "c:/CRM/import-data/company-names-to-fix.xlsx";
 const TAB = "แก้ชื่อ";
 
@@ -59,7 +63,7 @@ async function loadAll(table, columns) {
   return rows;
 }
 
-const companies = await loadAll("companies", "id, name, customer_code, tax_id");
+const companies = await loadAll("companies", "id, name, customer_code, tax_id, phone, address, notes");
 const sites = await loadAll("sites", "id, company_id");
 const contacts = await loadAll("contacts", "id, company_id");
 const contracts = await loadAll("service_contracts", "id, company_id");
@@ -165,6 +169,83 @@ if (EXPORT) {
   console.log(`✓ ${SHEET}`);
   console.log(`   ${data.length} แถวให้แก้`);
   console.log(`   มีชื่อไทยแฝงอยู่ในชื่อเดิม ${data.filter((d) => d.suggest).length} แถว · น่าจะซ้ำกันเอง ${data.filter((d) => d.dupe).length} แถว`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+//  Merge customers that already share a name
+// ---------------------------------------------------------------------------
+
+if (MERGE_DUPES) {
+  const groups = new Map();
+  for (const c of companies) {
+    const k = norm(c.name);
+    (groups.get(k) ?? groups.set(k, []).get(k)).push(c);
+  }
+  const dupes = [...groups.values()].filter((g) => g.length > 1);
+
+  console.log(APPLY ? "โหมด: เขียนจริง" : "โหมด: ทดลอง — ใส่ --apply เพื่อเขียน");
+  console.log(`ชื่อที่ซ้ำกัน: ${dupes.length} กลุ่ม\n`);
+
+  /**
+   * The record to keep is the one the business can be identified by: a tax id
+   * first, then a customer code, then whatever holds the most, then the oldest.
+   */
+  const rank = (c) =>
+    (c.tax_id ? 8 : 0) + (c.customer_code ? 4 : 0) +
+    (held(c.id).sites + held(c.id).contacts + held(c.id).contracts > 0 ? 2 : 0);
+
+  let done = 0;
+  for (const g of dupes) {
+    const [keep, ...drop] = [...g].sort((a, b) => rank(b) - rank(a));
+    const k = held(keep.id);
+    console.log(`${keep.name}`);
+    console.log(`   เก็บ: tax=${keep.tax_id ?? "—"} code=${keep.customer_code ?? "—"} · ไซต์ ${k.sites} · ผู้ติดต่อ ${k.contacts}`);
+
+    for (const d of drop) {
+      const h = held(d.id);
+      console.log(`   รวม: tax=${d.tax_id ?? "—"} code=${d.customer_code ?? "—"} · ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts}`);
+      if (!APPLY) continue;
+
+      let failed = false;
+      for (const [table, rows] of [["sites", sites], ["contacts", contacts], ["service_contracts", contracts]]) {
+        const ids = rows.filter((x) => x.company_id === d.id).map((x) => x.id);
+        if (!ids.length) continue;
+        const { error } = await sb
+          .from(table).update({ company_id: keep.id }).in("id", ids).eq("org_id", ORG.id);
+        if (error) { failed = true; console.log(`      ✗ ย้าย ${table} — ${error.message}`); }
+        else {
+          rows.filter((x) => x.company_id === d.id).forEach((x) => (x.company_id = keep.id));
+          console.log(`      ✓ ย้าย ${table} ${ids.length} แถว`);
+        }
+      }
+      if (failed) { console.log("      – ไม่ลบ เพราะย้ายข้อมูลไม่ครบ"); continue; }
+
+      // Fields the duplicate had and the keeper does not would otherwise be
+      // lost with it, so they are written down before it goes.
+      const carried = [
+        !keep.tax_id && d.tax_id ? ["tax_id", d.tax_id] : null,
+        !keep.customer_code && d.customer_code ? ["customer_code", d.customer_code] : null,
+      ].filter(Boolean);
+      const noted = [
+        d.address && norm(d.address) !== norm(keep.address) ? `ที่อยู่จากระเบียนซ้ำ: ${d.address}` : "",
+        d.phone && norm(d.phone) !== norm(keep.phone) ? `โทรจากระเบียนซ้ำ: ${d.phone}` : "",
+      ].filter(Boolean);
+
+      if (carried.length || noted.length) {
+        const patch = Object.fromEntries(carried);
+        if (noted.length) patch.notes = [keep.notes, ...noted].filter(Boolean).join("\n");
+        const { error } = await sb.from("companies").update(patch).eq("id", keep.id).eq("org_id", ORG.id);
+        if (error) console.log(`      ✗ ย้ายข้อมูลที่ขาด — ${error.message}`);
+        else console.log(`      ✓ เก็บข้อมูลจากตัวซ้ำไว้ (${[...carried.map(([f]) => f), ...noted.map((n) => n.split(":")[0])].join(", ")})`);
+      }
+
+      const { error } = await sb.from("companies").delete().eq("id", d.id).eq("org_id", ORG.id);
+      if (error) console.log(`      ✗ ลบไม่ได้ — ${error.message}`);
+      else done++;
+    }
+  }
+  console.log(APPLY ? `\n✓ รวมระเบียนซ้ำแล้ว ${done}` : "\nยังไม่ได้เขียนอะไร — รันซ้ำด้วย --apply");
   process.exit(0);
 }
 
