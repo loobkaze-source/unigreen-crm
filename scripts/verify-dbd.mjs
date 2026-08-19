@@ -51,6 +51,16 @@ const norm = (v) => s(v).replace(/\s+/g, " ").trim().toLowerCase();
 const tight = (v) => s(v).replace(/\s+/g, "").toLowerCase();
 
 const cache = existsSync(CACHE) ? JSON.parse(readFileSync(CACHE, "utf8")) : {};
+const saveCache = () => writeFileSync(CACHE, JSON.stringify(cache, null, 2), "utf8");
+
+/**
+ * Every lookup costs a request against a rate-limited public service, so the
+ * cache is flushed as we go. A run that gets blocked, killed, or cut off part
+ * way then keeps everything it fetched — losing a long run's worth of results
+ * would mean asking the registry for them all over again.
+ */
+const SAVE_EVERY = 10;
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { saveCache(); process.exit(1); });
 
 function extract(payload) {
   const p = payload?.["cd:OrganizationJuristicPerson"];
@@ -132,6 +142,7 @@ for (const row of withTax) {
     break;
   }
   done++;
+  if (done % SAVE_EVERY === 0) saveCache();
   if (done % 25 === 0) process.stdout.write(`   ...ตรวจแล้ว ${done}/${withTax.length}\n`);
 
   if (hit?.error) {
@@ -154,7 +165,7 @@ for (const row of withTax) {
   await new Promise((r) => setTimeout(r, DELAY_MS));
 }
 
-writeFileSync(CACHE, JSON.stringify(cache, null, 2), "utf8");
+saveCache();
 
 if (blocked) {
   const left = withTax.filter((r) => !cache[digits(r.tax_id)]).length;
