@@ -325,18 +325,13 @@ export function ActivitiesView({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
-              <Select
+              <Combobox
                 id="contact_id"
                 value={form.contact_id}
-                onChange={(e) => setForm({ ...form, contact_id: e.target.value })}
-              >
-                <option value="">—</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => setForm({ ...form, contact_id: v })}
+                placeholder="—"
+                options={contacts.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
             <div>
               <Label htmlFor="company_id">บริษัท</Label>

@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
@@ -275,18 +274,13 @@ export function SitesView({
             </div>
             <div>
               <Label htmlFor="contact_id">ผู้ติดต่อหน้างาน</Label>
-              <Select
+              <Combobox
                 id="contact_id"
                 value={form.contact_id}
-                onChange={(e) => setForm({ ...form, contact_id: e.target.value })}
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => setForm({ ...form, contact_id: v })}
+                placeholder="— ไม่ระบุ —"
+                options={contacts.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
           </div>
           <div>

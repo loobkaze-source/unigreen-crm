@@ -317,18 +317,13 @@ export function WorkOrderModal({
           </div>
           <div>
             <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
-            <Select
+            <Combobox
               id="contact_id"
               value={form.contact_id}
-              onChange={(e) => set("contact_id", e.target.value)}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {visibleContacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => set("contact_id", v)}
+              placeholder="— ไม่ระบุ —"
+              options={visibleContacts.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </div>
         </div>
 
@@ -371,29 +366,23 @@ export function WorkOrderModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label htmlFor="technician_id">ช่างผู้รับผิดชอบ</Label>
-            <Select
+            <Combobox
               id="technician_id"
               value={form.technician_id}
-              onChange={(e) => set("technician_id", e.target.value)}
-            >
-              <option value="">— ยังไม่มอบหมาย —</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => set("technician_id", v)}
+              placeholder="— ยังไม่มอบหมาย —"
+              options={technicians.map((t) => ({ value: t.id, label: t.name }))}
+            />
           </div>
           <div>
             <Label htmlFor="case_id">เคส / Ticket ที่เกี่ยวข้อง</Label>
-            <Select id="case_id" value={form.case_id} onChange={(e) => set("case_id", e.target.value)}>
-              <option value="">— ไม่ระบุ —</option>
-              {visibleCases.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <Combobox
+              id="case_id"
+              value={form.case_id}
+              onChange={(v) => set("case_id", v)}
+              placeholder="— ไม่ระบุ —"
+              options={visibleCases.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </div>
         </div>
 

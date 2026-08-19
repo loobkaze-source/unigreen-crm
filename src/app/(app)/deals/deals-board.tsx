@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -482,18 +483,13 @@ export function DealsBoard({
             </div>
             <div>
               <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
-              <Select
+              <Combobox
                 id="contact_id"
                 value={form.contact_id}
-                onChange={(e) => setForm({ ...form, contact_id: e.target.value })}
-              >
-                <option value="">— ไม่มี —</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => setForm({ ...form, contact_id: v })}
+                placeholder="— ไม่มี —"
+                options={contacts.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
           </div>
           <div>

@@ -331,18 +331,13 @@ export function ContractsView({
             </div>
             <div>
               <Label htmlFor="technician_id">ช่างประจำ</Label>
-              <Select
+              <Combobox
                 id="technician_id"
                 value={form.technician_id}
-                onChange={(e) => setForm({ ...form, technician_id: e.target.value })}
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {technicians.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => setForm({ ...form, technician_id: v })}
+                placeholder="— ไม่ระบุ —"
+                options={technicians.map((t) => ({ value: t.id, label: t.name }))}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
