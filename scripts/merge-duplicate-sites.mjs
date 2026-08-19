@@ -22,6 +22,12 @@ import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
 const APPLY = process.argv.includes("--apply");
+/**
+ * Which customer owns a station when two of them claim the same code. Without
+ * it those groups are left alone, because who the customer is is a question
+ * about the business rather than a duplicate to resolve quietly.
+ */
+const PREFER = process.argv.find((a) => a.startsWith("--prefer="))?.slice(9) ?? "";
 
 const env = Object.fromEntries(
   readFileSync("c:/CRM/.env.local", "utf8")
@@ -37,6 +43,7 @@ const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_
 });
 
 const s = (v) => String(v ?? "").trim();
+const norm = (v) => s(v).replace(/ํา/g, "ำ").replace(/\s+/g, " ").toLowerCase();
 const { data: orgs } = await sb.from("organizations").select("id, name");
 const ORG = orgs[0];
 
@@ -93,17 +100,26 @@ for (const [code, ids] of byCode) {
   if (ids.length < 2) continue;
   const group = ids.map((id) => sites.find((x) => x.id === id)).filter(Boolean);
   const owners = new Set(group.map((g) => g.company_id));
-  if (owners.size > 1) crossCustomer.push({ code, group });
-  else groups.push({ code, group });
+  if (owners.size === 1) {
+    groups.push({ code, group });
+    continue;
+  }
+  const mine = PREFER
+    ? group.filter((g) => norm(coName.get(g.company_id)) === norm(PREFER))
+    : [];
+  // Only decisive when exactly one of the claimants is the named customer.
+  if (mine.length === 1) groups.push({ code, group, keep: mine[0] });
+  else crossCustomer.push({ code, group });
 }
 
 console.log(`ไซต์ ${sites.length} · เลขสถานีที่อยู่คนละไซต์ ${groups.length + crossCustomer.length} ชุด`);
 console.log(APPLY ? "โหมด: เขียนจริง\n" : "โหมด: ทดลอง — ใส่ --apply เพื่อเขียน\n");
 
 let merged = 0;
-for (const { code, group } of groups) {
+for (const { code, group, keep: chosen } of groups) {
   const sorted = [...group].sort((a, b) => total(b.id) - total(a.id));
-  const [keep, ...drop] = sorted;
+  const keep = chosen ?? sorted[0];
+  const drop = sorted.filter((g) => g.id !== keep.id);
   console.log(`${code}  ${coName.get(keep.company_id) ?? "—"}`);
   console.log(`   เก็บ: ${keep.name.slice(0, 50)}  ${JSON.stringify(holdings(keep.id))}`);
 
