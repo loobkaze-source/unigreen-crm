@@ -18,7 +18,7 @@
  *
  * Lookups are cached next to the sheet, so a re-run costs no requests.
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { readSheet } from "./xlsx-read.mjs";
 import { COMPANIES } from "./import-schema.mjs";
@@ -127,12 +127,29 @@ console.log(`แคชเดิม   : ${Object.keys(cache).length} เลข`);
 console.log(APPLY ? "โหมด      : เขียนทับไฟล์" : "โหมด      : ทดลอง (ไม่แก้ไฟล์) — ใส่ --apply เพื่อเขียน");
 console.log();
 
+/**
+ * Excel keeps the workbook locked while it is open, and the rewrite is the very
+ * last thing this script does — discovering that after several minutes of
+ * lookups wastes both the time and the requests. Check now instead.
+ */
+if (APPLY) {
+  try {
+    appendFileSync(file, "");
+  } catch (e) {
+    console.error(`\n✗ เขียนทับ ${file} ไม่ได้ (${e.code}) — ไฟล์น่าจะเปิดค้างอยู่ใน Excel`);
+    console.error("  ปิดไฟล์ใน Excel ก่อน แล้วรันใหม่ (ผลที่ตรวจไว้อยู่ในแคชแล้ว ไม่ต้องยิงซ้ำ)");
+    process.exit(1);
+  }
+}
+
 const report = { same: [], differs: [], notFound: [], inactive: [], errors: [] };
 let done = 0;
 
 let blocked = false;
 for (const row of withTax) {
   const tax = digits(row.tax_id);
+  // Only a real request needs pacing; replaying the cache should be instant.
+  const wasCached = Boolean(cache[tax]);
   let hit;
   try {
     hit = await lookup(tax);
@@ -162,7 +179,7 @@ for (const row of withTax) {
   else report.differs.push({ tax, was: row.name, now: hit.nameTH });
 
   if (!cache[tax].cachedAt) cache[tax].cachedAt = true;
-  await new Promise((r) => setTimeout(r, DELAY_MS));
+  if (!wasCached) await new Promise((r) => setTimeout(r, DELAY_MS));
 }
 
 saveCache();

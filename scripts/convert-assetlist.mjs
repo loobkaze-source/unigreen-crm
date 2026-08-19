@@ -61,23 +61,26 @@ const BRANDS = [
 ];
 
 /**
- * Which customer each brand's sites belong to. Names that already exist in the
- * CRM are spelled as the CRM spells them; the rest are created by this import
- * and flagged for someone to give a registered name to.
+ * Which customer each brand's sites belong to, as confirmed by the business.
+ * Several are not what the brand name suggests — Esso's Thai stations passed to
+ * Bangchak, Green Net is Bangchak's own chain, and PT is PTG's retail brand —
+ * so these are recorded rather than inferred.
  */
 const BRAND_COMPANY = {
   Shell: "บริษัท เชลล์แห่งประเทศไทย จํากัด",
   BCP: "บริษัท บางจาก คอร์ปอเรชั่น จำกัด (มหาชน)",
+  ESSO: "บริษัท บางจาก คอร์ปอเรชั่น จำกัด (มหาชน)",
+  กรีนเนท: "บริษัท บางจาก คอร์ปอเรชั่น จำกัด (มหาชน)",
   PTTOR: "บริษัท ปตท. น้ำมันและการค้าปลีก จำกัด (มหาชน)",
   PTTRM: "บริษัท ปตท. น้ำมันและการค้าปลีก จำกัด (มหาชน)",
   PTG: "บริษัท พีทีจี เอ็นเนอยี จำกัด (มหาชน)",
+  PT: "บริษัท พีทีจี เอ็นเนอยี จำกัด (มหาชน)",
+  Caltex: "บริษัท สตาร์ ปิโตรเลียม รีไฟน์นิ่ง จำกัด (มหาชน)",
+  TBL: "บริษัท ที เบลโก้ จำกัด",
   BAFS: "บริษัท บริการเชื้อเพลิงการบินกรุงเทพ จำกัด (มหาชน)",
+  // PTT is still unassigned: it could be ปตท. (the parent) or OR, which runs
+  // the stations. Left as the bare brand so it stands out for a decision.
   PTT: "PTT",
-  PT: "PT",
-  ESSO: "ESSO",
-  Caltex: "Caltex",
-  กรีนเนท: "กรีนเนท",
-  TBL: "TBL",
 };
 
 const PROVINCES = `กระบี่ กรุงเทพมหานคร กาญจนบุรี กาฬสินธุ์ กำแพงเพชร ขอนแก่น จันทบุรี ฉะเชิงเทรา ชลบุรี ชัยนาท
