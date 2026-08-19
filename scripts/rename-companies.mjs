@@ -1,28 +1,31 @@
 /**
- * Renames a customer to a confirmed name, merging into the existing record when
- * the CRM already holds that company under it.
+ * Renames customers to confirmed names, merging into an existing record when
+ * the CRM already holds that company under the new name.
  *
- *   node scripts/rename-companies.mjs
- *   node scripts/rename-companies.mjs --apply
+ *   node scripts/rename-companies.mjs --export   # sheet of the ones to fix
+ *   … fill in the ชื่อไทยที่ถูกต้อง column …
+ *   node scripts/rename-companies.mjs            # dry run
+ *   node scripts/rename-companies.mjs --apply    # rename / merge
  *
- * Several customers came across filed under an English name. Renaming alone is
- * not always enough: Tatsuno was already in the CRM under its Thai name from a
- * different source, so the two have to become one — sites and contacts move to
- * the record that keeps its customer_code and tax id, and the emptied duplicate
- * goes. Where there is no counterpart, it is a plain rename that keeps the
- * record's own history.
+ * Renaming alone is not always enough. Tatsuno was in the CRM twice — in Thai
+ * from one source with its customer code and contact, in English from another
+ * with the site — so the two had to become one. Where a record already exists
+ * under the new name, sites, contacts and contracts move to it and the emptied
+ * duplicate goes; where none does, it is a plain rename that keeps the record's
+ * own code, tax id and history.
+ *
+ * Only the sheet decides. Nothing is renamed that was left blank.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { readSheet } from "./xlsx-read.mjs";
+import { S, colName, sheetXml, buildXlsx } from "./xlsx-write.mjs";
 
-const APPLY = process.argv.includes("--apply");
-
-/** from (as stored today) -> the confirmed name */
-const RENAMES = [
-  ["TATSUNO (THAILAND) CO.,LTD.", "บริษัท ทัทซูโน่ (ประเทศไทย) จำกัด"],
-  ["TOYO-THAI CORPORATION PUBLIC COMPANY LIMITED", "บริษัท ทีทีซีแอล จำกัด (มหาชน)"],
-  ["PTT Global Chemical Public Company Limited", "บริษัท พีทีที โกลบอล เคมิคอล จำกัด (มหาชน)"],
-];
+const args = process.argv.slice(2);
+const EXPORT = args.includes("--export");
+const APPLY = args.includes("--apply");
+const SHEET = "c:/CRM/import-data/company-names-to-fix.xlsx";
+const TAB = "แก้ชื่อ";
 
 const env = Object.fromEntries(
   readFileSync("c:/CRM/.env.local", "utf8")
@@ -67,43 +70,179 @@ const held = (id) => ({
   contracts: contracts.filter((x) => x.company_id === id).length,
 });
 
-console.log(APPLY ? "โหมด: เขียนจริง\n" : "โหมด: ทดลอง — ใส่ --apply เพื่อเขียน\n");
+// ---------------------------------------------------------------------------
+//  Export
+// ---------------------------------------------------------------------------
 
-for (const [from, to] of RENAMES) {
+/** A Thai name written inside the English one — often the real company. */
+function thaiInside(name) {
+  const paren = /[（(]\s*((?:บริษัท|บจก\.|หจก\.|ห้างหุ้นส่วน)[^)）]*)/.exec(name);
+  if (paren) return s(paren[1]);
+  const afterCode = /^[A-Z]{2,5}\s+((?:บริษัท|บจก\.|หจก\.|ห้างหุ้นส่วน).+)$/.exec(name);
+  if (afterCode) return s(afterCode[1]);
+  return "";
+}
+
+if (EXPORT) {
+  const eng = companies
+    .filter((c) => /^[A-Za-z]/.test(c.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  /**
+   * Two rows opening the same way are probably one company. Thai has to stay in
+   * the comparison — stripped out, every "OTH …" row reduced to "oth" and the
+   * whole group flagged itself as duplicates of each other.
+   */
+  const head = (n) =>
+    norm(n).replace(/[^a-z0-9฀-๿ ]/g, " ").split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
+  const heads = new Map();
+  for (const c of eng) heads.set(head(c.name), (heads.get(head(c.name)) ?? 0) + 1);
+
+  const COLS = [
+    { key: "current", head: "ชื่อปัจจุบัน", width: 50 },
+    { key: "fixed", head: "ชื่อไทยที่ถูกต้อง (กรอกตรงนี้)", width: 46, fill: true },
+    { key: "suggest", head: "ชื่อไทยที่พบในชื่อเดิม", width: 40 },
+    { key: "dupe", head: "อาจซ้ำกับแถวอื่น", width: 18 },
+    { key: "holds", head: "ไซต์ / ผู้ติดต่อ / สัญญา", width: 20 },
+    { key: "code", head: "customer_code", width: 16, text: true },
+    { key: "search", head: "ค้นชื่อในทะเบียน DBD", width: 60 },
+  ];
+
+  const data = eng.map((c) => {
+    const h = held(c.id);
+    return {
+      current: c.name,
+      fixed: "",
+      suggest: thaiInside(c.name),
+      dupe: heads.get(head(c.name)) > 1 ? "ซ้ำกับแถวอื่น" : "",
+      holds: `${h.sites} / ${h.contacts} / ${h.contracts}`,
+      code: c.customer_code ?? "",
+      search: `https://datawarehouse.dbd.go.th/searchJuristicInfo?keyword=${encodeURIComponent(c.name)}`,
+    };
+  });
+
+  const guide = sheetXml({
+    cols: [{ width: 112 }],
+    rows: [
+      { height: 24, cells: [{ v: "ลูกค้าที่ยังใช้ชื่อภาษาอังกฤษ", s: S.TITLE }] },
+      { cells: [] },
+      ...[
+        "กรอกเฉพาะคอลัมน์ “ชื่อไทยที่ถูกต้อง” (หัวสีส้ม) แถวไหนที่ยังไม่แน่ใจให้เว้นว่าง ระบบจะไม่แตะแถวนั้น",
+        "ถ้าชื่อไทยที่กรอกตรงกับลูกค้าที่มีอยู่แล้ว ระบบจะ “รวมระเบียน” ให้ — ย้ายไซต์/ผู้ติดต่อ/สัญญาไปรวม แล้วลบตัวซ้ำ",
+        "ถ้ายังไม่มีลูกค้าชื่อนั้น จะเป็นการเปลี่ยนชื่ออย่างเดียว รหัสลูกค้าและเลขภาษีของเดิมยังอยู่ครบ",
+        "คอลัมน์ “ชื่อไทยที่พบในชื่อเดิม” คือชื่อไทยที่แอบอยู่ในวงเล็บหรือหลังรหัสย่อ — คัดลอกไปใช้ได้ถ้าถูก",
+        "คอลัมน์ “อาจซ้ำกับแถวอื่น” หมายถึงมีแถวอื่นในไฟล์นี้ที่ขึ้นต้นเหมือนกัน น่าจะเป็นบริษัทเดียวกัน",
+        "คอลัมน์ “ไซต์ / ผู้ติดต่อ / สัญญา” บอกว่าระเบียนนั้นถืออะไรอยู่ ยิ่งเยอะยิ่งต้องระวังตอนรวม",
+        "",
+        "กรอกเสร็จแล้วเซฟ ปิด Excel แล้วรัน:",
+        "   node scripts/rename-companies.mjs           (ดูก่อนว่าจะเกิดอะไร)",
+        "   node scripts/rename-companies.mjs --apply   (เขียนจริง)",
+      ].map((t) => ({ cells: [{ v: t, s: S.NOTE }] })),
+    ],
+  });
+
+  writeFileSync(
+    SHEET,
+    buildXlsx([
+      {
+        name: TAB,
+        xml: sheetXml({
+          cols: COLS.map((c) => ({ width: c.width, style: c.text ? S.TEXT : undefined })),
+          rows: [
+            { height: 34, cells: COLS.map((c) => ({ v: c.head, s: c.fill ? S.HEAD_REQ : S.HEAD_OPT })) },
+            ...data.map((d) => ({
+              cells: COLS.map((c) => ({ v: d[c.key], s: c.text ? S.TEXT : S.WRAP })),
+            })),
+          ],
+          freezeRows: 1,
+          autoFilter: `A1:${colName(COLS.length)}1`,
+        }),
+      },
+      { name: "วิธีใช้", xml: guide },
+    ])
+  );
+
+  console.log(`✓ ${SHEET}`);
+  console.log(`   ${data.length} แถวให้แก้`);
+  console.log(`   มีชื่อไทยแฝงอยู่ในชื่อเดิม ${data.filter((d) => d.suggest).length} แถว · น่าจะซ้ำกันเอง ${data.filter((d) => d.dupe).length} แถว`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+//  Rename / merge from the sheet
+// ---------------------------------------------------------------------------
+
+if (!existsSync(SHEET)) {
+  console.error(`ไม่พบ ${SHEET} — รันด้วย --export ก่อน`);
+  process.exit(1);
+}
+
+const review = readSheet(SHEET, TAB);
+const rh = (review.rows[0] ?? []).map(s);
+const jobs = [];
+for (const r of review.rows.slice(1)) {
+  const o = Object.fromEntries(rh.map((k, i) => [k, s(r[i])]));
+  const from = o["ชื่อปัจจุบัน"];
+  const to = o["ชื่อไทยที่ถูกต้อง (กรอกตรงนี้)"];
+  if (from && to && norm(from) !== norm(to)) jobs.push([from, to]);
+}
+
+console.log(APPLY ? "โหมด: เขียนจริง" : "โหมด: ทดลอง — ใส่ --apply เพื่อเขียน");
+console.log(`กรอกมา ${jobs.length} แถว\n`);
+
+let renamed = 0;
+let merged = 0;
+for (const [from, to] of jobs) {
   const src = companies.find((c) => norm(c.name) === norm(from));
   if (!src) {
-    console.log(`— ไม่พบ “${from}” (อาจแก้ไปแล้ว)`);
+    console.log(`— ไม่พบ “${from.slice(0, 50)}” (อาจแก้ไปแล้ว)`);
     continue;
   }
   const dst = companies.find((c) => c.id !== src.id && norm(c.name) === norm(to));
   const h = held(src.id);
 
   if (!dst) {
-    console.log(`เปลี่ยนชื่อ: ${src.name}\n         → ${to}   (ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts})`);
+    console.log(`เปลี่ยนชื่อ: ${src.name.slice(0, 48)}\n         → ${to.slice(0, 48)}   (ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts})`);
     if (!APPLY) continue;
     const { error } = await sb.from("companies").update({ name: to }).eq("id", src.id).eq("org_id", ORG.id);
-    console.log(error ? `   ✗ ${error.message}` : "   ✓ แก้แล้ว");
+    if (error) console.log(`   ✗ ${error.message}`);
+    else {
+      renamed++;
+      src.name = to; // a later row may merge into this one
+    }
     continue;
   }
 
-  // The CRM already knows this company — fold the English record into it.
   const d = held(dst.id);
   console.log(
-    `รวมระเบียน: ${src.name}  (ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts})\n` +
-    `         → ${dst.name}  (ไซต์ ${d.sites} · ผู้ติดต่อ ${d.contacts} · code=${dst.customer_code ?? "—"})`
+    `รวมระเบียน: ${src.name.slice(0, 48)}  (ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts} · สัญญา ${h.contracts})\n` +
+    `         → ${dst.name.slice(0, 48)}  (ไซต์ ${d.sites} · ผู้ติดต่อ ${d.contacts} · code=${dst.customer_code ?? "—"})`
   );
   if (!APPLY) continue;
 
+  let failed = false;
   for (const [table, rows] of [["sites", sites], ["contacts", contacts], ["service_contracts", contracts]]) {
     const ids = rows.filter((x) => x.company_id === src.id).map((x) => x.id);
     if (!ids.length) continue;
     const { error } = await sb
       .from(table).update({ company_id: dst.id }).in("id", ids).eq("org_id", ORG.id);
-    if (error) console.log(`   ✗ ย้าย ${table} ไม่ได้ — ${error.message}`);
-    else console.log(`   ✓ ย้าย ${table} ${ids.length} แถว`);
+    if (error) {
+      failed = true;
+      console.log(`   ✗ ย้าย ${table} ไม่ได้ — ${error.message}`);
+    } else {
+      rows.filter((x) => x.company_id === src.id).forEach((x) => (x.company_id = dst.id));
+      console.log(`   ✓ ย้าย ${table} ${ids.length} แถว`);
+    }
+  }
+  // Only remove the duplicate once everything it held has moved.
+  if (failed) {
+    console.log("   – ไม่ลบระเบียนซ้ำ เพราะย้ายข้อมูลไม่ครบ");
+    continue;
   }
   const { error } = await sb.from("companies").delete().eq("id", src.id).eq("org_id", ORG.id);
-  console.log(error ? `   ✗ ลบระเบียนซ้ำไม่ได้ — ${error.message}` : "   ✓ ลบระเบียนซ้ำแล้ว");
+  if (error) console.log(`   ✗ ลบระเบียนซ้ำไม่ได้ — ${error.message}`);
+  else merged++;
 }
 
-if (!APPLY) console.log("\nยังไม่ได้เขียนอะไร — รันซ้ำด้วย --apply");
+if (APPLY) console.log(`\n✓ เปลี่ยนชื่อ ${renamed} · รวมระเบียน ${merged}`);
+else console.log("\nยังไม่ได้เขียนอะไร — รันซ้ำด้วย --apply");
