@@ -136,5 +136,17 @@ node scripts/import-xlsx.mjs import-data/ --apply   # 3. เขียนจร�
 node scripts/gen-import-templates.mjs
 ```
 
-สเปกคอลัมน์ (ชื่อหัวคอลัมน์ ค่าที่ยอมรับ ตัวอย่าง คำอธิบาย) อยู่ต้นไฟล์
-[`scripts/gen-import-templates.mjs`](../scripts/gen-import-templates.mjs) แก้ที่เดียวแล้วทั้งสามชีตอัปเดตตาม
+สเปกคอลัมน์ (ชื่อหัวคอลัมน์ ค่าที่ยอมรับ ตัวอย่าง คำอธิบาย) อยู่ที่
+[`scripts/import-schema.mjs`](../scripts/import-schema.mjs) แก้ที่เดียวแล้วทั้งสามชีตอัปเดตตาม
+และตัวนำเข้ากับตัวแปลง Venio ก็อ่านจากสเปกเดียวกัน จึงไม่มีทางหลุดกัน
+
+สคริปต์ที่เกี่ยวข้อง
+
+| ไฟล์ | หน้าที่ |
+| --- | --- |
+| `scripts/import-schema.mjs` | นิยามคอลัมน์ทั้ง 5 เทมเพลต — แหล่งความจริงเดียว |
+| `scripts/xlsx-read.mjs` / `scripts/xlsx-write.mjs` | อ่าน/เขียน .xlsx เอง ไม่พึ่ง dependency |
+| `scripts/import-workbook.mjs` | ประกอบ 3 ชีตจากสเปก (เปล่าหรือมีข้อมูลก็ได้) |
+| `scripts/gen-import-templates.mjs` | สร้างเทมเพลตเปล่า |
+| `scripts/convert-venio.mjs` | แปลง export ของ Venio ลงเทมเพลต |
+| `scripts/import-xlsx.mjs` | นำเข้าจริง |
