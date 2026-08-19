@@ -27,6 +27,7 @@ export function Combobox({
   id,
   className,
   compact = false,
+  allowCustom = false,
 }: {
   options: ComboboxOption[];
   value: string;
@@ -39,6 +40,12 @@ export function Combobox({
   className?: string;
   /** Sized to sit in a table's filter row rather than a form. */
   compact?: boolean;
+  /**
+   * Offer what was typed as a value of its own. For a field whose vocabulary
+   * lives in the data — a machine kind, say — the next new one has to be
+   * enterable without a code change.
+   */
+  allowCustom?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -62,8 +69,14 @@ export function Combobox({
 
   /** How many matches get rendered; the rest are reachable by typing more. */
   const VISIBLE = 100;
-  const shown = matches.slice(0, VISIBLE);
-  const hidden = matches.length - shown.length;
+  const typed = query.trim();
+  const isNew =
+    allowCustom && typed !== "" && !options.some((o) => o.label.toLowerCase() === typed.toLowerCase());
+  const shown = [
+    ...(isNew ? [{ value: typed, label: typed, hint: "ใช้ค่าที่พิมพ์" }] : []),
+    ...matches.slice(0, VISIBLE),
+  ];
+  const hidden = matches.length - Math.min(matches.length, VISIBLE);
 
   React.useEffect(() => {
     if (!open) return;

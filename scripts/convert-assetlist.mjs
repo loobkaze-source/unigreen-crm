@@ -287,15 +287,12 @@ const realOrBlank = (v) => (/^example\s*:/i.test(s(v)) ? "" : s(v));
 const NOT_A_VALUE = /^(n\/?a|na|-+|ไม่มี|ไม่ระบุ|none|null)$/i;
 const serialOrBlank = (v) => (NOT_A_VALUE.test(s(v)) ? "" : s(v));
 
-function categoryOf(type) {
-  const t = norm(type);
-  if (/solar|โซลาร์|แผงพลังงาน/.test(t)) return "solar_panel";
-  if (/inverter|อินเวอร์เตอร์/.test(t)) return "inverter";
-  if (/ev charger|ชาร์จ/.test(t)) return "ev_charger";
-  if (/battery|แบตเตอรี่/.test(t)) return "battery";
-  if (/meter|มิเตอร์/.test(t)) return "meter";
-  return "other";
-}
+/**
+ * The machine kind as the old system wrote it. It used to be squeezed into six
+ * enum values, which filed all but a handful of these 68 kinds as "อื่นๆ" and
+ * threw away the only column that said what the machine actually was.
+ */
+const categoryOf = (type) => s(type) || "other";
 
 /** "[3]|พร้อมใช้งาน" -> operational · "[4]|อยู่ระหว่างการซ่อม" -> down */
 function statusOf(raw) {
@@ -328,12 +325,41 @@ const C = {
 console.log(`ต้นทาง: ${basename(src)}`);
 console.log(`อ่านได้: ${rows.length} แถว\n`);
 
+/**
+ * A station numbers all its machines from one code — 12658206-1, 12658206-2, …
+ * — so the eight digits before the dash name the station itself. It leads the
+ * site name, which is how staff refer to a station, and it has to be produced
+ * here as well as by prefix-site-codes.mjs: a converter that emits the bare
+ * name would no longer match the sites already loaded, and every re-import
+ * would insert a second copy of each one.
+ */
+const STATION = /^(\d{8})-/;
+
+function stationCodes(rows, locOf, serialOf) {
+  const byLoc = new Map();
+  for (const r of rows) {
+    const m = STATION.exec(serialOf(r));
+    const loc = locOf(r);
+    if (!m || !loc) continue;
+    (byLoc.get(loc) ?? byLoc.set(loc, new Set()).get(loc)).add(m[1]);
+  }
+  // Only an unambiguous code is used; a location whose machines disagree keeps
+  // its plain name rather than being filed under a guess.
+  return new Map([...byLoc].filter(([, set]) => set.size === 1).map(([loc, set]) => [loc, [...set][0]]));
+}
+
 // ---- one site per distinct location string --------------------------------
+const codeByLoc = stationCodes(rows, (r) => r[C.loc], (r) => serialOrBlank(r[C.serial]));
+
 const byLoc = new Map();
 for (const r of rows) {
   const loc = r[C.loc];
   if (!loc) continue;
-  if (!byLoc.has(loc)) byLoc.set(loc, parseLocation(loc));
+  if (byLoc.has(loc)) continue;
+  const parsed = parseLocation(loc);
+  const code = codeByLoc.get(loc);
+  if (code && !parsed.site.startsWith(`${code}_`)) parsed.site = `${code}_${parsed.site}`;
+  byLoc.set(loc, parsed);
 }
 
 const howTally = new Map();

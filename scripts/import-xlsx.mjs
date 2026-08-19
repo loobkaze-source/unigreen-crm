@@ -380,7 +380,8 @@ const handlers = {
       const spec = SPECS.find((x) => x.file === "import-template-assets.xlsx");
       const listOf = (k) => spec.cols.find((c) => c.key === k).list;
       const assetType = enumVal(row.asset_type, listOf("asset_type"), "asset_type", "object", errors);
-      const category = enumVal(row.category, listOf("category"), "category", "other", errors);
+      // category is free text since 0034 — the vocabulary lives in the data.
+      const category = blank(row.category) ? "other" : s(row.category);
       const status = enumVal(row.status, listOf("status"), "status", "operational", errors);
       const isProject = assetType === "project";
 

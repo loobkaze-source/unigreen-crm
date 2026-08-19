@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -111,7 +112,7 @@ export function SiteDetail({
       },
       {
         key: "type",
-        header: "ชนิด",
+        header: "ชนิดเครื่อง",
         sortAccessor: (eq) =>
           eq.asset_type === "project" ? "โครงการ" : catLabel(eq.category),
         filter: {
@@ -161,6 +162,19 @@ export function SiteDetail({
     ],
     [groups]
   );
+  /**
+   * The six kinds the app has a Thai label for, plus whatever this site's
+   * assets are actually filed as — the vocabulary lives in the data now, so the
+   * picker has to read it from there rather than from a fixed list.
+   */
+  const categoryOptions = useMemo(() => {
+    const seen = new Map(CATEGORIES.map((c) => [c.value, c.label]));
+    for (const eq of equipment) {
+      if (eq.category && !seen.has(eq.category)) seen.set(eq.category, eq.category);
+    }
+    return [...seen].map(([value, label]) => ({ value, label }));
+  }, [equipment]);
+
   const assetTable = useDataTable(equipment, columns, {
     initialSort: { key: "code", dir: "asc" },
   });
@@ -693,20 +707,15 @@ export function SiteDetail({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="category">ประเภท</Label>
-                  <Select
+                  <Label htmlFor="category">ชนิดเครื่อง</Label>
+                  <Combobox
+                    allowCustom
                     id="category"
                     value={form.category}
-                    onChange={(e) =>
-                      setForm({ ...form, category: e.target.value as EquipmentCategory })
-                    }
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(category) => setForm({ ...form, category })}
+                    placeholder="เลือกหรือพิมพ์ชนิดเครื่อง"
+                    options={categoryOptions}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="serial_number">Serial number (Asset ID)</Label>

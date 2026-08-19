@@ -214,13 +214,20 @@ export interface WorkOrderPhoto extends Timestamps {
   caption: string | null;
 }
 
-export type EquipmentCategory =
+/**
+ * What kind of machine this is. Six values were an enum until the service side
+ * brought 68 kinds of petrol-station equipment; the names below are the ones
+ * the app knows a Thai label for, and any other string is shown as it stands.
+ */
+export type KnownEquipmentCategory =
   | "solar_panel"
   | "inverter"
   | "ev_charger"
   | "battery"
   | "meter"
   | "other";
+
+export type EquipmentCategory = KnownEquipmentCategory | (string & {});
 export type ServiceType =
   | "panel_cleaning"
   | "filter_cleaning"
