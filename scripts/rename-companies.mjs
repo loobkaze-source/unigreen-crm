@@ -203,13 +203,14 @@ for (const [from, to] of jobs) {
 
   if (!dst) {
     console.log(`เปลี่ยนชื่อ: ${src.name.slice(0, 48)}\n         → ${to.slice(0, 48)}   (ไซต์ ${h.sites} · ผู้ติดต่อ ${h.contacts})`);
+    // Carry the new name locally either way: two rows can rename to the same
+    // thing, and the second is then a merge into the first. A dry run that
+    // skipped this would promise two renames and deliver a rename and a merge.
+    src.name = to;
     if (!APPLY) continue;
     const { error } = await sb.from("companies").update({ name: to }).eq("id", src.id).eq("org_id", ORG.id);
     if (error) console.log(`   ✗ ${error.message}`);
-    else {
-      renamed++;
-      src.name = to; // a later row may merge into this one
-    }
+    else renamed++;
     continue;
   }
 
