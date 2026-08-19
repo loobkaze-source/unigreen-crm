@@ -17,6 +17,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -198,7 +199,7 @@ export function ContractsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Repeat}
           title={contracts.length ? "ไม่พบรายการ" : "ยังไม่มีสัญญาบริการ"}
@@ -286,6 +287,7 @@ export function ContractsView({
               })}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

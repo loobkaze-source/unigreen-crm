@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -576,6 +577,7 @@ export function SiteDetail({
                     })}
                   </tbody>
                 </table>
+                <DataTablePager table={assetTable} />
               </div>
             )}
           </CardContent>

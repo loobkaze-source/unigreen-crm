@@ -62,10 +62,13 @@ export type DataTable<T> = {
   pageSize: number;
   pageCount: number;
   setPage: (p: number) => void;
+  setPageSize: (n: number) => void;
 };
 
 /** Rows put on screen at once. Enough to scroll, far short of what stalls a tab. */
 const DEFAULT_PAGE_SIZE = 50;
+/** Offered in the pager. 500 is about where laying out the rows starts to drag. */
+const PAGE_SIZES = [50, 100, 500];
 
 /**
  * Client-side sort + per-column filter over an in-memory row array. Body
@@ -85,7 +88,7 @@ export function useDataTable<T>(
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = opts?.pageSize ?? DEFAULT_PAGE_SIZE;
+  const [pageSize, setSize] = useState(opts?.pageSize ?? DEFAULT_PAGE_SIZE);
 
   const colByKey = useMemo(
     () => new Map(columns.map((c) => [c.key, c])),
@@ -178,25 +181,48 @@ export function useDataTable<T>(
     pageSize,
     pageCount,
     setPage,
+    setPageSize: (n: number) => {
+      setSize(n);
+      setPage(1);
+    },
   };
 }
 
 /**
- * Page controls. Hidden when everything fits on one page, so short tables look
- * exactly as they did before.
+ * Page controls. Hidden only while the table is shorter than the smallest page
+ * size, so short tables look exactly as they did before — but once shown it
+ * stays shown, because choosing 500 rows on a 300-row table would otherwise
+ * take the control that did it off the screen.
  */
 export function DataTablePager<T>({ table }: { table: DataTable<T> }) {
-  if (table.pageCount <= 1) return null;
+  if (table.matched.length <= PAGE_SIZES[0]) return null;
+  const onlyPage = table.pageCount <= 1;
   const first = (table.page - 1) * table.pageSize + 1;
   const last = Math.min(table.page * table.pageSize, table.matched.length);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
-      <span className="text-muted-foreground">
-        {first.toLocaleString("th-TH")}–{last.toLocaleString("th-TH")} จาก{" "}
-        {table.matched.length.toLocaleString("th-TH")} รายการ
-      </span>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <span>
+          {first.toLocaleString("th-TH")}–{last.toLocaleString("th-TH")} จาก{" "}
+          {table.matched.length.toLocaleString("th-TH")} รายการ
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="sr-only">จำนวนแถวต่อหน้า</span>
+          <select
+            value={table.pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+            className="h-7 rounded-md border border-input bg-card px-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n} แถว/หน้า
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className={cn("flex items-center gap-1", onlyPage && "hidden")}>
         <PagerButton onClick={() => table.setPage(1)} disabled={table.page === 1} label="หน้าแรก">
           <ChevronsLeft className="h-4 w-4" />
         </PagerButton>

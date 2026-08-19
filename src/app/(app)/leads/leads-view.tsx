@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -197,7 +198,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
         </div>
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={UserPlus}
           title={leads.length ? "ไม่พบรายการ" : "ยังไม่มีลูกค้ามุ่งหวัง"}
@@ -272,6 +273,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
               })}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

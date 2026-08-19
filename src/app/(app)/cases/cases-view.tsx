@@ -18,6 +18,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -400,7 +401,7 @@ export function CasesView({
         </p>
       ) : null}
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={LifeBuoy}
           title={cases.length ? "ไม่พบรายการ" : "ยังไม่มีเคส"}
@@ -496,6 +497,7 @@ export function CasesView({
               })}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

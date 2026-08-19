@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -170,7 +171,7 @@ export function ProductsView({ products }: { products: Product[] }) {
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Package}
           title={products.length ? "ไม่พบรายการ" : "ยังไม่มีสินค้า"}
@@ -228,6 +229,7 @@ export function ProductsView({ products }: { products: Product[] }) {
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

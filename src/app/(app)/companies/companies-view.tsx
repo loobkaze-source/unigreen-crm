@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -225,7 +226,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
         </div>
       ) : null}
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Building2}
           title={companies.length ? "ไม่พบรายการ" : "ยังไม่มีบริษัท"}
@@ -315,6 +316,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

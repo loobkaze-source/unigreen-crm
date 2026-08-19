@@ -16,6 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -174,7 +175,7 @@ export function ContactsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Users}
           title={contacts.length ? "ไม่พบรายการ" : "ยังไม่มีผู้ติดต่อ"}
@@ -258,6 +259,7 @@ export function ContactsView({
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

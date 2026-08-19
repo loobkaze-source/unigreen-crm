@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -222,7 +223,7 @@ export function UsersView({
           <DataTableFilterToggle table={table} />
         </div>
       ) : null}
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={UserCog}
           title={members.length ? "ไม่พบรายการ" : "ยังไม่มีผู้ใช้"}
@@ -313,6 +314,7 @@ export function UsersView({
               })}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
       </div>

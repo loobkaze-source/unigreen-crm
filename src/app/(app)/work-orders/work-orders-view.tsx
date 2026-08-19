@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -257,7 +258,7 @@ export function WorkOrdersView({
         ))}
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Wrench}
           title={workOrders.length ? "ไม่พบรายการ" : "ยังไม่มีใบสั่งงาน"}
@@ -309,6 +310,7 @@ export function WorkOrdersView({
                 ))}
               </tbody>
             </table>
+          <DataTablePager table={table} />
           </div>
         </>
       ) : (

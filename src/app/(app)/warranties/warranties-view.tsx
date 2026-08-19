@@ -16,6 +16,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -218,7 +219,7 @@ export function WarrantiesView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title={warranties.length ? "ไม่พบรายการ" : "ยังไม่มีการรับประกัน"}
@@ -278,6 +279,7 @@ export function WarrantiesView({
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 

@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -234,7 +235,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={HardHat}
           title={technicians.length ? "ไม่พบรายการ" : "ยังไม่มีช่าง"}
@@ -343,6 +344,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 
