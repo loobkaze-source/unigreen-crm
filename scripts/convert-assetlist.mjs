@@ -94,6 +94,17 @@ const BRAND_COMPANY = {
   BAFS: "บริษัท บริการเชื้อเพลิงการบินกรุงเทพ จำกัด (มหาชน)",
 };
 
+/**
+ * Customers the old system filed under an English name. Left as-is they sit
+ * apart from the same company's Thai record — Tatsuno was in the CRM twice for
+ * exactly this reason. Confirmed by the business.
+ */
+const COMPANY_ALIASES = new Map([
+  ["tatsuno (thailand) co.,ltd.", "บริษัท ทัทซูโน่ (ประเทศไทย) จำกัด"],
+  ["toyo-thai corporation public company limited", "บริษัท ทีทีซีแอล จำกัด (มหาชน)"],
+  ["ptt global chemical public company limited", "บริษัท พีทีที โกลบอล เคมิคอล จำกัด (มหาชน)"],
+]);
+
 const PROVINCES = `กระบี่ กรุงเทพมหานคร กาญจนบุรี กาฬสินธุ์ กำแพงเพชร ขอนแก่น จันทบุรี ฉะเชิงเทรา ชลบุรี ชัยนาท
 ชัยภูมิ ชุมพร เชียงราย เชียงใหม่ ตรัง ตราด ตาก นครนายก นครปฐม นครพนม นครราชสีมา นครศรีธรรมราช นครสวรรค์
 นนทบุรี นราธิวาส น่าน บึงกาฬ บุรีรัมย์ ปทุมธานี ประจวบคีรีขันธ์ ปราจีนบุรี ปัตตานี พระนครศรีอยุธยา พะเยา
@@ -138,6 +149,9 @@ function stripBrand(raw) {
   }
   return { brand: "", rest: t };
 }
+
+/** An English-filed customer resolved to the Thai name the CRM knows it by. */
+const canonCompany = (name) => COMPANY_ALIASES.get(norm(name)) ?? s(name);
 
 /** Removes a filing shorthand so the customer's own name is what remains. */
 function stripNamePrefix(raw) {
@@ -223,7 +237,7 @@ function parseLocation(raw) {
     const site = name || nameFromAddress(addr) || body;
     return {
       brand,
-      customer: BRAND_COMPANY[brand] ?? brand,
+      customer: canonCompany(BRAND_COMPANY[brand] ?? brand),
       site: capName(site),
       address: addr,
       how: name ? how : how + " (ไม่มีชื่อร้าน ใช้อำเภอแทน)",
@@ -233,7 +247,7 @@ function parseLocation(raw) {
   // No brand: the company named is itself the customer.
   const legal = LEGAL_FULL.exec(rest);
   if (legal) {
-    const customer = legal[1].trim();
+    const customer = canonCompany(legal[1].trim());
     const tail = rest.slice(legal[1].length).replace(/^[\s/,-]+/, "").trim();
     const { name, addr, how } = splitNameAddress(tail);
     return {
@@ -251,7 +265,7 @@ function parseLocation(raw) {
   const clean = dropBarePrefix(name);
   return {
     brand: "",
-    customer: capName(clean || nameFromAddress(addr) || rest),
+    customer: canonCompany(capName(clean || nameFromAddress(addr) || rest)),
     site: capName(clean || nameFromAddress(addr) || rest),
     address: addr,
     how: `ไม่มีนิติบุคคล + ${how}`,
