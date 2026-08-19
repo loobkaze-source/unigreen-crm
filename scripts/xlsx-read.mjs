@@ -145,8 +145,10 @@ function parseSheetXml(xml, shared) {
     if (at.col > maxCol) maxCol = at.col;
   }
 
-  return grid.map((row) =>
-    Array.from({ length: maxCol }, (_, i) => (row?.[i] ?? "").toString())
+  // grid is sparse — a sheet whose first cell sits on row 5 leaves holes at
+  // 0..3, and Array#map preserves holes rather than filling them.
+  return Array.from({ length: grid.length }, (_, r) =>
+    Array.from({ length: maxCol }, (_, c) => (grid[r]?.[c] ?? "").toString())
   );
 }
 

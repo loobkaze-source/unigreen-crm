@@ -226,6 +226,7 @@ const handlers = {
         action: existing ? "update" : "insert",
         id: existing?.id,
         key: name,
+        existingLabel: existing?.name,
         note: existing ? `ตรงกับของเดิม (${code || s(row.tax_id) || name})` : "",
         payload,
         errors,
@@ -271,6 +272,7 @@ const handlers = {
         action: errors.length ? "skip" : existing ? "update" : "insert",
         id: existing?.id,
         key: [first, last].filter(Boolean).join(" "),
+        existingLabel: existing ? [existing.first_name, existing.last_name].filter(Boolean).join(" ") : undefined,
         note: co.hit ? `บริษัท: ${co.hit.name} (จาก ${co.by})` : "ไม่ได้ผูกบริษัท",
         payload,
         errors,
@@ -327,6 +329,7 @@ const handlers = {
         action: errors.length ? "skip" : existing ? "update" : "insert",
         id: existing?.id,
         key: name,
+        existingLabel: existing?.name,
         note: co.hit ? `ลูกค้า: ${co.hit.name}` : "ไม่ได้ผูกลูกค้า",
         payload,
         errors,
@@ -404,6 +407,7 @@ const handlers = {
         action: errors.length ? "skip" : existing ? "update" : "insert",
         id: existing?.id,
         key: name,
+        existingLabel: existing?.name,
         note: [`ไซต์: ${site.name}`, groupNote].filter(Boolean).join(" · "),
         payload,
         errors,
@@ -499,6 +503,7 @@ const handlers = {
         action: errors.length ? "skip" : existing ? "update" : "insert",
         id: existing?.id,
         key: title,
+        existingLabel: existing?.title,
         note: [
           site ? `ไซต์: ${site.name}` : co.hit ? `ลูกค้า: ${co.hit.name}` : "ไม่ได้ผูกไซต์/ลูกค้า",
           errors.length ? "" : `${total} รอบ ถึง ${addMonths(startDate, Math.round(years * 12))}`,
@@ -581,8 +586,8 @@ async function importFile(path) {
   const match = specForHeaders(header);
   if (!match) {
     console.log(`\n▶ ${basename(path)}`);
-    console.log("   ✗ หัวคอลัมน์ไม่ตรงกับเทมเพลตไหนเลย — ข้ามไฟล์นี้");
-    return { file: basename(path), insert: 0, update: 0, skip: 0, failed: 1 };
+    console.log("   – หัวคอลัมน์ไม่ตรงกับเทมเพลตไหนเลย — ข้ามไฟล์นี้ (ไฟล์ต้นทางที่วางไว้ในโฟลเดอร์เดียวกันก็จะขึ้นแบบนี้)");
+    return { file: basename(path), insert: 0, update: 0, skip: 0, failed: 0, unknown: 1 };
   }
 
   const { spec, missing } = match;
@@ -593,7 +598,9 @@ async function importFile(path) {
   console.log(`\n▶ ${basename(path)}  →  ${handler.label} (${handler.table})`);
   if (missing.length) console.log(`   ⚠ ไม่มีคอลัมน์: ${missing.join(", ")} — จะถือว่าเว้นว่าง`);
 
-  const counts = { insert: 0, update: 0, skip: 0, failed: 0 };
+  const counts = { insert: 0, update: 0, skip: 0, failed: 0, unknown: 0 };
+  /** existing row id -> the sheet row that already claimed it, within this file. */
+  const targeted = new Map();
 
   for (let i = 0; i < dataRows.length; i++) {
     const cells = dataRows[i];
@@ -617,16 +624,41 @@ async function importFile(path) {
       continue;
     }
 
+    // Two sheet rows resolving to one existing record would quietly overwrite
+    // each other — the second wins and the first is lost. Stop instead.
+    if (plan.action === "update") {
+      const claimed = targeted.get(plan.id);
+      if (claimed) {
+        counts.skip++;
+        console.log(
+          `   ${String(excelRow).padStart(4)}  ⊘ ข้าม  ${plan.key} — ` +
+          `ชี้ไปที่รายการเดิมอันเดียวกับ${claimed} ถ้าปล่อยไว้จะทับกัน`
+        );
+        continue;
+      }
+      targeted.set(plan.id, `แถว ${excelRow} “${plan.key}”`);
+    }
+
     const verb = plan.action === "insert" ? "เพิ่ม " : "อัปเดต";
+    // An update that renames the matched record is worth seeing before it happens.
+    const renames =
+      plan.action === "update" && plan.existingLabel && norm(plan.existingLabel) !== norm(plan.key)
+        ? `  ⚠ จะเปลี่ยนชื่อจาก “${plan.existingLabel}”`
+        : "";
     if (!APPLY) {
       counts[plan.action]++;
-      // Pretend the insert happened so the files that depend on it — contacts
-      // on companies, assets on sites — can be previewed properly too.
+      // Pretend the write happened so the files that depend on it — contacts on
+      // companies, assets on sites — preview against what the run would leave
+      // behind. Updates matter as much as inserts here: a customer_code this
+      // sheet is about to set is how the next sheet finds that customer.
       if (plan.action === "insert") {
         dryRunSeq++;
         handler.remember({ id: `dry-${dryRunSeq}`, ...defined(plan.payload) });
+      } else {
+        const prev = db[handler.table]?.find((r) => r.id === plan.id) ?? {};
+        handler.remember({ ...prev, ...defined(plan.payload), id: plan.id });
       }
-      console.log(`   ${String(excelRow).padStart(4)}  · ${verb} ${plan.key}${plan.note ? `  — ${plan.note}` : ""}`);
+      console.log(`   ${String(excelRow).padStart(4)}  · ${verb} ${plan.key}${plan.note ? `  — ${plan.note}` : ""}${renames}`);
       continue;
     }
 
@@ -652,7 +684,7 @@ async function importFile(path) {
       if (plan.after) await plan.after(saved.id, plan.action === "insert");
 
       counts[plan.action]++;
-      console.log(`   ${String(excelRow).padStart(4)}  ✓ ${verb} ${plan.key}${plan.note ? `  — ${plan.note}` : ""}`);
+      console.log(`   ${String(excelRow).padStart(4)}  ✓ ${verb} ${plan.key}${plan.note ? `  — ${plan.note}` : ""}${renames}`);
     } catch (e) {
       counts.failed++;
       console.log(`   ${String(excelRow).padStart(4)}  ✗ ${plan.key} — ${e.message}`);
@@ -690,15 +722,16 @@ console.log(`ปลายทาง   : ${URL_}`);
 console.log(`ไฟล์      : ${files.length}`);
 console.log(APPLY ? "โหมด      : เขียนจริง" : "โหมด      : ทดลอง (dry run) — ยังไม่เขียนอะไร ใส่ --apply เพื่อเขียนจริง");
 
-const totals = { insert: 0, update: 0, skip: 0, failed: 0 };
+const totals = { insert: 0, update: 0, skip: 0, failed: 0, unknown: 0 };
 for (const f of files) {
   const r = await importFile(f);
-  for (const k of Object.keys(totals)) totals[k] += r[k];
+  for (const k of Object.keys(totals)) totals[k] += r[k] ?? 0;
 }
 
 console.log(
   `\nรวมทุกไฟล์: เพิ่ม ${totals.insert} · อัปเดต ${totals.update} · ข้าม ${totals.skip}` +
-  (totals.failed ? ` · ผิดพลาด ${totals.failed}` : "")
+  (totals.failed ? ` · ผิดพลาด ${totals.failed}` : "") +
+  (totals.unknown ? ` · ไม่ใช่เทมเพลต ${totals.unknown} ไฟล์` : "")
 );
 if (!APPLY) console.log("ยังไม่ได้เขียนอะไรลงฐานข้อมูล — ตรวจรายการข้างบนแล้วรันซ้ำด้วย --apply");
 process.exit(totals.failed ? 1 : 0);
