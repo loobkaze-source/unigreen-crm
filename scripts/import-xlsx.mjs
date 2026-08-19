@@ -69,8 +69,19 @@ const ORG = orgs[0];
 
 const s = (v) => String(v ?? "").trim();
 const blank = (v) => s(v) === "";
+
+/**
+ * Thai SARA AM can be typed as one character (ำ, U+0E33) or as the two it is
+ * drawn from (ํ + า, U+0E4D U+0E32). They render identically and Unicode
+ * normalisation does not join them, so "จํากัด" and "จำกัด" are different
+ * strings that no one can tell apart on screen. Both spellings are present in
+ * this data — the CRM's own Shell row uses one and the corrected import file
+ * the other — and left alone they would import as two separate customers.
+ */
+const foldSaraAm = (v) => v.replace(/ํา/g, "ำ").replace(/ໍາ/g, "ຳ");
+
 /** Loose key for matching human-typed text: collapse spaces, fold case. */
-const norm = (v) => s(v).replace(/\s+/g, " ").toLowerCase();
+const norm = (v) => foldSaraAm(s(v).replace(/\s+/g, " ").toLowerCase());
 /** Tax ids and phones get compared digits-only — punctuation varies by typist. */
 const digits = (v) => s(v).replace(/\D/g, "");
 
