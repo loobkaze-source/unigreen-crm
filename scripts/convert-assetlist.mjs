@@ -52,12 +52,25 @@ const BRANDS = [
   ["PTT", ["ptt"]],
   ["PT", ["pt"]],
   ["Shell", ["shell"]],
-  ["BCP", ["bcp", "ฺbcp", "ฺฺbcp"]],
+  ["BCP", ["bcp", "ฺbcp", "ฺฺbcp", "bangchak"]],
   ["ESSO", ["esso", "ess0"]],
   ["Caltex", ["caltex"]],
   ["กรีนเนท", ["กรีนเนท"]],
   ["TBL", ["tbl"]],
   ["BAFS", ["bafs"]],
+];
+
+/**
+ * Short codes the old system wrote in front of a customer's own name — the
+ * company that follows is the customer, the code is just their filing shorthand.
+ * Unlike a fuel brand these do not stand for a company of their own.
+ */
+// TOYO is deliberately absent: "TOYO-THAI CORPORATION" is a company's own name,
+// and treating the first half as a code leaves a customer called "THAI
+// CORPORATION PUBLIC COMPANY LIMITED".
+const NAME_PREFIXES = [
+  "TYM", "THM", "GWM", "NPT", "NMT", "AAT",
+  "Maxima", "Tatsuno", "APGM", "Henkel", "Flowco", "NBG",
 ];
 
 /**
@@ -107,16 +120,33 @@ const LEGAL_FULL =
 //  Location parsing
 // ---------------------------------------------------------------------------
 
+const esc = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The separator after a brand is not dependable — "ESSOบางเลน" and "PTศรีราชา2"
+ * run straight into the name — so a latin brand is also accepted where Thai
+ * follows it directly. Requiring a space or dash left 29 sites filed under a
+ * customer whose name was the brand plus the station.
+ */
 function stripBrand(raw) {
   const t = s(raw);
   for (const [canon, forms] of BRANDS) {
     for (const f of forms) {
-      // Brand sits at the very start, then a dash or a space before the rest.
-      const re = new RegExp(`^${f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[\\s-])`, "i");
+      const re = new RegExp(`^${esc(f)}(?=[\\s-]|[\\u0E00-\\u0E7F])`, "i");
       if (re.test(t)) return { brand: canon, rest: t.slice(f.length).replace(/^[\s-]+/, "") };
     }
   }
   return { brand: "", rest: t };
+}
+
+/** Removes a filing shorthand so the customer's own name is what remains. */
+function stripNamePrefix(raw) {
+  const t = s(raw);
+  for (const p of NAME_PREFIXES) {
+    const re = new RegExp(`^${esc(p)}\\s*-\\s*|^${esc(p)}\\s+(?=[\\u0E00-\\u0E7F]|บ)`, "i");
+    if (re.test(t)) return t.replace(re, "").trim();
+  }
+  return t;
 }
 
 /** Longest a generated site name may get before it stops being a name. */
@@ -178,7 +208,14 @@ function splitNameAddress(text) {
  * @returns { customer, site, address, brand, how }
  */
 function parseLocation(raw) {
-  const { brand, rest } = stripBrand(raw);
+  let { brand, rest } = stripBrand(raw);
+  if (!brand) {
+    // A filing code can sit in front of the brand ("Flowco-PTT จรัญสนิทวงศ์ 14"),
+    // so once it is off, look for a brand again.
+    const stripped = stripNamePrefix(rest);
+    if (stripped !== rest) ({ brand, rest } = stripBrand(stripped));
+    else rest = stripped;
+  }
 
   if (brand) {
     const body = rest.replace(LEGAL_HEAD, "").trim();
