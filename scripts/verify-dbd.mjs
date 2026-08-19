@@ -26,6 +26,7 @@ import { buildTemplateWorkbook } from "./import-workbook.mjs";
 
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
+const CACHED_ONLY = args.includes("--cached-only");
 const file = args.find((a) => !a.startsWith("--"));
 
 if (!file) {
@@ -62,6 +63,25 @@ const saveCache = () => writeFileSync(CACHE, JSON.stringify(cache, null, 2), "ut
 const SAVE_EVERY = 10;
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { saveCache(); process.exit(1); });
 
+/**
+ * Facts the registry cannot tell us from the number we hold. When a company
+ * converts — a partnership becoming a company, a company going public — the
+ * old registration keeps the old name and is merely marked "แปรสภาพ"; the
+ * successor sits under a different number we do not have. These names were
+ * confirmed by the business, so they are recorded here rather than left as a
+ * stale name the registry appears to endorse.
+ */
+const OVERRIDES = {
+  "0105565193515": {
+    nameTH: "บริษัท ไทยน้ำทิพย์ คอร์ปอเรชั่น จำกัด (มหาชน)",
+    why: "แปรสภาพจาก บริษัท ไทยน้ำทิพย์ คอร์ปอเรชั่น จำกัด",
+  },
+  "0843558001489": {
+    nameTH: "บริษัท พรแม่ย่าธุรกิจ 2015 จำกัด",
+    why: "แปรสภาพจาก ห้างหุ้นส่วนจำกัด พรแม่ย่าธุรกิจ 2015",
+  },
+};
+
 function extract(payload) {
   const p = payload?.["cd:OrganizationJuristicPerson"];
   if (!p) return null;
@@ -76,25 +96,60 @@ function extract(payload) {
   };
 }
 
-/** Thrown when the bot filter cuts us off — there is no point continuing. */
+/** Layers a confirmed successor name over what the registry returned. */
+function applyOverride(taxId, rec) {
+  const o = OVERRIDES[taxId];
+  if (!o || !rec || rec.notFound) return rec;
+  return { ...rec, nameTH: o.nameTH, status: "ยังดำเนินกิจการอยู่", converted: o.why };
+}
+
+/** Thrown when the bot filter is still refusing after we have waited it out. */
 class Blocked extends Error {}
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * The filter lets go after a few minutes rather than for the rest of the day,
+ * so a 403 is something to wait out, not to abandon the run over — the previous
+ * design gave up on the first one and a run starting inside the tail of an
+ * earlier block achieved nothing at all. Back off, doubling, and only stop once
+ * it is clear the block is not lifting.
+ */
+const BACKOFF_MS = [60_000, 120_000, 240_000, 480_000];
+
 async function lookup(taxId) {
-  if (cache[taxId]) return cache[taxId];
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  if (cache[taxId]) return applyOverride(taxId, cache[taxId]);
+  // --cached-only: re-apply what is already known without touching the network,
+  // which is what you want when the registry is refusing and the point of the
+  // run is to write corrections, not to fetch more of them.
+  if (CACHED_ONLY) return { pending: true };
+
+  let blocks = 0; // times the filter refused, driving the backoff
+  let errors = 0; // transport failures, worth one quick retry
+
+  for (;;) {
     try {
-      const res = await fetch(API + taxId);
+      const res = await fetch(API + taxId, {
+        headers: { "User-Agent": "unicloud-crm-import/1.0", Accept: "application/json" },
+      });
       const body = await res.text();
       // The filter answers 403 with an HTML challenge page rather than JSON.
-      if (res.status === 403 || body.trimStart().startsWith("<")) throw new Blocked();
+      if (res.status === 403 || body.trimStart().startsWith("<")) {
+        if (blocks >= BACKOFF_MS.length) throw new Blocked();
+        const wait = BACKOFF_MS[blocks++];
+        console.log(`   … ทะเบียนตอบ 403 — รอ ${wait / 1000} วินาทีแล้วลองใหม่ (ครั้งที่ ${blocks})`);
+        saveCache();
+        await sleep(wait);
+        continue;
+      }
       const json = JSON.parse(body);
       const rec = json?.data?.[0] ? extract(json.data[0]) : null;
       cache[taxId] = rec ?? { notFound: true, reason: s(json?.status?.description) || "ไม่พบข้อมูล" };
       return cache[taxId];
     } catch (e) {
       if (e instanceof Blocked) throw e;
-      if (attempt === 2) return { error: e.message };
-      await new Promise((r) => setTimeout(r, 1000));
+      if (++errors > 1) return { error: e.message };
+      await sleep(1000);
     }
   }
 }
@@ -162,6 +217,7 @@ for (const row of withTax) {
   if (done % SAVE_EVERY === 0) saveCache();
   if (done % 25 === 0) process.stdout.write(`   ...ตรวจแล้ว ${done}/${withTax.length}\n`);
 
+  if (hit?.pending) continue;   // --cached-only: not fetched, nothing to say
   if (hit?.error) {
     report.errors.push({ tax, name: row.name, why: hit.error });
     continue;
@@ -238,6 +294,7 @@ for (const row of rows) {
   const extra = [
     d.nameEN ? `ชื่อภาษาอังกฤษ (ทะเบียน): ${d.nameEN}` : "",
     d.status && !d.status.includes("ยังดำเนินกิจการอยู่") ? `สถานะนิติบุคคล: ${d.status}` : "",
+    d.converted ? `หมายเหตุนิติบุคคล: ${d.converted}` : "",
   ].filter(Boolean);
   if (extra.length) row.notes = [row.notes, ...extra].filter(Boolean).join("\n");
 }
