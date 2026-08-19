@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, fetchAllRes } from "@/lib/data";
 import { ContractDetail } from "./contract-detail";
 
 export default async function ContractDetailPage({
@@ -25,8 +25,8 @@ export default async function ContractDetailPage({
         .select("*")
         .eq("contract_id", id)
         .order("seq", { ascending: true }),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).limit(500),
-      supabase.from("sites").select("id, name").eq("org_id", org.id).limit(500),
+      fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id)),
+      fetchAllRes(() => supabase.from("sites").select("id, name").eq("org_id", org.id)),
       supabase.from("technicians").select("id, name").eq("org_id", org.id).limit(500),
     ]);
 

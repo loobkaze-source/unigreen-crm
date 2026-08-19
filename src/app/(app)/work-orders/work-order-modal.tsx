@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -296,35 +297,23 @@ export function WorkOrderModal({
         <div className="grid grid-cols-3 gap-3">
           <div>
             <Label htmlFor="company_id">ลูกค้า (บริษัท)</Label>
-            <Select
+            <Combobox
               id="company_id"
               value={form.company_id}
-              onChange={(e) => selectCompany(e.target.value)}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={selectCompany}
+              placeholder="— ไม่ระบุ —"
+              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </div>
           <div>
             <Label htmlFor="site_id">ไซต์งาน</Label>
-            <Select
+            <Combobox
               id="site_id"
               value={form.site_id}
-              onChange={(e) => selectSite(e.target.value)}
-            >
-              <option value="">
-                {form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
-              </option>
-              {visibleSites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+              onChange={selectSite}
+              placeholder={form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
+              options={visibleSites.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </div>
           <div>
             <Label htmlFor="contact_id">ผู้ติดต่อ</Label>

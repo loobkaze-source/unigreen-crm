@@ -21,6 +21,40 @@ export function row<T>(res: { data: T | null; error: QueryErr }): T | null {
   return res.data;
 }
 
+/** The shape of a Supabase query that has not been awaited yet. */
+type Rangeable<T> = {
+  range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: QueryErr }>;
+};
+
+/**
+ * Every row a query matches, fetched a page at a time.
+ *
+ * PostgREST caps a single response at 1,000 rows and says nothing when it
+ * truncates, so a plain select quietly returns a prefix once a table outgrows
+ * that — which is how the asset list came to show 1,000 of 5,877. Pass a
+ * function that builds the query afresh; each call gets its own range.
+ */
+export async function fetchAll<T>(build: () => Rangeable<T>, pageSize = 1000): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const res = await build().range(from, from + pageSize - 1);
+    if (res.error) throw new Error(res.error.message);
+    const page = res.data ?? [];
+    out.push(...page);
+    if (page.length < pageSize) return out;
+  }
+}
+
+/**
+ * fetchAll in the shape a query returns, so it can be dropped into an existing
+ * Promise.all beside plain queries and unwrapped with rows() like the rest.
+ */
+export async function fetchAllRes<T>(
+  build: () => Rangeable<T>
+): Promise<{ data: T[]; error: null }> {
+  return { data: await fetchAll(build), error: null };
+}
+
 export type SessionContext = {
   supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;

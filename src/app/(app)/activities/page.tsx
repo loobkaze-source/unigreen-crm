@@ -1,4 +1,4 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { ActivitiesView } from "./activities-view";
 
 export default async function ActivitiesPage() {
@@ -14,7 +14,7 @@ export default async function ActivitiesPage() {
         .order("due_date", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(500),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
+      fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
       supabase
         .from("contacts")
         .select("id, first_name, last_name")

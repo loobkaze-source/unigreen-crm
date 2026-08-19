@@ -1,18 +1,21 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAll } from "@/lib/data";
 import { AssetsView } from "./assets-view";
 
 export default async function AssetsPage() {
   const { supabase, org } = await getSessionContext();
 
-  const [equipmentRes, sitesRes, groupsRes, openWoRes] = await Promise.all([
-    supabase
-      .from("equipment")
-      .select("*")
-      .eq("org_id", org.id)
-      .order("code", { ascending: true })
-      .limit(1000),
-    supabase.from("sites").select("id, name").eq("org_id", org.id).limit(1000),
-    supabase.from("asset_groups").select("id, name").eq("org_id", org.id).limit(1000),
+  const [equipment, sites, groups, openWoRes] = await Promise.all([
+    fetchAll(() =>
+      supabase
+        .from("equipment")
+        .select(
+          "id, code, asset_tag, site_id, group_id, name, asset_type, category, status, brand, model, serial_number, project_number, warranty_months, warranty_start, install_date"
+        )
+        .eq("org_id", org.id)
+        .order("code", { ascending: true })
+    ),
+    fetchAll(() => supabase.from("sites").select("id, name").eq("org_id", org.id)),
+    fetchAll(() => supabase.from("asset_groups").select("id, name").eq("org_id", org.id)),
     // Open (not finished) work orders -> "กำลังซ่อม/มีงานค้าง" indicator
     supabase
       .from("work_orders")
@@ -37,9 +40,9 @@ export default async function AssetsPage() {
 
   return (
     <AssetsView
-      equipment={rows(equipmentRes)}
-      sites={rows(sitesRes)}
-      groups={rows(groupsRes)}
+      equipment={equipment}
+      sites={sites}
+      groups={groups}
       inServiceIds={[...inServiceIds]}
     />
   );

@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -339,18 +340,13 @@ export function ActivitiesView({
             </div>
             <div>
               <Label htmlFor="company_id">บริษัท</Label>
-              <Select
+              <Combobox
                 id="company_id"
                 value={form.company_id}
-                onChange={(e) => setForm({ ...form, company_id: e.target.value })}
-              >
-                <option value="">—</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(company_id) => setForm({ ...form, company_id: company_id })}
+                placeholder="—"
+                options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
             <div>
               <Label htmlFor="deal_id">ดีล</Label>

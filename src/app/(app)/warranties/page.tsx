@@ -1,4 +1,4 @@
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, fetchAllRes } from "@/lib/data";
 import { WarrantiesView } from "./warranties-view";
 
 export default async function WarrantiesPage() {
@@ -12,8 +12,8 @@ export default async function WarrantiesPage() {
         .eq("org_id", org.id)
         .order("end_date", { ascending: true, nullsFirst: false })
         .limit(1000),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
-      supabase.from("sites").select("id, name").eq("org_id", org.id).order("name"),
+      fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
+      fetchAllRes(() => supabase.from("sites").select("id, name").eq("org_id", org.id).order("name")),
     ]);
 
   return (

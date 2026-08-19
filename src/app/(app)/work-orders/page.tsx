@@ -1,4 +1,4 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { assetCode } from "@/lib/asset";
 import { WorkOrdersView } from "./work-orders-view";
 
@@ -47,26 +47,29 @@ export default async function WorkOrdersPage({
       .eq("active", true)
       .order("name")
         .limit(500),
-    supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
-        .limit(500),
+    fetchAllRes(() =>
+      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+    ),
     supabase
       .from("contacts")
       .select("id, first_name, last_name, company_id")
       .eq("org_id", org.id)
       .order("first_name")
         .limit(500),
-    supabase
-      .from("sites")
-      .select("id, name, company_id, address, map_url")
-      .eq("org_id", org.id)
-      .order("name")
-        .limit(500),
-    supabase
-      .from("equipment")
-      .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
-      .eq("org_id", org.id)
-      .order("code")
-        .limit(500),
+    fetchAllRes(() =>
+      supabase
+        .from("sites")
+        .select("id, name, company_id, address, map_url")
+        .eq("org_id", org.id)
+        .order("name")
+    ),
+    fetchAllRes(() =>
+      supabase
+        .from("equipment")
+        .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
+        .eq("org_id", org.id)
+        .order("code")
+    ),
     supabase
       .from("cases")
       .select("id, number, subject, company_id")

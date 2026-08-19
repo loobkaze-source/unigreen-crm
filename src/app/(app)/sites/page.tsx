@@ -1,11 +1,11 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, fetchAll } from "@/lib/data";
 import { SitesView } from "./sites-view";
 
 export default async function SitesPage() {
   const { supabase, org } = await getSessionContext();
 
-  const [sitesRes, companiesRes, contactsRes] =
-    await Promise.all([
+  const [sites, companies, contacts] = await Promise.all([
+    fetchAll(() =>
       supabase
         .from("sites")
         // equipment(count) = per-site count aggregated in the DB, not a fetch
@@ -13,18 +13,16 @@ export default async function SitesPage() {
         .select("*, equipment(count)")
         .eq("org_id", org.id)
         .order("created_at", { ascending: false })
-        .limit(1000),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
+    ),
+    fetchAll(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
+    fetchAll(() =>
       supabase
         .from("contacts")
         .select("id, first_name, last_name")
         .eq("org_id", org.id)
-        .order("first_name"),
-    ]);
-
-  const sites = rows(sitesRes);
-  const companies = rows(companiesRes);
-  const contacts = rows(contactsRes);
+        .order("first_name")
+    ),
+  ]);
 
   return (
     <SitesView

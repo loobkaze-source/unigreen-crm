@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -160,7 +162,7 @@ export function SitesView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={MapPin}
           title={sites.length ? "ไม่พบรายการ" : "ยังไม่มีไซต์งาน"}
@@ -219,6 +221,7 @@ export function SitesView({
               ))}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
 
@@ -244,18 +247,13 @@ export function SitesView({
           </div>
           <div>
             <Label htmlFor="company_id">นิติบุคคล (ลูกค้า)</Label>
-            <Select
+            <Combobox
               id="company_id"
               value={form.company_id}
-              onChange={(e) => setForm({ ...form, company_id: e.target.value })}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(company_id) => setForm({ ...form, company_id: company_id })}
+              placeholder="— ไม่ระบุ —"
+              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            />
           </div>
           <div>
             <Label htmlFor="address">ที่อยู่</Label>

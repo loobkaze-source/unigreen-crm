@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -570,18 +571,13 @@ export function CasesView({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="company_id">ลูกค้า</Label>
-              <Select
+              <Combobox
                 id="company_id"
                 value={form.company_id}
-                onChange={(e) => changeCompany(e.target.value)}
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={changeCompany}
+                placeholder="— ไม่ระบุ —"
+                options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
             <div>
               <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
@@ -602,23 +598,16 @@ export function CasesView({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="site_id">ไซต์</Label>
-              <Select
+              <Combobox
                 id="site_id"
                 value={form.site_id}
-                onChange={(e) => changeSite(e.target.value)}
+                onChange={changeSite}
                 disabled={!form.company_id}
-              >
-                <option value="">
-                  {form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
-                </option>
-                {sites
+                placeholder={form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
+                options={sites
                   .filter((s) => s.company_id === form.company_id)
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-              </Select>
+                  .map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
             <div>
               <Label htmlFor="supporter_id">Technical Supporter</Label>

@@ -1,7 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronsUpDown, Filter, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
+  Filter,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type SortDir = "asc" | "desc";
@@ -35,7 +45,10 @@ export type ColumnDef<T> = {
 };
 
 export type DataTable<T> = {
+  /** The current page of rows — what the caller renders. */
   rows: T[];
+  /** Every row that passed the filters, across all pages. */
+  matched: T[];
   columns: ColumnDef<T>[];
   sort: Sort;
   toggleSort: (key: string) => void;
@@ -45,21 +58,34 @@ export type DataTable<T> = {
   showFilters: boolean;
   setShowFilters: (v: boolean) => void;
   activeFilterCount: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  setPage: (p: number) => void;
 };
+
+/** Rows put on screen at once. Enough to scroll, far short of what stalls a tab. */
+const DEFAULT_PAGE_SIZE = 50;
 
 /**
  * Client-side sort + per-column filter over an in-memory row array. Body
  * rendering stays with the caller; this only processes the rows and drives the
  * shared header/toolbar components below.
+ *
+ * `rows` is the page to render, not everything that matched — a table asked to
+ * lay out several thousand rows at once locks the tab up for seconds. Use
+ * `matched` for counts, and render <DataTablePager> to move between pages.
  */
 export function useDataTable<T>(
   rows: T[],
   columns: ColumnDef<T>[],
-  opts?: { initialSort?: { key: string; dir: SortDir } }
+  opts?: { initialSort?: { key: string; dir: SortDir }; pageSize?: number }
 ): DataTable<T> {
   const [sort, setSort] = useState<Sort>(opts?.initialSort ?? null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = opts?.pageSize ?? DEFAULT_PAGE_SIZE;
 
   const colByKey = useMemo(
     () => new Map(columns.map((c) => [c.key, c])),
@@ -110,7 +136,16 @@ export function useDataTable<T>(
     return out;
   }, [rows, filters, sort, colByKey]);
 
+  const pageCount = Math.max(1, Math.ceil(processed.length / pageSize));
+  // Narrowing a filter can strand the reader on a page past the end.
+  const current = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => processed.slice((current - 1) * pageSize, current * pageSize),
+    [processed, current, pageSize]
+  );
+
   function toggleSort(key: string) {
+    setPage(1);
     setSort((prev) => {
       if (!prev || prev.key !== key) return { key, dir: "asc" };
       if (prev.dir === "asc") return { key, dir: "desc" };
@@ -118,15 +153,18 @@ export function useDataTable<T>(
     });
   }
   function setFilter(key: string, value: string) {
+    setPage(1);
     setFilters((f) => ({ ...f, [key]: value }));
   }
   function clearFilters() {
+    setPage(1);
     setFilters({});
   }
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
   return {
-    rows: processed,
+    rows: paged,
+    matched: processed,
     columns,
     sort,
     toggleSort,
@@ -136,7 +174,80 @@ export function useDataTable<T>(
     showFilters,
     setShowFilters,
     activeFilterCount,
+    page: current,
+    pageSize,
+    pageCount,
+    setPage,
   };
+}
+
+/**
+ * Page controls. Hidden when everything fits on one page, so short tables look
+ * exactly as they did before.
+ */
+export function DataTablePager<T>({ table }: { table: DataTable<T> }) {
+  if (table.pageCount <= 1) return null;
+  const first = (table.page - 1) * table.pageSize + 1;
+  const last = Math.min(table.page * table.pageSize, table.matched.length);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
+      <span className="text-muted-foreground">
+        {first.toLocaleString("th-TH")}–{last.toLocaleString("th-TH")} จาก{" "}
+        {table.matched.length.toLocaleString("th-TH")} รายการ
+      </span>
+      <div className="flex items-center gap-1">
+        <PagerButton onClick={() => table.setPage(1)} disabled={table.page === 1} label="หน้าแรก">
+          <ChevronsLeft className="h-4 w-4" />
+        </PagerButton>
+        <PagerButton onClick={() => table.setPage(table.page - 1)} disabled={table.page === 1} label="ก่อนหน้า">
+          <ChevronLeft className="h-4 w-4" />
+        </PagerButton>
+        <span className="px-2 tabular-nums text-muted-foreground">
+          {table.page} / {table.pageCount}
+        </span>
+        <PagerButton
+          onClick={() => table.setPage(table.page + 1)}
+          disabled={table.page === table.pageCount}
+          label="ถัดไป"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </PagerButton>
+        <PagerButton
+          onClick={() => table.setPage(table.pageCount)}
+          disabled={table.page === table.pageCount}
+          label="หน้าสุดท้าย"
+        >
+          <ChevronsRight className="h-4 w-4" />
+        </PagerButton>
+      </div>
+    </div>
+  );
+}
+
+function PagerButton({
+  onClick,
+  disabled,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+    >
+      {children}
+    </button>
+  );
 }
 
 /**

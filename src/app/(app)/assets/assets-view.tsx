@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
+  DataTablePager,
   DataTableHead,
   DataTableFilterToggle,
   type ColumnDef,
@@ -21,7 +22,19 @@ import { fmtDate } from "@/lib/format";
 
 type Option = { id: string; name: string };
 
-const assetId = (eq: Equipment) =>
+/**
+ * Only the columns this list renders. Naming them keeps the page query from
+ * selecting "*", which on 5,877 assets meant shipping 5.4 MB to the browser —
+ * most of it the imported `notes`, which nothing here shows.
+ */
+export type AssetRow = Pick<
+  Equipment,
+  | "id" | "code" | "asset_tag" | "site_id" | "group_id" | "name" | "asset_type"
+  | "category" | "status" | "brand" | "model" | "serial_number" | "project_number"
+  | "warranty_months" | "warranty_start" | "install_date"
+>;
+
+const assetId = (eq: AssetRow) =>
   (eq.asset_type === "project" ? eq.project_number : eq.serial_number) || "—";
 
 export function AssetsView({
@@ -30,7 +43,7 @@ export function AssetsView({
   groups,
   inServiceIds,
 }: {
-  equipment: Equipment[];
+  equipment: AssetRow[];
   sites: Option[];
   groups: Option[];
   /** Assets that appear on an unfinished work order (shown as "มีงานค้าง"). */
@@ -64,7 +77,7 @@ export function AssetsView({
     );
   }, [equipment, query, siteName]);
 
-  const columns = useMemo<ColumnDef<Equipment>[]>(
+  const columns = useMemo<ColumnDef<AssetRow>[]>(
     () => [
       {
         key: "code",
@@ -159,7 +172,7 @@ export function AssetsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.rows.length === 0 ? (
+      {table.matched.length === 0 ? (
         <EmptyState
           icon={Box}
           title={equipment.length ? "ไม่พบรายการ" : "ยังไม่มี Asset"}
@@ -255,6 +268,7 @@ export function AssetsView({
               })}
             </tbody>
           </table>
+          <DataTablePager table={table} />
         </div>
       )}
     </div>

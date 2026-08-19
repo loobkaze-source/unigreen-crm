@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -343,33 +344,23 @@ export function WarrantiesView({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="company_id">นิติบุคคล (ลูกค้า)</Label>
-              <Select
+              <Combobox
                 id="company_id"
                 value={form.company_id}
-                onChange={(e) => setForm({ ...form, company_id: e.target.value })}
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(company_id) => setForm({ ...form, company_id: company_id })}
+                placeholder="— ไม่ระบุ —"
+                options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              />
             </div>
             <div>
               <Label htmlFor="site_id">ไซต์งาน</Label>
-              <Select
+              <Combobox
                 id="site_id"
                 value={form.site_id}
-                onChange={(e) => setForm({ ...form, site_id: e.target.value })}
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {sites.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+                onChange={(site_id) => setForm({ ...form, site_id })}
+                placeholder="— ไม่ระบุ —"
+                options={sites.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

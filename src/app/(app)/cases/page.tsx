@@ -1,4 +1,4 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { CasesView } from "./cases-view";
@@ -36,27 +36,30 @@ export default async function CasesPage({
   const [casesRes, companiesRes, contactsRes, sitesRes, assetsRes, membersRes] =
     await Promise.all([
       casesQuery,
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
-        .limit(500),
+      fetchAllRes(() =>
+        supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+      ),
       supabase
         .from("contacts")
         .select("id, first_name, last_name")
         .eq("org_id", org.id)
         .order("first_name")
         .limit(500),
-      supabase
-        .from("sites")
-        .select("id, name, company_id")
-        .eq("org_id", org.id)
-        .order("name")
-        .limit(500),
-      supabase
-        .from("equipment")
-        .select("id, name, site_id, status, code, serial_number")
-        .eq("org_id", org.id)
-        .neq("status", "retired")
-        .order("code")
-        .limit(1000),
+      fetchAllRes(() =>
+        supabase
+          .from("sites")
+          .select("id, name, company_id")
+          .eq("org_id", org.id)
+          .order("name")
+      ),
+      fetchAllRes(() =>
+        supabase
+          .from("equipment")
+          .select("id, name, site_id, status, code, serial_number")
+          .eq("org_id", org.id)
+          .neq("status", "retired")
+          .order("code")
+      ),
       supabase
         .from("organization_members")
         .select("user_id, app_roles")

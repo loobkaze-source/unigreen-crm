@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSessionContext } from "@/lib/data";
+import { getSessionContext, fetchAllRes } from "@/lib/data";
 import { SiteDetail } from "./site-detail";
 
 export default async function SiteDetailPage({
@@ -41,8 +41,9 @@ export default async function SiteDetailPage({
         .select("id, title, status, end_date")
         .eq("site_id", id)
         .order("created_at", { ascending: false }),
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
-        .limit(500),
+      fetchAllRes(() =>
+        supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+      ),
       supabase
         .from("contacts")
         .select("id, first_name, last_name")

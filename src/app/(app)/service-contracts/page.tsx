@@ -1,4 +1,4 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { ContractsView } from "./contracts-view";
 
 export default async function ServiceContractsPage() {
@@ -18,8 +18,8 @@ export default async function ServiceContractsPage() {
       .from("contract_visit_stats")
       .select("contract_id, total, done, next_due")
       .eq("org_id", org.id),
-    supabase.from("companies").select("id, name").eq("org_id", org.id).order("name"),
-    supabase.from("sites").select("id, name").eq("org_id", org.id).order("name"),
+    fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
+    fetchAllRes(() => supabase.from("sites").select("id, name").eq("org_id", org.id).order("name")),
     supabase
       .from("technicians")
       .select("id, name")
