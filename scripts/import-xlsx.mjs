@@ -167,27 +167,38 @@ const db = {
   service_contracts: await loadAll("service_contracts", "id, title, company_id, site_id, start_date, frequency_per_year, duration_years"),
 };
 
-/** customer_code -> tax_id -> name, matching the order the templates document. */
+/**
+ * customer_code -> tax_id -> name, and each is tried in turn rather than the
+ * first one filled in deciding the outcome. Two rows of the export shared a
+ * name once corrected, so the second updated the first and took its
+ * customer_code with it — the three records pointing at the lost code still
+ * carried the company's name, which was enough to place them.
+ */
 function findCompany(row) {
+  const tried = [];
+
   const code = s(row.customer_code);
   if (code) {
     const hit = db.companies.find((c) => norm(c.customer_code) === norm(code));
     if (hit) return { hit, by: "customer_code" };
-    return { hit: null, by: "customer_code", miss: code };
+    tried.push(`customer_code “${code}”`);
   }
+
   const tax = digits(row.tax_id);
   if (tax) {
     const hit = db.companies.find((c) => digits(c.tax_id) === tax);
     if (hit) return { hit, by: "tax_id" };
-    return { hit: null, by: "tax_id", miss: s(row.tax_id) };
+    tried.push(`tax_id “${s(row.tax_id)}”`);
   }
+
   const name = s(row.company_name);
   if (name) {
     const hit = db.companies.find((c) => norm(c.name) === norm(name));
     if (hit) return { hit, by: "company_name" };
-    return { hit: null, by: "company_name", miss: name };
+    tried.push(`ชื่อ “${name}”`);
   }
-  return { hit: null, by: null };
+
+  return { hit: null, by: null, tried };
 }
 
 const fullName = (c) => norm([c.first_name, c.last_name].filter(Boolean).join(" "));
@@ -259,7 +270,7 @@ const handlers = {
       if (!first) return { action: "skip", key: "—", errors: ["ไม่มี first_name"] };
 
       const co = findCompany(row);
-      if (co.miss) errors.push(`หาบริษัทจาก ${co.by} “${co.miss}” ไม่เจอ`);
+      if (co.tried?.length) errors.push(`หาบริษัทไม่เจอ — ลองแล้ว: ${co.tried.join(" · ")}`);
       const last = s(row.last_name);
       const who = norm([first, last].filter(Boolean).join(" "));
 
@@ -308,7 +319,7 @@ const handlers = {
       if (!name) return { action: "skip", key: "—", errors: ["ไม่มี name"] };
 
       const co = findCompany(row);
-      if (co.miss) errors.push(`หาบริษัทจาก ${co.by} “${co.miss}” ไม่เจอ`);
+      if (co.tried?.length) errors.push(`หาบริษัทไม่เจอ — ลองแล้ว: ${co.tried.join(" · ")}`);
 
       let contactId;
       if (!blank(row.contact_name)) {
@@ -463,7 +474,7 @@ const handlers = {
       if (!title) return { action: "skip", key: "—", errors: ["ไม่มี title"] };
 
       const co = findCompany(row);
-      if (co.miss) errors.push(`หาบริษัทจาก ${co.by} “${co.miss}” ไม่เจอ`);
+      if (co.tried?.length) errors.push(`หาบริษัทไม่เจอ — ลองแล้ว: ${co.tried.join(" · ")}`);
 
       let site = null;
       if (!blank(row.site_name)) {
@@ -643,8 +654,11 @@ async function importFile(path) {
       continue;
     }
 
-    // Two sheet rows resolving to one existing record would quietly overwrite
-    // each other — the second wins and the first is lost. Stop instead.
+    // Two sheet rows resolving to one record would quietly overwrite each
+    // other — the second wins and the first is lost. That includes a row
+    // landing on one this same run inserted: two customers whose names matched
+    // once corrected merged that way, and the survivor carried off the other's
+    // customer_code, orphaning everything that referenced it.
     if (plan.action === "update") {
       const claimed = targeted.get(plan.id);
       if (claimed) {
@@ -672,7 +686,9 @@ async function importFile(path) {
       // sheet is about to set is how the next sheet finds that customer.
       if (plan.action === "insert") {
         dryRunSeq++;
-        handler.remember({ id: `dry-${dryRunSeq}`, ...defined(plan.payload) });
+        const id = `dry-${dryRunSeq}`;
+        targeted.set(id, `แถว ${excelRow} “${plan.key}”`);
+        handler.remember({ id, ...defined(plan.payload) });
       } else {
         const prev = db[handler.table]?.find((r) => r.id === plan.id) ?? {};
         handler.remember({ ...prev, ...defined(plan.payload), id: plan.id });
@@ -700,6 +716,7 @@ async function importFile(path) {
       }
 
       handler.remember(saved);
+      if (plan.action === "insert") targeted.set(saved.id, `แถว ${excelRow} “${plan.key}”`);
       if (plan.after) await plan.after(saved.id, plan.action === "insert");
 
       counts[plan.action]++;
