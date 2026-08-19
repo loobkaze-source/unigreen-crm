@@ -220,6 +220,9 @@ export default async function AssetLifetimePage({
                 {eq.asset_type === "project" ? eq.project_number : eq.serial_number}
               </span>
             ) : null}
+            {eq.asset_tag ? (
+              <span className="font-mono text-xs">ครุภัณฑ์ {eq.asset_tag}</span>
+            ) : null}
             {site ? (
               <Link
                 href={`/sites/${site.id}`}

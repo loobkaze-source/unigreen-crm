@@ -257,6 +257,8 @@ export interface Equipment extends Mutable {
   id: string;
   org_id: string;
   code: number | null;
+  /** เลขครุภัณฑ์ / QR code printed on the machine — unlike `code`, ours to read, not to issue. */
+  asset_tag: string | null;
   site_id: string | null;
   group_id: string | null;
   name: string;

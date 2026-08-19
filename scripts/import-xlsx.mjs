@@ -152,7 +152,7 @@ const db = {
   sites: await loadAll("sites", "id, name, company_id"),
   technicians: await loadAll("technicians", "id, name"),
   asset_groups: await loadAll("asset_groups", "id, site_id, name"),
-  equipment: await loadAll("equipment", "id, site_id, name, serial_number, project_number"),
+  equipment: await loadAll("equipment", "id, site_id, name, asset_tag, serial_number, project_number"),
   service_contracts: await loadAll("service_contracts", "id, title, company_id, site_id, start_date, frequency_per_year, duration_years"),
 };
 
@@ -377,19 +377,27 @@ const handlers = {
       }
 
       const inSite = db.equipment.filter((e) => e.site_id === site.id);
-      const existing =
-        (!isProject && !blank(row.serial_number)
-          ? inSite.find((e) => norm(e.serial_number) === norm(row.serial_number))
-          : null) ||
-        (isProject && !blank(row.project_number)
-          ? inSite.find((e) => norm(e.project_number) === norm(row.project_number))
-          : null) ||
-        inSite.find((e) => norm(e.name) === norm(name)) ||
-        null;
+      /**
+       * An identifier, when the sheet gives one, decides on its own — falling
+       * through to the name would fuse every "Probe" on a site into one asset,
+       * however different their serials. Only a row carrying no identifier at
+       * all is matched by name.
+       */
+      const identifier = isProject ? row.project_number : row.serial_number;
+      const existing = !blank(row.asset_tag)
+        ? inSite.find((e) => norm(e.asset_tag) === norm(row.asset_tag)) ?? null
+        : !blank(identifier)
+          ? inSite.find((e) =>
+              isProject
+                ? norm(e.project_number) === norm(identifier)
+                : norm(e.serial_number) === norm(identifier)
+            ) ?? null
+          : inSite.find((e) => norm(e.name) === norm(name)) ?? null;
 
       const payload = {
         site_id: site.id,
         name,
+        asset_tag: blank(row.asset_tag) ? undefined : s(row.asset_tag),
         asset_type: assetType,
         category,
         status,
@@ -428,7 +436,7 @@ const handlers = {
     remember(saved) {
       const i = db.equipment.findIndex((e) => e.id === saved.id);
       const rec = {
-        id: saved.id, site_id: saved.site_id, name: saved.name,
+        id: saved.id, site_id: saved.site_id, name: saved.name, asset_tag: saved.asset_tag,
         serial_number: saved.serial_number, project_number: saved.project_number,
       };
       if (i >= 0) db.equipment[i] = rec; else db.equipment.push(rec);

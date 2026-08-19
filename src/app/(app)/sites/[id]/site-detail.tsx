@@ -202,6 +202,7 @@ export function SiteDetail({
 
   const EMPTY = {
     name: "",
+    asset_tag: "",
     asset_type: "object" as AssetType,
     category: "solar_panel" as EquipmentCategory,
     brand: "",
@@ -226,6 +227,7 @@ export function SiteDetail({
     setEditing(eq);
     setForm({
       name: eq.name,
+      asset_tag: eq.asset_tag || "",
       asset_type: eq.asset_type || "object",
       category: eq.category,
       brand: eq.brand || "",
@@ -249,6 +251,7 @@ export function SiteDetail({
         id: editing?.id,
         site_id: site.id,
         name: form.name,
+        asset_tag: form.asset_tag,
         asset_type: form.asset_type,
         category: form.category,
         brand: form.brand,
@@ -711,6 +714,15 @@ export function SiteDetail({
                     onChange={(e) => setForm({ ...form, serial_number: e.target.value })}
                   />
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="asset_tag">เลขครุภัณฑ์ (QR Code)</Label>
+                <Input
+                  id="asset_tag"
+                  value={form.asset_tag}
+                  onChange={(e) => setForm({ ...form, asset_tag: e.target.value })}
+                  placeholder="เลขที่ติดอยู่บนเครื่อง เช่น Shell-001"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -132,6 +132,7 @@ export type EquipmentInput = {
   id?: string;
   site_id: string;
   name: string;
+  asset_tag?: string;
   asset_type: AssetType;
   category: EquipmentCategory;
   brand?: string;
@@ -167,6 +168,7 @@ export async function saveEquipment(input: EquipmentInput): Promise<ActionResult
     site_id: input.site_id,
     group_id,
     name,
+    asset_tag: input.asset_tag?.trim() || null,
     asset_type: isProject ? "project" : "object",
     category: input.category || "other",
     brand: input.brand?.trim() || null,

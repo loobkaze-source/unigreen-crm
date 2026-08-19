@@ -55,6 +55,7 @@ export function AssetsView({
       (eq) =>
         eq.name.toLowerCase().includes(q) ||
         assetCode(eq.code).toLowerCase().includes(q) ||
+        (eq.asset_tag || "").toLowerCase().includes(q) ||
         (eq.serial_number || "").toLowerCase().includes(q) ||
         (eq.project_number || "").toLowerCase().includes(q) ||
         (eq.brand || "").toLowerCase().includes(q) ||
@@ -76,6 +77,12 @@ export function AssetsView({
         header: "Asset",
         sortAccessor: (eq) => eq.name,
         filter: { kind: "text", accessor: (eq) => eq.name },
+      },
+      {
+        key: "asset_tag",
+        header: "เลขครุภัณฑ์",
+        sortAccessor: (eq) => eq.asset_tag,
+        filter: { kind: "text", accessor: (eq) => eq.asset_tag },
       },
       {
         key: "status",
@@ -196,6 +203,9 @@ export function AssetsView({
                           </div>
                         ) : null}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {eq.asset_tag || "—"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-1">
