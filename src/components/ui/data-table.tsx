@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Combobox } from "@/components/ui/combobox";
 
 export type SortDir = "asc" | "desc";
 export type Sort = { key: string; dir: SortDir } | null;
@@ -69,6 +70,8 @@ export type DataTable<T> = {
 const DEFAULT_PAGE_SIZE = 50;
 /** Offered in the pager. 500 is about where laying out the rows starts to drag. */
 const PAGE_SIZES = [50, 100, 500];
+/** Above this many options, a column filter is typed into rather than scrolled. */
+const SEARCHABLE_FROM = 12;
 
 /**
  * Client-side sort + per-column filter over an in-memory row array. Body
@@ -398,6 +401,22 @@ function ColumnFilter<T>({
         label: v,
       }));
     })();
+
+  // A column like "นิติบุคคล" derives one option per distinct value, which on
+  // this data is hundreds — scrolling a native dropdown to find one is the same
+  // problem the form pickers had. Short lists stay native, where a search box
+  // over four statuses would only be in the way.
+  if (options.length > SEARCHABLE_FROM) {
+    return (
+      <Combobox
+        compact
+        value={value}
+        onChange={onChange}
+        placeholder="ทั้งหมด"
+        options={options}
+      />
+    );
+  }
 
   return (
     <select

@@ -26,6 +26,7 @@ export function Combobox({
   disabled,
   id,
   className,
+  compact = false,
 }: {
   options: ComboboxOption[];
   value: string;
@@ -36,6 +37,8 @@ export function Combobox({
   disabled?: boolean;
   id?: string;
   className?: string;
+  /** Sized to sit in a table's filter row rather than a form. */
+  compact?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -112,7 +115,10 @@ export function Combobox({
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openList())}
         className={cn(
-          "flex h-9 w-full items-center gap-2 rounded-md border border-input bg-card pl-3 pr-9 text-left text-sm shadow-sm transition-colors",
+          "flex w-full items-center gap-2 rounded-md border text-left transition-colors",
+          compact
+            ? "h-[26px] border-border bg-background pl-2 pr-7 text-xs font-normal"
+            : "h-9 border-input bg-card pl-3 pr-9 text-sm shadow-sm",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring",
           "disabled:cursor-not-allowed disabled:opacity-50"
         )}
@@ -127,12 +133,20 @@ export function Combobox({
           type="button"
           aria-label="ล้างค่า"
           onClick={() => onChange("")}
-          className="absolute right-7 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground",
+            compact ? "right-5" : "right-7"
+          )}
         >
-          <X className="h-3.5 w-3.5" />
+          <X className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
         </button>
       ) : null}
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <ChevronDown
+        className={cn(
+          "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+          compact ? "right-1.5 h-3.5 w-3.5" : "right-2.5 h-4 w-4"
+        )}
+      />
 
       {open ? (
         <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-border bg-card shadow-lg">
