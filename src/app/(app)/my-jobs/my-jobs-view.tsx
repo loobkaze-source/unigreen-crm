@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,6 +11,7 @@ import {
   MapPin,
   Navigation,
   Phone,
+  PenLine,
   PlayCircle,
   User,
   ThumbsUp,
@@ -21,7 +23,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
 import { statusMeta, priorityMeta, typeLabel, woCode, jobClassLabel } from "../work-orders/constants";
-import { acceptWorkOrder, updateWorkOrderStatus } from "../work-orders/actions";
+import { createClient } from "@/lib/supabase/client";
+import { SignaturePad } from "@/components/app/signature-pad";
+import {
+  acceptWorkOrder,
+  saveWorkOrderSignature,
+  updateWorkOrderStatus,
+} from "../work-orders/actions";
 
 export type Job = {
   id: string;
@@ -41,6 +49,10 @@ export type Job = {
   siteName: string | null;
   address: string | null;
   mapUrl: string | null;
+  /** The customer's signature for this job, once there is one. */
+  signatureUrl: string | null;
+  signedBy: string | null;
+  signedAt: string | null;
 };
 
 const DONE: WorkOrderStatus[] = ["completed", "cancelled"];
@@ -69,14 +81,37 @@ export function MyJobsView({
   jobs,
   technicianName,
   linked,
+  orgId,
 }: {
   jobs: Job[];
   technicianName: string | null;
   linked: boolean;
+  orgId: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The job whose customer is signing right now, if any. */
+  const [signing, setSigning] = useState<Job | null>(null);
+
+  /**
+   * The drawing goes to storage from the browser, as photos do, and only the
+   * path it landed at is sent to the server.
+   */
+  async function saveSignature(png: Blob, signedBy: string) {
+    const job = signing;
+    if (!job) return;
+    const rand = Math.random().toString(36).slice(2, 8);
+    const path = `${orgId}/${job.id}/signature-${Date.now()}-${rand}.png`;
+    const { error } = await createClient()
+      .storage.from("wo-photos")
+      .upload(path, png, { cacheControl: "3600", upsert: false });
+    if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
+    const res = await saveWorkOrderSignature(job.id, path, signedBy);
+    if (!res.ok) return alert(res.error);
+    setSigning(null);
+    router.refresh();
+  }
 
   // Which buckets are shown. All on by default; tapping a chip filters it out.
   const [shown, setShown] = useState<Cat[]>(["new", "accepted", "done"]);
@@ -230,6 +265,7 @@ export function MyJobsView({
                     busy={pending && busyId === job.id}
                     onStatus={(s) => setStatus(job, s)}
                     onAccept={() => accept(job)}
+                    onSign={() => setSigning(job)}
                   />
                 ))}
               </div>
@@ -237,6 +273,18 @@ export function MyJobsView({
           ))}
         </div>
       )}
+
+      <SignaturePad
+        open={signing !== null}
+        onClose={() => setSigning(null)}
+        onSave={saveSignature}
+        subtitle={
+          signing
+            ? [woCode(signing.number), signing.title].filter(Boolean).join(" · ")
+            : undefined
+        }
+        defaultName={signing?.contactName ?? ""}
+      />
     </div>
   );
 }
@@ -246,11 +294,13 @@ function JobCard({
   busy,
   onStatus,
   onAccept,
+  onSign,
 }: {
   job: Job;
   busy: boolean;
   onStatus: (s: WorkOrderStatus) => void;
   onAccept: () => void;
+  onSign: () => void;
 }) {
   const st = statusMeta(job.status);
   const pr = priorityMeta(job.priority);
@@ -315,6 +365,49 @@ function JobCard({
           ) : null}
         </div>
       </Link>
+
+      {/* The customer signs the job off here. Not offered before the job has
+          been accepted — nobody is standing in front of the customer yet. */}
+      {needsAccept ? null : (
+        <div className="border-t border-border px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-muted-foreground">ลายเซ็นลูกค้า</span>
+            {job.signatureUrl ? (
+              <button
+                type="button"
+                onClick={onSign}
+                className="text-xs font-medium text-primary active:opacity-70"
+              >
+                เซ็นใหม่
+              </button>
+            ) : null}
+          </div>
+          {job.signatureUrl ? (
+            <div className="mt-2 flex items-center gap-3">
+              <Image
+                src={job.signatureUrl}
+                alt="ลายเซ็นลูกค้า"
+                width={240}
+                height={80}
+                unoptimized
+                className="h-14 w-auto rounded border border-border bg-white object-contain"
+              />
+              <div className="min-w-0 text-xs text-muted-foreground">
+                <div className="truncate text-sm text-foreground">{job.signedBy || "—"}</div>
+                {job.signedAt ? <div>{fmtDateTime(job.signedAt)}</div> : null}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onSign}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-border py-3 text-sm font-medium text-primary active:bg-muted"
+            >
+              <PenLine className="h-4 w-4" /> ขอลายเซ็นลูกค้า
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Field actions — big tap targets, no page change needed. */}
       <div className="flex items-stretch gap-px border-t border-border bg-border">

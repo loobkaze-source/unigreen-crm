@@ -13,6 +13,7 @@ import {
   Circle,
   ImagePlus,
   Loader2,
+  PenLine,
   MapPin,
   Pencil,
   Plus,
@@ -35,6 +36,7 @@ import { PhotoViewer } from "@/components/ui/photo-viewer";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { shrinkImage } from "@/lib/image";
+import { SignaturePad } from "@/components/app/signature-pad";
 import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
@@ -61,6 +63,7 @@ import {
   addChecklistItem,
   addWorkOrderPart,
   saveTechnicianRemark,
+  saveWorkOrderSignature,
   addWorkOrderPhoto,
   deleteChecklistItem,
   deleteWorkOrderPart,
@@ -112,6 +115,7 @@ export function WorkOrderDetail({
   cases,
   assetIds,
   orgId,
+  signatureUrl,
   canEdit = true,
   backHref = "/work-orders",
   backLabel = "กลับไปใบงาน",
@@ -131,6 +135,8 @@ export function WorkOrderDetail({
   cases: CaseOption[];
   assetIds: string[];
   orgId: string;
+  /** The customer's signature for this job, once there is one. */
+  signatureUrl: string | null;
   /** Field technicians work the job but never restructure or remove it. */
   canEdit?: boolean;
   /** Where "back" goes — a field technician can't reach the work-order list. */
@@ -256,6 +262,21 @@ export function WorkOrderDetail({
     setUploading(false);
     setUploadNote("");
     if (fileRef.current) fileRef.current.value = "";
+    router.refresh();
+  }
+
+  const [signing, setSigning] = useState(false);
+  /** Same route as a photo: the drawing goes straight to storage from here. */
+  async function saveSignature(png: Blob, signedBy: string) {
+    const rand = Math.random().toString(36).slice(2, 8);
+    const path = `${orgId}/${workOrder.id}/signature-${Date.now()}-${rand}.png`;
+    const { error } = await createClient()
+      .storage.from("wo-photos")
+      .upload(path, png, { cacheControl: "3600", upsert: false });
+    if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
+    const res = await saveWorkOrderSignature(workOrder.id, path, signedBy);
+    if (!res.ok) return alert(res.error);
+    setSigning(false);
     router.refresh();
   }
 
@@ -580,7 +601,52 @@ export function WorkOrderDetail({
             )}
           </CardContent>
         </Card>
+
+        {/* Customer sign-off. Captured on site from งานของฉัน, and here too —
+            a technician finishing a job is as likely to be on this page. */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>ลายเซ็นลูกค้า</CardTitle>
+            <Button variant="secondary" size="sm" onClick={() => setSigning(true)}>
+              <PenLine className="h-4 w-4" /> {signatureUrl ? "เซ็นใหม่" : "ขอลายเซ็น"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {signatureUrl ? (
+              <div className="flex flex-wrap items-center gap-4">
+                <Image
+                  src={signatureUrl}
+                  alt="ลายเซ็นลูกค้า"
+                  width={320}
+                  height={120}
+                  unoptimized
+                  className="h-24 w-auto rounded-md border border-border bg-white object-contain"
+                />
+                <div className="text-sm">
+                  <div className="font-medium">{workOrder.signed_by || "—"}</div>
+                  {workOrder.signed_at ? (
+                    <div className="text-muted-foreground">
+                      {fmtDateTime(workOrder.signed_at)}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                ยังไม่ได้เซ็นรับงาน — กด “ขอลายเซ็น” แล้วส่งเครื่องให้ลูกค้าเซ็น
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <SignaturePad
+        open={signing}
+        onClose={() => setSigning(false)}
+        onSave={saveSignature}
+        subtitle={[woCode(workOrder.number), workOrder.title].filter(Boolean).join(" · ")}
+        defaultName={contactName ?? ""}
+      />
 
       <PhotoViewer
         photos={photos}

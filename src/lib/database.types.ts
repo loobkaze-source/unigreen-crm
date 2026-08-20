@@ -195,6 +195,10 @@ export interface WorkOrder extends Mutable {
   accepted_by: string | null;
   /** The technician's own note from site (dispatcher's brief is `description`). */
   technician_remark: string | null;
+  /** The customer's signature, in the wo-photos bucket. Null until signed. */
+  signature_path: string | null;
+  signed_by: string | null;
+  signed_at: string | null;
 }
 
 export interface WorkOrderItem extends Timestamps {

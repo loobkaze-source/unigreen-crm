@@ -381,6 +381,39 @@ export async function saveTechnicianRemark(
   return ok();
 }
 
+/**
+ * Records the customer's signature for a job.
+ *
+ * The drawing is already in storage by the time this runs — the browser puts it
+ * there directly, as it does for photos — so this only says which file it is and
+ * who put their name to it. Signing again replaces the reference; the previous
+ * drawing stays in the bucket rather than being deleted out from under a page
+ * that may still be showing it.
+ */
+export async function saveWorkOrderSignature(
+  workOrderId: string,
+  path: string,
+  signedBy: string
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  const { error } = await ctx.supabase
+    .from("work_orders")
+    .update({
+      signature_path: path,
+      signed_by: signedBy.trim() || null,
+      signed_at: new Date().toISOString(),
+    })
+    .eq("id", workOrderId)
+    .eq("org_id", ctx.org.id);
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  revalidatePath("/my-jobs");
+  return ok();
+}
+
 export async function deleteWorkOrderPart(
   id: string,
   workOrderId: string

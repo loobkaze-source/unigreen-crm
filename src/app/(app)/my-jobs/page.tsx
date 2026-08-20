@@ -1,4 +1,5 @@
 import { getSessionContext, rows } from "@/lib/data";
+import { SUPABASE_URL } from "@/lib/supabase/env";
 import type { WorkOrder } from "@/lib/database.types";
 import { MyJobsView } from "./my-jobs-view";
 
@@ -19,7 +20,7 @@ export default async function MyJobsPage() {
     .maybeSingle();
 
   if (!tech) {
-    return <MyJobsView linked={false} technicianName={null} jobs={[]} />;
+    return <MyJobsView linked={false} technicianName={null} jobs={[]} orgId={org.id} />;
   }
 
   const workOrders = rows<WorkOrder>(
@@ -110,6 +111,11 @@ export default async function MyJobsPage() {
       // The WO carries its own copy of the address/map for ad-hoc locations.
       address: w.site_address || site?.address || null,
       mapUrl: w.site_map_url || site?.map_url || null,
+      signatureUrl: w.signature_path
+        ? `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${w.signature_path}`
+        : null,
+      signedBy: w.signed_by,
+      signedAt: w.signed_at,
     };
   });
 
@@ -118,6 +124,7 @@ export default async function MyJobsPage() {
       linked
       technicianName={(tech.nickname as string) || (tech.name as string)}
       jobs={jobs}
+      orgId={org.id}
     />
   );
 }

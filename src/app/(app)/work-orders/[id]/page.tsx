@@ -141,6 +141,11 @@ export default async function WorkOrderDetailPage({
       workOrder={workOrder}
       items={items ?? []}
       photos={photosWithUrl}
+      signatureUrl={
+        workOrder.signature_path
+          ? `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${workOrder.signature_path}`
+          : null
+      }
       parts={parts}
       technicians={techList}
       companies={companyList}
