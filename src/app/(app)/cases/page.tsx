@@ -24,6 +24,7 @@ export default async function CasesPage({
   if (search) {
     const term = search.replace(/[%_]/g, "\\$&").replace(/[,()]/g, " ").trim();
     const ors = [
+      `code.ilike.%${term}%`,
       `subject.ilike.%${term}%`,
       `employee.ilike.%${term}%`,
       `note.ilike.%${term}%`,

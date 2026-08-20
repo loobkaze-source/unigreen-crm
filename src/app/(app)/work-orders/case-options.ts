@@ -17,7 +17,7 @@ export async function loadCaseOptions(
 ): Promise<CaseOption[]> {
   const casesRes = await supabase
     .from("cases")
-    .select("id, number, subject, note, company_id, site_id, contact_id")
+    .select("id, code, number, subject, note, company_id, site_id, contact_id")
     .eq("org_id", orgId)
     .order("number", { ascending: false })
     .limit(CASE_LIMIT);
@@ -35,7 +35,9 @@ export async function loadCaseOptions(
 
   return cases.map((c) => ({
     id: c.id as string,
-    name: `${c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส"} · ${c.subject}`,
+    // The code is what anyone quotes; the old running number is the fallback
+    // for cases opened before there was one.
+    name: `${c.code ?? (c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส")} · ${c.subject}`,
     company_id: (c.company_id as string) ?? null,
     site_id: (c.site_id as string) ?? null,
     contact_id: (c.contact_id as string) ?? null,

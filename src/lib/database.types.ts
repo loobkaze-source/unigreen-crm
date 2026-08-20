@@ -369,6 +369,9 @@ export interface Case extends Mutable {
   id: string;
   org_id: string;
   number: number | null;
+  /** MRD-0826-00001 — department, month/year, and a serial that restarts each month. */
+  code: string | null;
+  dept_code: string | null;
   subject: string;
   status: CaseStatus;
   case_type: string | null;

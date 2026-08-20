@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
+import { CASE_DEPTS, DEFAULT_CASE_DEPT } from "./constants";
 import {
   saveCase,
   deleteCase,
@@ -125,6 +126,7 @@ export function CasesView({
     status: "open" as CaseStatus,
     case_type: "",
     case_from: "ลูกค้า",
+    dept_code: DEFAULT_CASE_DEPT as string,
     customer_wo_ref: "",
     employee: "",
     team: "",
@@ -150,6 +152,7 @@ export function CasesView({
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
       if (!q) return true;
       return (
+        (c.code || "").toLowerCase().includes(q) ||
         c.subject.toLowerCase().includes(q) ||
         (c.employee || "").toLowerCase().includes(q) ||
         (c.customer_wo_ref || "").toLowerCase().includes(q) ||
@@ -187,6 +190,14 @@ export function CasesView({
 
   const columns = useMemo<ColumnDef<Case>[]>(
     () => [
+      {
+        key: "code",
+        header: "รหัสเคส",
+        sortAccessor: (c) => c.code,
+        // Typed into rather than picked from: "UNG" narrows to one department,
+        // "0826" to one month, and the whole code to one case.
+        filter: { kind: "text", accessor: (c) => c.code },
+      },
       {
         key: "subject",
         header: "เคส",
@@ -244,6 +255,7 @@ export function CasesView({
       status: c.status,
       case_type: c.case_type || "",
       case_from: c.case_from || "",
+      dept_code: c.dept_code || DEFAULT_CASE_DEPT,
       customer_wo_ref: c.customer_wo_ref || "",
       employee: c.employee || "",
       team: c.team || "",
@@ -442,6 +454,9 @@ export function CasesView({
                     key={c.id}
                     className="group border-b border-border last:border-0 hover:bg-muted/30"
                   >
+                    <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-muted-foreground">
+                      {c.code ?? "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => canManage && openEdit(c)}
@@ -526,6 +541,33 @@ export function CasesView({
           {error ? (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           ) : null}
+          {editing ? (
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <div className="text-xs text-muted-foreground">รหัสเคส</div>
+              <div className="font-mono text-sm font-medium">{editing.code ?? "—"}</div>
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="dept_code">แผนกที่เปิดเคส</Label>
+              <Select
+                id="dept_code"
+                value={form.dept_code}
+                onChange={(e) => setForm({ ...form, dept_code: e.target.value })}
+              >
+                {CASE_DEPTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Select>
+              {/* The rest of the code is the database's to hand out — showing a
+                  guess here would be a number somebody could quote before it
+                  was true. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                รหัสเคสจะออกให้อัตโนมัติเมื่อบันทึก — {form.dept_code}-เดือนปี-ลำดับ 5 หลัก
+              </p>
+            </div>
+          )}
           <div>
             <Label htmlFor="subject">หัวข้อ *</Label>
             <Input

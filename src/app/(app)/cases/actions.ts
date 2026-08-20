@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { CASE_DEPTS, DEFAULT_CASE_DEPT, type CaseDept } from "./constants";
 import { getSessionContext, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
@@ -12,6 +13,8 @@ export type CaseInput = {
   status: CaseStatus;
   case_type?: string;
   case_from?: string;
+  /** Only read when creating: the code is fixed once the case has one. */
+  dept_code?: string;
   customer_wo_ref?: string;
   note?: string;
   action?: string;
@@ -132,6 +135,9 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
 
   const caseId = input.id;
   if (caseId) {
+    // `dept_code` is deliberately absent from `payload`: the code was built
+    // from it at insert, and moving one without the other would leave a case
+    // filed under a department its own number does not name.
     const { error } = await supabase.from("cases").update(payload).eq("id", caseId);
     if (error) return fail(error.message);
     const aErr = await syncCaseAssets(caseId);
@@ -142,7 +148,14 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   }
   const { data: created, error } = await supabase
     .from("cases")
-    .insert(payload)
+    .insert({
+      ...payload,
+      // The trigger reads this, builds the code from it, and hands back a
+      // serial for that department and month.
+      dept_code: CASE_DEPTS.includes(input.dept_code as CaseDept)
+        ? (input.dept_code as CaseDept)
+        : DEFAULT_CASE_DEPT,
+    })
     .select("id")
     .single();
   if (error) return fail(error.message);
