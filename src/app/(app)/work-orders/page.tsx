@@ -1,5 +1,6 @@
 import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { assetCode } from "@/lib/asset";
+import { loadCaseOptions } from "./case-options";
 import { WorkOrdersView } from "./work-orders-view";
 
 const WO_PAGE_LIMIT = 200;
@@ -36,7 +37,6 @@ export default async function WorkOrdersPage({
     contactsRes,
     sitesRes,
     assetsRes,
-    casesRes,
     woAssetsRes,
   ] = await Promise.all([
     woQuery,
@@ -71,12 +71,6 @@ export default async function WorkOrdersPage({
         .order("code")
     ),
     supabase
-      .from("cases")
-      .select("id, number, subject, company_id")
-      .eq("org_id", org.id)
-      .order("number", { ascending: false })
-        .limit(500),
-    supabase
       .from("work_order_assets")
       .select("work_order_id, equipment_id")
       .eq("org_id", org.id),
@@ -88,14 +82,9 @@ export default async function WorkOrdersPage({
   const contacts = rows(contactsRes);
   const sites = rows(sitesRes);
   const assets = rows(assetsRes);
-  const cases = rows(casesRes);
   const woAssets = rows(woAssetsRes);
 
-  const caseList = (cases ?? []).map((c) => ({
-    id: c.id,
-    company_id: c.company_id,
-    name: `${c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส"} · ${c.subject}`,
-  }));
+  const caseList = await loadCaseOptions(supabase, org.id);
 
   const assetIdsByWo: Record<string, string[]> = {};
   for (const r of woAssets ?? []) {

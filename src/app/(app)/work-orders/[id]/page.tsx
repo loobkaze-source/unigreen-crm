@@ -4,6 +4,7 @@ import { isTechnicianOnly } from "@/lib/roles";
 import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { assetCode } from "@/lib/asset";
+import { loadCaseOptions } from "../case-options";
 import { WorkOrderDetail } from "./work-order-detail";
 
 export default async function WorkOrderDetailPage({
@@ -48,7 +49,6 @@ export default async function WorkOrderDetailPage({
     contactsRes,
     sitesRes,
     assetsRes,
-    casesRes,
     woAssetsRes,
   ] = await Promise.all([
     supabase
@@ -96,12 +96,6 @@ export default async function WorkOrderDetailPage({
         .order("code")
     ),
     supabase
-      .from("cases")
-      .select("id, number, subject, company_id")
-      .eq("org_id", org.id)
-      .order("number", { ascending: false })
-        .limit(500),
-    supabase
       .from("work_order_assets")
       .select("equipment_id")
       .eq("work_order_id", id),
@@ -115,14 +109,9 @@ export default async function WorkOrderDetailPage({
   const contacts = rows(contactsRes);
   const sites = rows(sitesRes);
   const assets = rows(assetsRes);
-  const cases = rows(casesRes);
   const woAssets = rows(woAssetsRes);
 
-  const caseList = (cases ?? []).map((c) => ({
-    id: c.id,
-    company_id: c.company_id,
-    name: `${c.number ? `CASE-${String(c.number).padStart(4, "0")}` : "เคส"} · ${c.subject}`,
-  }));
+  const caseList = await loadCaseOptions(supabase, org.id);
 
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);

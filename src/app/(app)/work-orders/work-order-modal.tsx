@@ -16,7 +16,18 @@ import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
 export type ContactOption = { id: string; name: string; company_id: string | null };
-export type CaseOption = { id: string; name: string; company_id: string | null };
+/** A case, plus everything the work-order form fills in from it. */
+export type CaseOption = {
+  id: string;
+  name: string;
+  company_id: string | null;
+  site_id: string | null;
+  contact_id: string | null;
+  subject: string;
+  note: string;
+  /** The machines the case was opened about. */
+  asset_ids: string[];
+};
 export type SiteOption = {
   id: string;
   name: string;
@@ -158,6 +169,41 @@ export function WorkOrderModal({
         site_map_url: s?.map_url ?? f.site_map_url,
         asset_ids: [],
         contact_id: contactOk ? f.contact_id : "",
+      };
+    });
+  }
+
+  /**
+   * A case already answers what the top of this form asks — the customer, the
+   * site, the contact, the machines with the fault — so picking one fills them
+   * in rather than making somebody look them all up again.
+   *
+   * The typed fields are only filled when empty: a title already written is
+   * the reason this was opened, and is not worth overwriting with the case's.
+   */
+  function selectCase(id: string) {
+    const c = cases.find((x) => x.id === id);
+    if (!c) return set("case_id", id); // cleared, or a case the list no longer has
+    const site = sites.find((x) => x.id === c.site_id) ?? null;
+    setForm((f) => {
+      const company_id = c.company_id || site?.company_id || f.company_id;
+      const ofCompany = (x?: { company_id: string | null }) => x?.company_id === company_id;
+      // Keep what is already chosen only where the case does not say otherwise
+      // and the choice still belongs to the case's customer.
+      const site_id = site?.id ?? (ofCompany(sites.find((x) => x.id === f.site_id)) ? f.site_id : "");
+      const sameSite = site_id === f.site_id;
+      return {
+        ...f,
+        case_id: id,
+        company_id,
+        site_id,
+        contact_id:
+          c.contact_id || (ofCompany(contacts.find((x) => x.id === f.contact_id)) ? f.contact_id : ""),
+        asset_ids: c.asset_ids.length ? c.asset_ids : sameSite ? f.asset_ids : [],
+        site_address: sameSite ? f.site_address : site?.address ?? "",
+        site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
+        title: f.title || c.subject,
+        description: f.description || c.note,
       };
     });
   }
@@ -379,7 +425,7 @@ export function WorkOrderModal({
             <Combobox
               id="case_id"
               value={form.case_id}
-              onChange={(v) => set("case_id", v)}
+              onChange={selectCase}
               placeholder="— ไม่ระบุ —"
               options={visibleCases.map((c) => ({ value: c.id, label: c.name }))}
             />
