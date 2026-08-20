@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { DEPARTMENTS } from "@/lib/departments";
+import { boardsFor } from "@/lib/departments";
 import { displayUsername } from "@/lib/username";
 import { assignToBoard, unassignFromBoard } from "./actions";
 
@@ -56,7 +56,7 @@ export function BoardAssignView({
       <PageHeader title={title} subtitle={subtitle} />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        {DEPARTMENTS.map((dept) => {
+        {boardsFor(boardType).map((dept) => {
           const rows = assignments.filter((a) => a.board_key === dept.value);
           const assignedIds = new Set(rows.map((r) => r.user_id));
           const addable = eligible.filter((u) => !assignedIds.has(u.user_id));

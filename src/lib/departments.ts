@@ -9,3 +9,28 @@ export type DepartmentValue = (typeof DEPARTMENTS)[number]["value"];
 
 export const departmentLabel = (v: string | null | undefined) =>
   DEPARTMENTS.find((d) => d.value === v)?.label ?? "—";
+
+/**
+ * The Service Boards — the three departments that run the field work, named by
+ * the letters that begin their case codes (MRD-0826-00001).
+ *
+ * Deliberately not the list above: that one is the sales side, and the two have
+ * never been the same set of teams. A board_assignments row belongs to one list
+ * or the other according to its board_type.
+ */
+export const SERVICE_BOARDS = [
+  { value: "MRD", label: "MRD" },
+  { value: "UNG", label: "UNG" },
+  { value: "ETD", label: "ETD" },
+] as const;
+
+export type ServiceBoardValue = (typeof SERVICE_BOARDS)[number]["value"];
+
+export const serviceBoardLabel = (v: string | null | undefined) =>
+  SERVICE_BOARDS.find((b) => b.value === v)?.label ?? v ?? "—";
+
+/** The boards a given kind of assignment can point at. */
+export const boardsFor = (
+  boardType: "pipeline" | "service"
+): readonly { value: string; label: string }[] =>
+  boardType === "service" ? SERVICE_BOARDS : DEPARTMENTS;

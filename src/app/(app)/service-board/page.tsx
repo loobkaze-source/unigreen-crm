@@ -1,5 +1,5 @@
 import { getSessionContext } from "@/lib/data";
-import { DEPARTMENTS } from "@/lib/departments";
+import { SERVICE_BOARDS } from "@/lib/departments";
 import { ServiceBoardView } from "./service-board-view";
 
 const OPEN_STATUSES = ["new", "scheduled", "in_progress", "on_hold"];
@@ -10,7 +10,7 @@ export default async function ServiceBoardPage() {
   // Which service boards may this user see?
   let boardKeys: string[];
   if (isAdmin) {
-    boardKeys = DEPARTMENTS.map((d) => d.value);
+    boardKeys = SERVICE_BOARDS.map((d) => d.value);
   } else {
     const { data: asg } = await supabase
       .from("board_assignments")
@@ -60,7 +60,7 @@ export default async function ServiceBoardPage() {
 
   return (
     <ServiceBoardView
-      boards={DEPARTMENTS.filter((d) => boardKeys.includes(d.value))}
+      boards={SERVICE_BOARDS.filter((d) => boardKeys.includes(d.value))}
       workOrders={workOrders ?? []}
       contracts={contracts ?? []}
       visits={visits ?? []}

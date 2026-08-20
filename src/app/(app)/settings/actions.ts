@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
-import { DEPARTMENTS } from "@/lib/departments";
+import { boardsFor } from "@/lib/departments";
 
 async function requireAdmin() {
   const ctx = await getSessionContext();
@@ -18,7 +18,8 @@ export async function assignToBoard(input: {
 }): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
-  if (!DEPARTMENTS.some((d) => d.value === input.boardKey))
+  // Each kind of board has its own list; a sales board is not a service one.
+  if (!boardsFor(input.boardType).some((d) => d.value === input.boardKey))
     return fail("บอร์ดไม่ถูกต้อง");
 
   const { error: e } = await ctx.supabase.from("board_assignments").upsert(

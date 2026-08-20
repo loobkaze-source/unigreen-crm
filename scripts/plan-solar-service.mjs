@@ -27,7 +27,8 @@ const OUT_CONTRACTS = "import-data/solar-2-contracts.xlsx";
 
 /** The type the app now shows as “สัญญาบำรุงรักษาโซลาร์”. */
 const SERVICE_TYPE = "panel_cleaning";
-const BOARD = "unigreen";
+/** Service Board — unigreen became UNG when the boards split by department. */
+const BOARD = "UNG";
 const FREQUENCY = 2;
 const YEARS = 5;
 

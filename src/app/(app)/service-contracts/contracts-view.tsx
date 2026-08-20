@@ -23,7 +23,7 @@ import {
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
-import { DEPARTMENTS } from "@/lib/departments";
+import { SERVICE_BOARDS } from "@/lib/departments";
 import { fmtDate } from "@/lib/format";
 import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
 import { saveContract, deleteContract } from "./actions";
@@ -378,7 +378,7 @@ export function ContractsView({
               onChange={(e) => setForm({ ...form, board_key: e.target.value })}
             >
               <option value="">— ไม่ระบุ —</option>
-              {DEPARTMENTS.map((d) => (
+              {SERVICE_BOARDS.map((d) => (
                 <option key={d.value} value={d.value}>
                   {d.label}
                 </option>

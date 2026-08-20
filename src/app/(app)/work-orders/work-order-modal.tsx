@@ -10,7 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
-import { DEPARTMENTS } from "@/lib/departments";
+import { SERVICE_BOARDS } from "@/lib/departments";
 import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
 import { saveWorkOrder } from "./actions";
 
@@ -400,7 +400,7 @@ export function WorkOrderModal({
             <Label htmlFor="board_key">Service Board</Label>
             <Select id="board_key" value={form.board_key} onChange={(e) => set("board_key", e.target.value)}>
               <option value="">— ไม่ระบุ —</option>
-              {DEPARTMENTS.map((d) => (
+              {SERVICE_BOARDS.map((d) => (
                 <option key={d.value} value={d.value}>
                   {d.label}
                 </option>

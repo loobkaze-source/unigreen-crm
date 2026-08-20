@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import type { ServiceType, VisitStatus } from "@/lib/database.types";
-import { DEPARTMENTS } from "@/lib/departments";
+import { SERVICE_BOARDS } from "@/lib/departments";
 
 export type ContractInput = {
   id?: string;
@@ -21,7 +21,7 @@ export type ContractInput = {
 };
 
 const isBoard = (v: string | null | undefined) =>
-  v && DEPARTMENTS.some((d) => d.value === v) ? v : null;
+  v && SERVICE_BOARDS.some((d) => d.value === v) ? v : null;
 
 function num(v: number | string, fallback: number): number {
   const n = typeof v === "number" ? v : Number(v);
