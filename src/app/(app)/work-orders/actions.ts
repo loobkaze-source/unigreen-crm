@@ -385,6 +385,72 @@ export async function saveTechnicianRemark(
 }
 
 /**
+ * How the job was closed: the two codes and the two explanations, plus everyone
+ * who stood on site.
+ *
+ * The codes are the point of the card — a year of them says which fault keeps
+ * coming back and which fix holds — so they are kept as their own columns
+ * rather than as sentences in a note nothing can count.
+ */
+export async function saveWorkOrderDiagnosis(
+  workOrderId: string,
+  patch: {
+    fault_code?: string;
+    repair_code?: string;
+    cause?: string;
+    remedy?: string;
+    technician_ids?: string[];
+  }
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  const text = (v: string | undefined) => (v?.trim() ? v.trim() : null);
+  const update: Record<string, unknown> = {};
+  for (const k of ["fault_code", "repair_code", "cause", "remedy"] as const) {
+    if (k in patch) update[k] = text(patch[k]);
+  }
+  if (Object.keys(update).length) {
+    const { error } = await ctx.supabase
+      .from("work_orders")
+      .update(update)
+      .eq("id", workOrderId)
+      .eq("org_id", ctx.org.id);
+    if (error) return fail(error.message);
+  }
+
+  if (patch.technician_ids) {
+    const keep = [...new Set(patch.technician_ids.filter(Boolean))];
+    // Replace the whole crew: drop whoever is no longer on it, then add the
+    // rest. Doing it the other way round would briefly empty a job that failed.
+    let del = ctx.supabase
+      .from("work_order_technicians")
+      .delete()
+      .eq("work_order_id", workOrderId)
+      .eq("org_id", ctx.org.id);
+    if (keep.length) del = del.not("technician_id", "in", `(${keep.join(",")})`);
+    const { error: dErr } = await del;
+    if (dErr) return fail(dErr.message);
+
+    if (keep.length) {
+      const { error: iErr } = await ctx.supabase.from("work_order_technicians").upsert(
+        keep.map((technician_id) => ({
+          org_id: ctx.org.id,
+          work_order_id: workOrderId,
+          technician_id,
+        })),
+        { onConflict: "work_order_id,technician_id" }
+      );
+      if (iErr) return fail(iErr.message);
+    }
+  }
+
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
+/**
  * The fields the printed service report asks for, saved together.
  *
  * One action rather than one per box: a technician fills the card in as a unit

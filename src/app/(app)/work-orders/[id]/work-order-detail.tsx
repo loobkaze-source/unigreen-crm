@@ -41,7 +41,11 @@ import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { shrinkImage } from "@/lib/image";
 import { SignaturePad } from "@/components/app/signature-pad";
-import { ServiceReportCard, TimeMileageCard } from "./service-report-cards";
+import {
+  DiagnosisCard,
+  ServiceReportCard,
+  TimeMileageCard,
+} from "./service-report-cards";
 import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
@@ -121,6 +125,9 @@ export function WorkOrderDetail({
   cases,
   contracts,
   assetIds,
+  crewIds,
+  faultCodes,
+  repairCodes,
   orgId,
   signatureUrl,
   canEdit = true,
@@ -142,6 +149,11 @@ export function WorkOrderDetail({
   cases: CaseOption[];
   contracts: ContractOption[];
   assetIds: string[];
+  /** Technicians recorded as having been on site. */
+  crewIds: string[];
+  /** Codes already used on other jobs, offered in the two pickers. */
+  faultCodes: string[];
+  repairCodes: string[];
   orgId: string;
   /** The customer's signature for this job, once there is one. */
   signatureUrl: string | null;
@@ -459,6 +471,18 @@ export function WorkOrderDetail({
             boxes ticked down items 6–14. */}
         <ServiceReportCard workOrder={workOrder} onSaved={() => router.refresh()} />
         <TimeMileageCard workOrder={workOrder} onSaved={() => router.refresh()} />
+
+        {/* How it was closed: the two codes, the two explanations, the crew. */}
+        <div className="lg:col-span-2">
+          <DiagnosisCard
+            workOrder={workOrder}
+            technicians={technicians}
+            crewIds={crewIds}
+            faultCodes={faultCodes}
+            repairCodes={repairCodes}
+            onSaved={() => router.refresh()}
+          />
+        </div>
 
         {/* Checklist */}
         <Card>

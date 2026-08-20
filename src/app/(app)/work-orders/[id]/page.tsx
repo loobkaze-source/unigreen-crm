@@ -51,6 +51,8 @@ export default async function WorkOrderDetailPage({
     sitesRes,
     assetsRes,
     woAssetsRes,
+    woTechsRes,
+    codesRes,
   ] = await Promise.all([
     supabase
       .from("work_order_items")
@@ -100,6 +102,19 @@ export default async function WorkOrderDetailPage({
       .from("work_order_assets")
       .select("equipment_id")
       .eq("work_order_id", id),
+    supabase
+      .from("work_order_technicians")
+      .select("technician_id")
+      .eq("work_order_id", id)
+      .order("created_at"),
+    // Codes already used, so the two pickers offer what the team has settled on
+    // rather than an empty box on every job.
+    supabase
+      .from("work_orders")
+      .select("fault_code, repair_code")
+      .eq("org_id", org.id)
+      .or("fault_code.not.is.null,repair_code.not.is.null")
+      .limit(1000),
   ]);
 
   const items = rows(itemsRes);
@@ -117,6 +132,10 @@ export default async function WorkOrderDetailPage({
 
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
+  const crewIds = rows(woTechsRes).map((r) => r.technician_id as string);
+  const used = rows(codesRes);
+  const faultCodes = used.map((r) => r.fault_code as string).filter(Boolean);
+  const repairCodes = used.map((r) => r.repair_code as string).filter(Boolean);
   const assetList = (assets ?? []).map((a) => {
     const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
     const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
@@ -157,6 +176,9 @@ export default async function WorkOrderDetailPage({
       cases={caseList}
       contracts={contractList}
       assetIds={assetIds}
+      crewIds={crewIds}
+      faultCodes={faultCodes}
+      repairCodes={repairCodes}
       orgId={org.id}
       canEdit={!fieldOnly}
       backHref={fieldOnly ? "/my-jobs" : "/work-orders"}

@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Clock, FileText, Loader2 } from "lucide-react";
+import { Clock, FileText, Loader2, Stethoscope, X } from "lucide-react";
 import type { WorkOrder } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox } from "@/components/ui/combobox";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { WO_BILLING, WO_WORK_KINDS } from "../constants";
-import { saveServiceReport, type ServiceReportPatch } from "../actions";
+import type { ActionResult } from "@/lib/action-result";
+import {
+  saveServiceReport,
+  saveWorkOrderDiagnosis,
+  type ServiceReportPatch,
+} from "../actions";
 
 /** A tick on the paper form, sized for a thumb rather than a mouse. */
 function Chip({
@@ -59,15 +66,20 @@ function toLocalInput(iso: string | null): string {
 }
 const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
 
-function useSave(workOrderId: string, onSaved: () => void) {
+/** Every card here saves the same way; only the action underneath differs. */
+function useSave<P>(
+  action: (id: string, patch: P) => Promise<ActionResult>,
+  workOrderId: string,
+  onSaved: () => void
+) {
   const [saving, setSaving] = useState(false);
   const [, startTransition] = useTransition();
   return {
     saving,
-    save(patch: ServiceReportPatch) {
+    save(patch: P) {
       setSaving(true);
       startTransition(async () => {
-        const res = await saveServiceReport(workOrderId, patch);
+        const res = await action(workOrderId, patch);
         setSaving(false);
         if (!res.ok) alert(res.error);
         else onSaved();
@@ -92,7 +104,7 @@ export function ServiceReportCard({
   workOrder: WorkOrder;
   onSaved: () => void;
 }) {
-  const { saving, save } = useSave(workOrder.id, onSaved);
+  const { saving, save } = useSave<ServiceReportPatch>(saveServiceReport, workOrder.id, onSaved);
   const [reportNo, setReportNo] = useState(workOrder.report_no ?? "");
   const [jobNo, setJobNo] = useState(workOrder.customer_job_no ?? "");
   const [billing, setBilling] = useState<string | null>(workOrder.billing);
@@ -206,7 +218,7 @@ export function TimeMileageCard({
   workOrder: WorkOrder;
   onSaved: () => void;
 }) {
-  const { saving, save } = useSave(workOrder.id, onSaved);
+  const { saving, save } = useSave<ServiceReportPatch>(saveServiceReport, workOrder.id, onSaved);
   const [startAt, setStartAt] = useState(toLocalInput(workOrder.started_at));
   const [endAt, setEndAt] = useState(toLocalInput(workOrder.finished_at));
   const [from, setFrom] = useState(workOrder.mileage_start?.toString() ?? "");
@@ -330,6 +342,148 @@ export function TimeMileageCard({
             )}
           </p>
         ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * How the job was closed, in the shape the old system asked for it: a code for
+ * the symptom, a code for the fix, the cause and the remedy in words, and
+ * everyone who was there.
+ *
+ * The two code fields are typed into, but offer every code already used, so the
+ * vocabulary settles by itself — nobody had to key a catalogue in first, and
+ * F01 stops being written three different ways by the third job.
+ */
+export function DiagnosisCard({
+  workOrder,
+  technicians,
+  crewIds,
+  faultCodes,
+  repairCodes,
+  onSaved,
+}: {
+  workOrder: WorkOrder;
+  technicians: { id: string; name: string }[];
+  crewIds: string[];
+  faultCodes: string[];
+  repairCodes: string[];
+  onSaved: () => void;
+}) {
+  const { saving, save } = useSave(saveWorkOrderDiagnosis, workOrder.id, onSaved);
+  const [fault, setFault] = useState(workOrder.fault_code ?? "");
+  const [repair, setRepair] = useState(workOrder.repair_code ?? "");
+  const [cause, setCause] = useState(workOrder.cause ?? "");
+  const [remedy, setRemedy] = useState(workOrder.remedy ?? "");
+  const [crew, setCrew] = useState<string[]>(crewIds);
+
+  const nameOf = (id: string) => technicians.find((t) => t.id === id)?.name ?? "—";
+  const options = (used: string[]) =>
+    [...new Set(used.filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "th"))
+      .map((v) => ({ value: v, label: v }));
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <Stethoscope className="h-4 w-4" /> อาการเสียและการแก้ไข
+        </CardTitle>
+        <SaveButton
+          saving={saving}
+          onClick={() =>
+            save({
+              fault_code: fault,
+              repair_code: repair,
+              cause,
+              remedy,
+              technician_ids: crew,
+            })
+          }
+        />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="fault_code">รหัสอาการเสีย</Label>
+            <Combobox
+              id="fault_code"
+              value={fault}
+              onChange={setFault}
+              allowCustom
+              placeholder="เช่น F01 : ไม่อ่านค่าระดับน้ำมัน"
+              options={options(faultCodes)}
+            />
+          </div>
+          <div>
+            <Label htmlFor="repair_code">รหัสซ่อม</Label>
+            <Combobox
+              id="repair_code"
+              value={repair}
+              onChange={setRepair}
+              allowCustom
+              placeholder="เช่น S03 : เปลี่ยนอุปกรณ์ใหม่"
+              options={options(repairCodes)}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="cause">สาเหตุของปัญหา</Label>
+            <Textarea
+              id="cause"
+              rows={3}
+              value={cause}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCause(e.target.value)}
+              placeholder="พบอะไรหน้างาน ทำไมถึงเสีย"
+            />
+          </div>
+          <div>
+            <Label htmlFor="remedy">วิธีการแก้ไข</Label>
+            <Textarea
+              id="remedy"
+              rows={3}
+              value={remedy}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setRemedy(e.target.value)}
+              placeholder="แก้อย่างไร เปลี่ยนอะไรไป"
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label htmlFor="crew">รายชื่อช่าง</Label>
+          {crew.length ? (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {crew.map((id, i) => (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-sm text-accent-foreground"
+                >
+                  {i + 1}. {nameOf(id)}
+                  <button
+                    type="button"
+                    onClick={() => setCrew((c) => c.filter((x) => x !== id))}
+                    aria-label={`เอา ${nameOf(id)} ออก`}
+                    className="rounded-full p-0.5 hover:bg-muted"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <Combobox
+            id="crew"
+            value=""
+            onChange={(id) => id && setCrew((c) => (c.includes(id) ? c : [...c, id]))}
+            placeholder="+ เพิ่มช่างที่เข้าหน้างาน"
+            options={technicians
+              .filter((t) => !crew.includes(t.id))
+              .map((t) => ({ value: t.id, label: t.name }))}
+          />
+        </div>
       </CardContent>
     </Card>
   );
