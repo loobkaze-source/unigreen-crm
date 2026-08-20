@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Circle,
   ImagePlus,
+  Loader2,
   MapPin,
   Pencil,
   Plus,
@@ -79,6 +80,24 @@ type PartRow = {
   source: string | null;
 };
 
+/**
+ * A transition that remembers which control started it, so only that control
+ * shows itself waiting. `pending` stays true until the refresh the action asked
+ * for has landed — which is the moment the new row is actually on screen, not
+ * the moment the server replied.
+ */
+function useBusyTransition() {
+  const [pending, startTransition] = useTransition();
+  const [running, setRunning] = useState<string | null>(null);
+  return {
+    run(name: string, fn: () => Promise<void>) {
+      setRunning(name);
+      startTransition(fn);
+    },
+    busy: (name: string) => pending && running === name,
+  };
+}
+
 export function WorkOrderDetail({
   workOrder,
   items,
@@ -127,19 +146,16 @@ export function WorkOrderDetail({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const [remark, setRemark] = useState(workOrder.technician_remark ?? "");
-  const [savingRemark, setSavingRemark] = useState(false);
   function submitRemark() {
-    setSavingRemark(true);
-    startTransition(async () => {
+    run("remark", async () => {
       const res = await saveTechnicianRemark(workOrder.id, remark);
-      setSavingRemark(false);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
   }
 
   const [uploading, setUploading] = useState(false);
-  const [, startTransition] = useTransition();
+  const { run, busy } = useBusyTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const s = statusMeta(workOrder.status);
@@ -155,7 +171,7 @@ export function WorkOrderDetail({
       : null);
 
   function changeStatus(status: string) {
-    startTransition(async () => {
+    run("status", async () => {
       const res = await updateWorkOrderStatus(
         workOrder.id,
         status as WorkOrder["status"]
@@ -169,7 +185,7 @@ export function WorkOrderDetail({
   function removeWorkOrder() {
     if (!confirm(`ลบใบสั่งงาน "${woCode(workOrder.number)} ${workOrder.title}"?`))
       return;
-    startTransition(async () => {
+    run("delete", async () => {
       const res = await deleteWorkOrder(workOrder.id);
       if (!res.ok) alert(res.error);
       else router.push("/work-orders");
@@ -178,7 +194,7 @@ export function WorkOrderDetail({
   function addItem(e: React.FormEvent) {
     e.preventDefault();
     if (!newItem.trim()) return;
-    startTransition(async () => {
+    run("addItem", async () => {
       const res = await addChecklistItem(workOrder.id, newItem);
       if (!res.ok) return alert(res.error);
       setNewItem("");
@@ -186,14 +202,14 @@ export function WorkOrderDetail({
     });
   }
   function toggleItem(item: WorkOrderItem) {
-    startTransition(async () => {
+    run(`item-${item.id}`, async () => {
       const res = await toggleChecklistItem(item.id, !item.done, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
   }
   function removeItem(item: WorkOrderItem) {
-    startTransition(async () => {
+    run(`item-${item.id}`, async () => {
       const res = await deleteChecklistItem(item.id, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
@@ -229,7 +245,7 @@ export function WorkOrderDetail({
 
   function removePhoto(ph: PhotoWithUrl) {
     if (!confirm("ลบรูปนี้?")) return;
-    startTransition(async () => {
+    run(`photo-${ph.id}`, async () => {
       const res = await deleteWorkOrderPhoto(ph.id, ph.path, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
@@ -399,8 +415,13 @@ export function WorkOrderDetail({
                 onChange={(e) => setNewItem(e.target.value)}
                 placeholder="เพิ่มรายการตรวจ เช่น ตรวจสายดิน…"
               />
-              <Button type="submit" variant="secondary">
-                <Plus className="h-4 w-4" /> เพิ่ม
+              <Button type="submit" disabled={busy("addItem")}>
+                {busy("addItem") ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                เพิ่ม
               </Button>
             </form>
           </CardContent>
@@ -449,9 +470,10 @@ export function WorkOrderDetail({
               <Button
                 variant="secondary"
                 onClick={submitRemark}
-                disabled={savingRemark || remark === (workOrder.technician_remark ?? "")}
+                disabled={busy("remark") || remark === (workOrder.technician_remark ?? "")}
               >
-                {savingRemark ? "กำลังบันทึก…" : "บันทึกหมายเหตุ"}
+                {busy("remark") ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {busy("remark") ? "กำลังบันทึก…" : "บันทึกหมายเหตุ"}
               </Button>
             </div>
           </CardContent>
@@ -461,13 +483,13 @@ export function WorkOrderDetail({
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>รูปหน้างาน</CardTitle>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-            >
-              <ImagePlus className="h-4 w-4" /> {uploading ? "กำลังอัปโหลด…" : "เพิ่มรูป"}
+            <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="h-4 w-4" />
+              )}
+              {uploading ? "กำลังอัปโหลด…" : "เพิ่มรูป"}
             </Button>
             <input
               ref={fileRef}
@@ -593,7 +615,7 @@ function PartsCard({
   workOrderId: string;
   onChanged: () => void;
 }) {
-  const [, startTransition] = useTransition();
+  const { run, busy } = useBusyTransition();
   const [draft, setDraft] = useState({
     name: "",
     qty: "1",
@@ -612,7 +634,7 @@ function PartsCard({
   function add(e: React.FormEvent) {
     e.preventDefault();
     if (!draft.name.trim()) return;
-    startTransition(async () => {
+    run("add", async () => {
       const res = await addWorkOrderPart(
         workOrderId,
         draft.name,
@@ -629,7 +651,7 @@ function PartsCard({
   }
 
   function remove(part: PartRow) {
-    startTransition(async () => {
+    run(`part-${part.id}`, async () => {
       const res = await deleteWorkOrderPart(part.id, workOrderId);
       if (!res.ok) alert(res.error);
       else onChanged();
@@ -751,8 +773,13 @@ function PartsCard({
                   </option>
                 ))}
             </Select>
-            <Button type="submit" variant="secondary">
-              <Plus className="h-4 w-4" /> เพิ่ม
+            <Button type="submit" disabled={busy("add")}>
+              {busy("add") ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              เพิ่ม
             </Button>
           </div>
         </form>
