@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { isTechnicianOnly } from "@/lib/roles";
+import { SERVICE_BOARDS } from "@/lib/departments";
 import { DEFAULT_WO_TYPE } from "./constants";
 import type {
   WorkOrderPriority,
@@ -96,9 +97,9 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     status: input.status || "new",
     priority: input.priority || "normal",
     job_class: oneOf(input.job_class, ["CM", "PM"]),
-    billing: oneOf(input.billing, ["warranty", "paid"]),
+    billing: oneOf(input.billing, ["warranty", "contract", "paid"]),
     asset_id: assetIds[0] ?? null, // keep the single column pointing at the first
-    board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
+    board_key: oneOf(input.board_key, SERVICE_BOARDS.map((b) => b.value)),
     site_id: input.site_id || null,
     case_id: input.case_id || null,
     contract_id: input.contract_id || null,
@@ -248,6 +249,27 @@ export async function updateWorkOrderStatus(
 
   const denied = await assertMayWork(ctx, id);
   if (denied) return fail(denied);
+
+  /**
+   * A job is not finished until the customer has put their name to it. Enforced
+   * here rather than only on the button, because the same status can be set
+   * from the job page's dropdown — and a rule that lives in one screen is not a
+   * rule. Cancelling is untouched: a job called off was never done.
+   *
+   * A job being back-entered as already finished goes in through the edit form,
+   * which does not come through here.
+   */
+  if (status === "completed") {
+    const { data: wo } = await supabase
+      .from("work_orders")
+      .select("signature_path")
+      .eq("id", id)
+      .eq("org_id", org.id)
+      .maybeSingle();
+    if (!wo?.signature_path) {
+      return fail("ยังไม่มีลายเซ็นลูกค้า — ขอลายเซ็นก่อนจึงจะปิดงานได้");
+    }
+  }
 
   const { error } = await supabase
     .from("work_orders")

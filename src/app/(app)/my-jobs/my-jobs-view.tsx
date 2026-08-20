@@ -312,15 +312,12 @@ function JobCard({
   // The person on site beats the company switchboard.
   const callNumber = job.contactPhone ?? job.companyPhone;
 
-  /** A job closed with nothing signed is the one thing worth asking about. */
-  function closeJob() {
-    if (
-      !job.signatureUrl &&
-      !confirm("ยังไม่มีลายเซ็นลูกค้าในงานนี้ ปิดงานเลยไหม?")
-    )
-      return;
-    onStatus("completed");
-  }
+  /**
+   * A job cannot close unsigned, so the button leads to the signature instead of
+   * refusing — the pad is the next thing that has to happen either way, and a
+   * dead button on a phone reads as a broken one.
+   */
+  const signed = !!job.signatureUrl;
 
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
@@ -483,11 +480,16 @@ function JobCard({
         <button
           type="button"
           disabled={busy}
-          onClick={closeJob}
-          className="flex w-full items-center justify-center gap-2 rounded-b-lg border-t border-border bg-emerald-600 py-4 text-base font-semibold text-white active:bg-emerald-700 disabled:opacity-50"
+          onClick={() => (signed ? onStatus("completed") : onSign())}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-b-lg border-t border-border py-4 text-base font-semibold text-white disabled:opacity-50",
+            signed
+              ? "bg-emerald-600 active:bg-emerald-700"
+              : "bg-slate-500 active:bg-slate-600"
+          )}
         >
-          <CheckCircle2 className="h-5 w-5" />
-          {busy ? "กำลังบันทึก…" : "ปิดงาน"}
+          {signed ? <CheckCircle2 className="h-5 w-5" /> : <PenLine className="h-5 w-5" />}
+          {busy ? "กำลังบันทึก…" : signed ? "ปิดงาน" : "ขอลายเซ็นก่อนปิดงาน"}
         </button>
       )}
     </div>
