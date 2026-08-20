@@ -331,6 +331,8 @@ export interface ContactCompany extends Timestamps {
 export interface ServiceContract extends Mutable {
   id: string;
   org_id: string;
+  /** UNG-2026-0001 — department, the year it started, and which one it was. */
+  contract_no: string | null;
   company_id: string | null;
   site_id: string | null;
   title: string;

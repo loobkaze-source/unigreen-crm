@@ -65,6 +65,9 @@ export function ContractDetail({
       </Link>
 
       <div className="mb-5 flex items-center gap-2">
+        {contract.contract_no ? (
+          <div className="font-mono text-xs text-muted-foreground">{contract.contract_no}</div>
+        ) : null}
         <h1 className="text-xl font-bold tracking-tight">{contract.title}</h1>
         <Badge tone={contract.status === "active" ? "success" : "muted"}>
           {contract.status === "active" ? "ใช้งาน" : contract.status}

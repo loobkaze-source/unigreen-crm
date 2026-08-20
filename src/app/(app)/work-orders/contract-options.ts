@@ -17,14 +17,16 @@ export async function loadContractOptions(
 ): Promise<ContractOption[]> {
   const res = await supabase
     .from("service_contracts")
-    .select("id, title, company_id, site_id, board_key, status")
+    .select("id, contract_no, title, company_id, site_id, board_key, status")
     .eq("org_id", orgId)
     .neq("status", "cancelled")
     .order("title");
 
   return rows(res).map((c) => ({
     id: c.id as string,
-    name: c.title as string,
+    // The number leads: the title is the customer and the site spelled out,
+    // and two contracts on one station read the same until the very end.
+    name: [c.contract_no, c.title].filter(Boolean).join(" · "),
     title: c.title as string,
     company_id: (c.company_id as string) ?? null,
     site_id: (c.site_id as string) ?? null,

@@ -96,11 +96,22 @@ export function ContractsView({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return contracts;
-    return contracts.filter((c) => c.title.toLowerCase().includes(q));
+    return contracts.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        (c.contract_no || "").toLowerCase().includes(q)
+    );
   }, [contracts, query]);
 
   const columns = useMemo<ColumnDef<ContractRow>[]>(
     () => [
+      {
+        key: "contract_no",
+        header: "เลขที่",
+        sortAccessor: (c) => c.contract_no,
+        // Typed into: "UNG" narrows to one department, "2026" to one year.
+        filter: { kind: "text", accessor: (c) => c.contract_no },
+      },
       {
         key: "title",
         header: "สัญญา",
@@ -248,6 +259,9 @@ export function ContractsView({
                     key={c.id}
                     className="group border-b border-border last:border-0 hover:bg-muted/30"
                   >
+                    <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-muted-foreground">
+                      {c.contract_no ?? "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <Link href={`/service-contracts/${c.id}`} className="block">
                         <div className="font-medium hover:text-primary">{c.title}</div>
