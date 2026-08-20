@@ -24,6 +24,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -258,21 +259,15 @@ export function WorkOrdersView({
         ))}
       </div>
 
-      {table.matched.length === 0 ? (
+      {workOrders.length === 0 ? (
         <EmptyState
           icon={Wrench}
-          title={workOrders.length ? "ไม่พบรายการ" : "ยังไม่มีใบสั่งงาน"}
-          description={
-            workOrders.length
-              ? "ปรับการค้นหาหรือตัวกรอง"
-              : "สร้างใบสั่งงานแรกเพื่อมอบหมายงานหน้างานให้ทีมช่าง"
-          }
+          title="ยังไม่มีใบสั่งงาน"
+          description="สร้างใบสั่งงานแรกเพื่อมอบหมายงานหน้างานให้ทีมช่าง"
           action={
-            workOrders.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> สร้างใบสั่งงาน
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> สร้างใบสั่งงาน
+            </Button>
           }
         />
       ) : tab === "list" ? (
@@ -308,7 +303,8 @@ export function WorkOrdersView({
                     onDelete={(e) => remove(w, e)}
                   />
                 ))}
-              </tbody>
+              <DataTableNoMatch table={table} />
+            </tbody>
             </table>
           <DataTablePager table={table} />
           </div>

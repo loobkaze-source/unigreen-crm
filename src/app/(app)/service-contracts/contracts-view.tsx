@@ -19,6 +19,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -219,21 +220,15 @@ export function ContractsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {contracts.length === 0 ? (
         <EmptyState
           icon={Repeat}
-          title={contracts.length ? "ไม่พบรายการ" : "ยังไม่มีสัญญาบริการ"}
-          description={
-            contracts.length
-              ? "ลองค้นด้วยคำอื่น"
-              : "สร้างสัญญาบริการรายปี ระบบจะสร้างรอบเข้าบริการตามความถี่ให้อัตโนมัติ"
-          }
+          title="ยังไม่มีสัญญาบริการ"
+          description="สร้างสัญญาบริการรายปี ระบบจะสร้างรอบเข้าบริการตามความถี่ให้อัตโนมัติ"
           action={
-            contracts.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> สร้างสัญญา
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> สร้างสัญญา
+            </Button>
           }
         />
       ) : (
@@ -297,6 +292,7 @@ export function ContractsView({
                   </tr>
                 );
               })}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

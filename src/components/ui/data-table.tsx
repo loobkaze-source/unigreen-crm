@@ -365,6 +365,36 @@ export function DataTableHead<T>({
   );
 }
 
+/**
+ * The "nothing matched" line, rendered as a row inside the table rather than in
+ * place of it.
+ *
+ * A filter that empties the list used to take the whole table with it, and the
+ * filter row lives in that table's header — so the box holding the word that
+ * matched nothing disappeared along with the rows, and the way back was the
+ * toolbar's clear button rather than the backspace the reader's finger was
+ * already on. The table stays; only the rows are missing.
+ */
+export function DataTableNoMatch<T>({
+  table,
+  children,
+}: {
+  table: DataTable<T>;
+  children?: React.ReactNode;
+}) {
+  if (table.rows.length > 0) return null;
+  return (
+    <tr>
+      <td
+        colSpan={table.columns.length}
+        className="px-4 py-12 text-center text-sm text-muted-foreground"
+      >
+        {children ?? "ไม่พบรายการที่ตรงกับตัวกรอง — แก้คำค้นหรือตัวกรองด้านบนได้เลย"}
+      </td>
+    </tr>
+  );
+}
+
 function ColumnFilter<T>({
   col,
   value,

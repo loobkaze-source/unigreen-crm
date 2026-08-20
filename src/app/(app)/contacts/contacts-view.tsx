@@ -17,6 +17,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -174,21 +175,15 @@ export function ContactsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {contacts.length === 0 ? (
         <EmptyState
           icon={Users}
-          title={contacts.length ? "ไม่พบรายการ" : "ยังไม่มีผู้ติดต่อ"}
-          description={
-            contacts.length
-              ? "ลองค้นด้วยคำอื่น"
-              : "เพิ่มบุคคลที่คุณกำลังทำงานด้วย"
-          }
+          title="ยังไม่มีผู้ติดต่อ"
+          description="เพิ่มบุคคลที่คุณกำลังทำงานด้วย"
           action={
-            contacts.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มผู้ติดต่อ
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มผู้ติดต่อ
+            </Button>
           }
         />
       ) : (
@@ -256,6 +251,7 @@ export function ContactsView({
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

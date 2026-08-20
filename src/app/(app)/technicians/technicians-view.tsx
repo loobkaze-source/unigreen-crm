@@ -17,6 +17,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -235,21 +236,15 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {technicians.length === 0 ? (
         <EmptyState
           icon={HardHat}
-          title={technicians.length ? "ไม่พบรายการ" : "ยังไม่มีช่าง"}
-          description={
-            technicians.length
-              ? "ลองค้นด้วยคำอื่น"
-              : "เพิ่มช่างเทคนิคเพื่อมอบหมายงานบริการ"
-          }
+          title="ยังไม่มีช่าง"
+          description="เพิ่มช่างเทคนิคเพื่อมอบหมายงานบริการ"
           action={
-            technicians.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มช่าง
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มช่าง
+            </Button>
           }
         />
       ) : (
@@ -342,6 +337,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

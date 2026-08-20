@@ -14,6 +14,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -223,10 +224,10 @@ export function UsersView({
           <DataTableFilterToggle table={table} />
         </div>
       ) : null}
-      {table.matched.length === 0 ? (
+      {members.length === 0 ? (
         <EmptyState
           icon={UserCog}
-          title={members.length ? "ไม่พบรายการ" : "ยังไม่มีผู้ใช้"}
+          title="ยังไม่มีผู้ใช้"
         />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-sm">
@@ -312,6 +313,7 @@ export function UsersView({
                   </tr>
                 );
               })}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

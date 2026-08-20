@@ -32,6 +32,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -468,19 +469,17 @@ export function CasesView({
         </p>
       ) : null}
 
-      {table.matched.length === 0 ? (
+      {cases.length === 0 ? (
         <EmptyState
           icon={LifeBuoy}
-          title={cases.length ? "ไม่พบรายการ" : "ยังไม่มีเคส"}
-          description={
-            cases.length ? "ปรับการค้นหาหรือตัวกรอง" : "บันทึกคำร้อง/ปัญหาจากลูกค้าเพื่อติดตามการแก้ไข"
-          }
+          title="ยังไม่มีเคส"
+          description="บันทึกคำร้อง/ปัญหาจากลูกค้าเพื่อติดตามการแก้ไข"
           action={
-            cases.length || !canManage ? null : (
+            canManage ? (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4" /> เพิ่มเคส
               </Button>
-            )
+            ) : null
           }
         />
       ) : (
@@ -570,6 +569,7 @@ export function CasesView({
                   </tr>
                 );
               })}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

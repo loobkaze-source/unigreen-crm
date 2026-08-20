@@ -18,6 +18,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -219,21 +220,15 @@ export function WarrantiesView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {warranties.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
-          title={warranties.length ? "ไม่พบรายการ" : "ยังไม่มีการรับประกัน"}
-          description={
-            warranties.length
-              ? "ปรับการค้นหาหรือตัวกรอง"
-              : "บันทึกการรับประกันโครงการหรืออุปกรณ์ เพื่อติดตามวันหมดอายุ"
-          }
+          title="ยังไม่มีการรับประกัน"
+          description="บันทึกการรับประกันโครงการหรืออุปกรณ์ เพื่อติดตามวันหมดอายุ"
           action={
-            warranties.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มการรับประกัน
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มการรับประกัน
+            </Button>
           }
         />
       ) : (
@@ -277,6 +272,7 @@ export function WarrantiesView({
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

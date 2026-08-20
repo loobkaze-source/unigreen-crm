@@ -12,6 +12,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -172,15 +173,11 @@ export function AssetsView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {equipment.length === 0 ? (
         <EmptyState
           icon={Box}
-          title={equipment.length ? "ไม่พบรายการ" : "ยังไม่มี Asset"}
-          description={
-            equipment.length
-              ? "ปรับการค้นหาหรือตัวกรอง"
-              : "เพิ่ม Asset ได้จากหน้าไซต์งานของลูกค้า"
-          }
+          title="ยังไม่มี Asset"
+          description="เพิ่ม Asset ได้จากหน้าไซต์งานของลูกค้า"
         />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
@@ -266,6 +263,7 @@ export function AssetsView({
                   </tr>
                 );
               })}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

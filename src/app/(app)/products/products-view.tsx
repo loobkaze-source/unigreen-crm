@@ -17,6 +17,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -171,17 +172,15 @@ export function ProductsView({ products }: { products: Product[] }) {
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {products.length === 0 ? (
         <EmptyState
           icon={Package}
-          title={products.length ? "ไม่พบรายการ" : "ยังไม่มีสินค้า"}
-          description={products.length ? "ลองค้นด้วยคำอื่น" : "เพิ่มสินค้าเข้าแคตตาล็อก"}
+          title="ยังไม่มีสินค้า"
+          description="เพิ่มสินค้าเข้าแคตตาล็อก"
           action={
-            products.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มสินค้า
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มสินค้า
+            </Button>
           }
         />
       ) : (
@@ -227,6 +226,7 @@ export function ProductsView({ products }: { products: Product[] }) {
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

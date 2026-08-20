@@ -17,6 +17,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -198,21 +199,15 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
         </div>
       </div>
 
-      {table.matched.length === 0 ? (
+      {leads.length === 0 ? (
         <EmptyState
           icon={UserPlus}
-          title={leads.length ? "ไม่พบรายการ" : "ยังไม่มีลูกค้ามุ่งหวัง"}
-          description={
-            leads.length
-              ? "ปรับการค้นหาหรือตัวกรอง"
-              : "เพิ่มลูกค้ามุ่งหวังรายแรกแล้วเริ่มคัดกรอง"
-          }
+          title="ยังไม่มีลูกค้ามุ่งหวัง"
+          description="เพิ่มลูกค้ามุ่งหวังรายแรกแล้วเริ่มคัดกรอง"
           action={
-            leads.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มลูกค้ามุ่งหวัง
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มลูกค้ามุ่งหวัง
+            </Button>
           }
         />
       ) : (
@@ -271,6 +266,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
                   </tr>
                 );
               })}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

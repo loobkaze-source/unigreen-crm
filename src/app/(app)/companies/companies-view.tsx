@@ -16,6 +16,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -226,21 +227,15 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
         </div>
       ) : null}
 
-      {table.matched.length === 0 ? (
+      {companies.length === 0 ? (
         <EmptyState
           icon={Building2}
-          title={companies.length ? "ไม่พบรายการ" : "ยังไม่มีบริษัท"}
-          description={
-            companies.length
-              ? "ลองค้นด้วยคำอื่น"
-              : "เพิ่มบริษัทแรกของคุณเพื่อเริ่มเชื่อมโยงผู้ติดต่อและดีล"
-          }
+          title="ยังไม่มีบริษัท"
+          description="เพิ่มบริษัทแรกของคุณเพื่อเริ่มเชื่อมโยงผู้ติดต่อและดีล"
           action={
-            companies.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มบริษัท
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มลูกค้า
+            </Button>
           }
         />
       ) : (
@@ -314,6 +309,7 @@ export function CompaniesView({ companies }: { companies: Company[] }) {
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />

@@ -18,6 +18,7 @@ import {
   useDataTable,
   DataTablePager,
   DataTableHead,
+  DataTableNoMatch,
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
@@ -233,21 +234,15 @@ export function SitesView({
         <DataTableFilterToggle table={table} />
       </div>
 
-      {table.matched.length === 0 ? (
+      {sites.length === 0 ? (
         <EmptyState
           icon={MapPin}
-          title={sites.length ? "ไม่พบรายการ" : "ยังไม่มีไซต์งาน"}
-          description={
-            sites.length
-              ? "ลองค้นด้วยคำอื่น หรือล้างตัวกรองอุปกรณ์"
-              : "เพิ่มไซต์เพื่อจัดการอุปกรณ์และงานบริการตามสถานที่"
-          }
+          title="ยังไม่มีไซต์งาน"
+          description="เพิ่มไซต์เพื่อจัดการอุปกรณ์และงานบริการตามสถานที่"
           action={
-            sites.length ? null : (
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4" /> เพิ่มไซต์
-              </Button>
-            )
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> เพิ่มไซต์
+            </Button>
           }
         />
       ) : (
@@ -297,6 +292,7 @@ export function SitesView({
                   </td>
                 </tr>
               ))}
+              <DataTableNoMatch table={table} />
             </tbody>
           </table>
           <DataTablePager table={table} />
