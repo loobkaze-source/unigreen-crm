@@ -69,7 +69,7 @@ const newSites = placed.filter((p) => p.isNew);
 const siteRows = newSites.map((p) => ({
   name: p.plant,
   company_name: p.co.name,
-  notes: `แผงโซลาร์ในระบบ FusionSolar · ขนานไฟ ${p.date}`,
+  notes: `ระบบโซลาร์ในพอร์ทัล FusionSolar · ขนานไฟ ${p.date}`,
 }));
 
 // A station is filed under a name as plain as "PTT Station" more than once, so
@@ -96,14 +96,14 @@ writeFileSync(
 writeFileSync(
   OUT_CONTRACTS,
   buildTemplateWorkbook(SERVICE_CONTRACTS, contractRows, [
-    `สัญญา ${YEARS} ปี ไซต์ละ 1 ฉบับ นับจากวันขนานไฟของแผงแรกในไซต์นั้น`,
+    `สัญญา ${YEARS} ปี ไซต์ละ 1 ฉบับ นับจากวันขนานไฟของระบบโซลาร์ตัวแรกในไซต์นั้น`,
     `ประเภทงาน ${SERVICE_TYPE} · บอร์ด ${BOARD} · ${FREQUENCY} ครั้ง/ปี`,
   ])
 );
 
 // ---------------------------------------------------------------------------
 
-console.log(`แผง ${placed.length} · ไซต์ที่เกี่ยวข้อง ${bySite.size} (เดิม ${bySite.size - newSites.length} · ใหม่ ${newSites.length})\n`);
+console.log(`ระบบโซลาร์ ${placed.length} · ไซต์ที่เกี่ยวข้อง ${bySite.size} (เดิม ${bySite.size - newSites.length} · ใหม่ ${newSites.length})\n`);
 for (const { site, plants: ps } of bySite.values()) {
   console.log(`${site.isNew ? "＋" : "→"} ${site.siteName}`);
   console.log(`    ลูกค้า: ${site.co.name}   (${site.why})`);

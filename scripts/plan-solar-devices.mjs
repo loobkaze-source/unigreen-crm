@@ -98,7 +98,7 @@ const devices = sheet.rows.slice(1)
 const stamp = /_(\d{4})(\d{2})(\d{2})\d{6}/.exec(FILE);
 const TAKEN = stamp ? `${stamp[1]}-${stamp[2]}-${stamp[3]}` : "";
 
-// ---- แผงในไฟล์อุปกรณ์ → ไซต์ ------------------------------------------------
+// ---- ระบบโซลาร์ในไฟล์อุปกรณ์ → ไซต์ ----------------------------------------
 const fuzzy = [];
 const unplaced = new Set();
 const siteOf = new Map(); // plant name (as written here) -> placed plant
@@ -112,10 +112,10 @@ for (const name of new Set(devices.map((d) => d["Plant Name"]))) {
   if (near.length === 1) {
     siteOf.set(name, near[0]);
     fuzzy.push([name, near[0].plant]);
-  } else unplaced.add(`${name}${near.length ? `  (ใกล้เคียง ${near.length} แผง)` : ""}`);
+  } else unplaced.add(`${name}${near.length ? `  (ใกล้เคียง ${near.length} รายการ)` : ""}`);
 }
 
-// ---- เครื่องเดียว ลงทะเบียนสองแผง -------------------------------------------
+// ---- เครื่องเดียว ลงทะเบียนสองระบบ ------------------------------------------
 /**
  * An inverter moved between plants keeps its serial and gains a second entry:
  * the portal shows it Running where it stands now and Offline where it used to.
@@ -173,12 +173,12 @@ const rows = keep.map(({ d, stale }) => {
 // ---------------------------------------------------------------------------
 
 if (fuzzy.length) {
-  console.log(`ชื่อแผงต่างกันหนึ่งตัวอักษร จับคู่ให้ ${fuzzy.length} แผง:`);
+  console.log(`ชื่อระบบโซลาร์ต่างกันหนึ่งตัวอักษร จับคู่ให้ ${fuzzy.length} รายการ:`);
   fuzzy.forEach(([a, b]) => console.log(`   ${a}\n      = ${b}`));
   console.log();
 }
 if (unplaced.size) {
-  console.error(`✗ หาแผงเหล่านี้ในไฟล์ขนานไฟไม่เจอ ${unplaced.size} แผง — ยังไม่เขียนไฟล์`);
+  console.error(`✗ หาระบบโซลาร์เหล่านี้ในไฟล์ขนานไฟไม่เจอ ${unplaced.size} รายการ — ยังไม่เขียนไฟล์`);
   [...unplaced].forEach((p) => console.error(`   ${p}`));
   process.exit(1);
 }
@@ -197,13 +197,13 @@ const tally = (f) => {
   for (const r of rows) m.set(r[f], (m.get(r[f]) ?? 0) + 1);
   return [...m.entries()].sort((a, b) => b[1] - a[1]);
 };
-console.log(`อุปกรณ์ในไฟล์ ${devices.length} · จะนำเข้า ${rows.length} · แผง ${siteOf.size} · ไซต์ ${new Set(rows.map((r) => `${r.company_name}|${r.site_name}`)).size}`);
+console.log(`อุปกรณ์ในไฟล์ ${devices.length} · จะนำเข้า ${rows.length} · ระบบโซลาร์ ${siteOf.size} · ไซต์ ${new Set(rows.map((r) => `${r.company_name}|${r.site_name}`)).size}`);
 console.log("\nชนิดเครื่อง:");
 tally("category").forEach(([k, n]) => console.log(`   ${String(n).padStart(4)}  ${k}`));
 console.log("\nสถานะ:");
 tally("status").forEach(([k, n]) => console.log(`   ${String(n).padStart(4)}  ${k}`));
 if (moved.length) {
-  console.log(`\nS/N ที่พอร์ทัลลงทะเบียนไว้สองแผง ${moved.length} เครื่อง — เอาตัวที่ Running:`);
+  console.log(`\nS/N ที่พอร์ทัลลงทะเบียนไว้สองระบบ ${moved.length} เครื่อง — เอาตัวที่ Running:`);
   moved.forEach((m) => console.log(`   ${m.sn}  อยู่ที่ ${m.to}\n      ค้างที่ ${m.from.join(", ")}`));
 }
 console.log(`\n✓ ${OUT} — ${rows.length} แถว`);

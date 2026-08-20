@@ -152,7 +152,7 @@ const matched = [];
 const missing = [];
 
 const body = sheet.rows.slice(1).map((r) => {
-  // ท้ายตารางเป็นบล็อกหมายเหตุ ไม่ใช่แผงโซลาร์ — ปล่อยไว้อย่างเดิม
+  // ท้ายตารางเป็นบล็อกหมายเหตุ ไม่ใช่ระบบโซลาร์ — ปล่อยไว้อย่างเดิม
   if (!isPlant(r)) return { cells: [{ v: s(r[0]), s: S.NOTE }] };
   const { name, how } = customerOf(r[1]);
   (name ? matched : missing).push({ no: s(r[0]), plant: s(r[1]), name, how });
@@ -171,7 +171,7 @@ for (const m of [...matched, ...missing]) {
   console.log(`     ${m.name || "— ไม่พบลูกค้าที่ตรง"}${m.how ? `   (${m.how})` : ""}`);
 }
 console.log(
-  `\nแผง ${matched.length + missing.length} รายการ · จับคู่ได้ ${matched.length} · ไม่พบ ${missing.length}`
+  `\nระบบโซลาร์ ${matched.length + missing.length} รายการ · จับคู่ได้ ${matched.length} · ไม่พบ ${missing.length}`
 );
 
 if (!APPLY) {
