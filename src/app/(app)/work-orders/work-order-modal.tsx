@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { WorkOrder } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -211,55 +211,58 @@ export function WorkOrderModal({
     };
   }, [initialVisit, contracts, sites]);
 
-  const [form, setForm] = useState(blank);
-  const [source, setSource] = useState<"case" | "contract">("case");
+  const buildForm = () =>
+    editing
+      ? {
+          title: editing.title,
+          type: editing.type,
+          status: editing.status,
+          priority: editing.priority,
+          job_class: editing.job_class || "",
+          billing: editing.billing || "",
+          board_key: editing.board_key || "",
+          case_id: editing.case_id || "",
+          contract_id: editing.contract_id || "",
+          // An existing job is not being raised for a round; if it serves
+          // one, that round already points at it.
+          visit_id: "",
+          asset_ids: assetIds,
+          technician_id: editing.technician_id || "",
+          company_id: editing.company_id || "",
+          site_id: editing.site_id || "",
+          contact_id: editing.contact_id || "",
+          scheduled_start: toLocalInput(editing.scheduled_start),
+          scheduled_end: toLocalInput(editing.scheduled_end),
+          site_address: editing.site_address || "",
+          site_map_url: editing.site_map_url || "",
+          description: editing.description || "",
+        }
+      : caseArrivedFrom
+        ? withCase(blank, caseArrivedFrom, sites, contacts)
+        : (visitArrivedFrom ?? blank);
+  const sourceFor = () =>
+    open && (editing?.contract_id || initialVisit) ? "contract" : "case";
 
-  // Opening picks the tab the record is already on, without an effect that
-  // would set state a render after the form was built.
-  const [wasOpen, setWasOpen] = useState(open);
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    setSource(open && (editing?.contract_id || initialVisit) ? "contract" : "case");
-  }
+  const [form, setForm] = useState(() => (open ? buildForm() : blank));
+  const [source, setSource] = useState<"case" | "contract">(sourceFor);
   const [error, setError] = useState<string | null>(null);
   const [assetQuery, setAssetQuery] = useState("");
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (!open) return;
-    setError(null);
-    setAssetQuery("");
-    setForm(
-      editing
-        ? {
-            title: editing.title,
-            type: editing.type,
-            status: editing.status,
-            priority: editing.priority,
-            job_class: editing.job_class || "",
-            billing: editing.billing || "",
-            board_key: editing.board_key || "",
-            case_id: editing.case_id || "",
-            contract_id: editing.contract_id || "",
-            // An existing job is not being raised for a round; if it serves
-            // one, that round already points at it.
-            visit_id: "",
-            asset_ids: assetIds,
-            technician_id: editing.technician_id || "",
-            company_id: editing.company_id || "",
-            site_id: editing.site_id || "",
-            contact_id: editing.contact_id || "",
-            scheduled_start: toLocalInput(editing.scheduled_start),
-            scheduled_end: toLocalInput(editing.scheduled_end),
-            site_address: editing.site_address || "",
-            site_map_url: editing.site_map_url || "",
-            description: editing.description || "",
-          }
-        : caseArrivedFrom
-          ? withCase(blank, caseArrivedFrom, sites, contacts)
-          : (visitArrivedFrom ?? blank)
-    );
-  }, [open, editing, assetIds, caseArrivedFrom, visitArrivedFrom, sites, contacts]);
+  // Build the form at the moment of opening — state adjusted during render
+  // (not in an effect) so the fresh form paints on the very first open frame.
+  // Keying on the open transition alone also means a background
+  // router.refresh() can no longer wipe what the user is typing.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    setSource(sourceFor());
+    if (open) {
+      setError(null);
+      setAssetQuery("");
+      setForm(buildForm());
+    }
+  }
 
   function set<K extends keyof typeof blank>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));

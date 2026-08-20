@@ -59,14 +59,18 @@ export function DateRangePicker({
 
   useEffect(() => {
     if (!open) return;
-    if (s) setView(startOfMonth(s));
     function onDoc(ev: MouseEvent) {
       if (ref.current && !ref.current.contains(ev.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  function toggleOpen() {
+    // Jump the calendar to the selected month at the moment of opening.
+    if (!open && s) setView(startOfMonth(s));
+    setOpen(!open);
+  }
 
   const startTime = timeStr(s, "09:00");
   const endTime = timeStr(e, "17:00");
@@ -95,7 +99,7 @@ export function DateRangePicker({
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-card px-3 text-left text-sm shadow-sm hover:bg-muted/40"
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />

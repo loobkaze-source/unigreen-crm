@@ -37,9 +37,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verify the JWT locally (ES256 signing key + cached JWKS) instead of a
+  // network round trip to Supabase Auth on every request. getClaims() still
+  // refreshes the session via the network when the token is about to expire.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname } = request.nextUrl;
 

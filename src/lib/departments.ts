@@ -26,9 +26,6 @@ export const SERVICE_BOARDS = [
 
 export type ServiceBoardValue = (typeof SERVICE_BOARDS)[number]["value"];
 
-export const serviceBoardLabel = (v: string | null | undefined) =>
-  SERVICE_BOARDS.find((b) => b.value === v)?.label ?? v ?? "—";
-
 /** The boards a given kind of assignment can point at. */
 export const boardsFor = (
   boardType: "pipeline" | "service"

@@ -86,10 +86,13 @@ export type SessionContext = {
 export const getSessionContext = cache(async (): Promise<SessionContext> => {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  // Local JWT verification (ES256 + cached JWKS) — no auth-server round trip
+  // per request. The signature check makes the claims trustworthy, and every
+  // query below still runs under RLS with this same token.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
+  if (!claims?.sub) redirect("/login");
+  const user = { id: claims.sub, email: (claims.email as string | undefined) ?? undefined };
 
   // Profile and membership are independent — fetch in parallel, with the
   // organization row embedded in the membership to save a third round trip.

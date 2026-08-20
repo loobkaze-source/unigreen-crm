@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -76,8 +76,13 @@ export function DealsBoard({
   const [activeDept, setActiveDept] = useState<string>(boards[0].value);
   const [, startTransition] = useTransition();
 
-  // Keep local board in sync with server data after refresh / mutations.
-  useEffect(() => setDeals(initialDeals), [initialDeals]);
+  // Keep local board in sync with server data after refresh / mutations —
+  // adjusted during render (not in an effect) so there is no extra paint.
+  const [prevInitialDeals, setPrevInitialDeals] = useState(initialDeals);
+  if (prevInitialDeals !== initialDeals) {
+    setPrevInitialDeals(initialDeals);
+    setDeals(initialDeals);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })

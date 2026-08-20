@@ -38,6 +38,11 @@ yarn-error.log*
 
 # netlify
 .netlify
+# stray edge-functions lockfile netlify writes at the root
+deno.lock
+
+# claude code local settings
+.claude/
 
 # local data / imports (contain real customer data — do NOT commit)
 /venio database/

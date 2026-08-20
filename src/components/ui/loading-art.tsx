@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 /**
  * Random loading art — each load shows one of four animated energy-themed
@@ -158,12 +158,34 @@ function SolarArt() {
 
 const VARIANTS = [CloudArt, FuelArt, TurbineArt, SolarArt];
 
+/**
+ * A per-mount external store whose value is picked at random when the client
+ * first subscribes. SSR (server snapshot) stays null so hydration always
+ * matches the placeholder; the pick happens outside render, keeping render
+ * pure — no effect, no ref-during-render.
+ */
+function createVariantStore() {
+  let variant: number | null = null;
+  return {
+    subscribe(onChange: () => void) {
+      if (variant === null) {
+        variant = Math.floor(Math.random() * VARIANTS.length);
+        queueMicrotask(onChange);
+      }
+      return () => {};
+    },
+    getSnapshot: () => variant,
+    getServerSnapshot: () => null,
+  };
+}
+
 export function RandomLoadingArt() {
-  // Picked after mount so the server-rendered fallback never mismatches.
-  const [variant, setVariant] = useState<number | null>(null);
-  useEffect(() => {
-    setVariant(Math.floor(Math.random() * VARIANTS.length));
-  }, []);
+  const [store] = useState(createVariantStore);
+  const variant = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot
+  );
 
   if (variant === null) {
     return <span aria-hidden className="block h-24 w-24" />;

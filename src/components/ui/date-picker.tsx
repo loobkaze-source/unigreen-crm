@@ -51,14 +51,18 @@ export function DatePicker({
 
   useEffect(() => {
     if (!open) return;
-    if (d) setView(startOfMonth(d));
     function onDoc(ev: MouseEvent) {
       if (ref.current && !ref.current.contains(ev.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  function toggleOpen() {
+    // Jump the calendar to the selected month at the moment of opening.
+    if (!open && d) setView(startOfMonth(d));
+    setOpen(!open);
+  }
 
   const time = d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "09:00";
 
@@ -81,7 +85,7 @@ export function DatePicker({
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className="flex h-9 w-full items-center gap-2 rounded-md border border-input bg-card px-3 text-left text-sm shadow-sm hover:bg-muted/40"
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
