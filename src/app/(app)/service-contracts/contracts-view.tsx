@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Repeat, Search, Trash2 } from "lucide-react";
@@ -34,6 +34,14 @@ type ContractRow = ServiceContract & {
   nextDue: string | null;
 };
 
+// What the cells read, kept in one place so each column filters on the text
+// the reader is looking at — typing "5 ปี" or "12-2022" narrows the column it
+// was typed into, rather than matching a value only the database can see.
+const cycleText = (c: ContractRow) =>
+  `ปีละ ${c.frequency_per_year} ครั้ง · ${c.duration_years} ปี`;
+const progressText = (c: ContractRow) => `${c.done}/${c.total}`;
+const dueText = (c: ContractRow) => (c.nextDue ? fmtDate(c.nextDue) : "ครบแล้ว");
+
 export function ContractsView({
   contracts,
   companies,
@@ -60,6 +68,14 @@ export function ContractsView({
     const m = new Map(sites.map((s) => [s.id, s.name]));
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [sites]);
+  /** The line under the title: what kind of work, for whom, where. */
+  const subtitle = useCallback(
+    (c: ContractRow) =>
+      [serviceTypeLabel(c.service_type), companyName(c.company_id), siteName(c.site_id)]
+        .filter(Boolean)
+        .join(" · "),
+    [companyName, siteName]
+  );
 
   const today = new Date().toISOString().slice(0, 10);
   const EMPTY = {
@@ -88,30 +104,31 @@ export function ContractsView({
         key: "title",
         header: "สัญญา",
         sortAccessor: (c) => c.title,
-        filter: {
-          kind: "select",
-          accessor: (c) => c.service_type,
-          options: SERVICE_TYPES.map((s) => ({ value: s.value, label: s.label })),
-        },
+        // Both lines of the cell, so the customer, the site and the kind of
+        // work are all reachable from the column they are printed in.
+        filter: { kind: "text", accessor: (c) => `${c.title} · ${subtitle(c)}` },
       },
       {
         key: "frequency",
         header: "รอบ",
         sortAccessor: (c) => c.frequency_per_year,
+        filter: { kind: "text", accessor: cycleText },
       },
       {
         key: "progress",
         header: "ความคืบหน้า",
         sortAccessor: (c) => (c.total ? c.done / c.total : 0),
+        filter: { kind: "text", accessor: progressText },
       },
       {
         key: "nextDue",
         header: "รอบถัดไป",
         sortAccessor: (c) => c.nextDue,
+        filter: { kind: "text", accessor: dueText },
       },
       { key: "_actions", header: "" },
     ],
-    []
+    [subtitle]
   );
   const table = useDataTable(filtered, columns, {
     initialSort: { key: "nextDue", dir: "asc" },
@@ -239,16 +256,10 @@ export function ContractsView({
                     <td className="px-4 py-3">
                       <Link href={`/service-contracts/${c.id}`} className="block">
                         <div className="font-medium hover:text-primary">{c.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {[serviceTypeLabel(c.service_type), companyName(c.company_id), siteName(c.site_id)]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </div>
+                        <div className="text-xs text-muted-foreground">{subtitle(c)}</div>
                       </Link>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      ปีละ {c.frequency_per_year} ครั้ง · {c.duration_years} ปี
-                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{cycleText(c)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="h-2 w-24 overflow-hidden rounded-full bg-muted">
@@ -257,9 +268,7 @@ export function ContractsView({
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {c.done}/{c.total}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{progressText(c)}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -269,10 +278,10 @@ export function ContractsView({
                             overdue ? "text-sm font-medium text-destructive" : "text-sm text-muted-foreground"
                           }
                         >
-                          {fmtDate(c.nextDue)}
+                          {dueText(c)}
                         </span>
                       ) : (
-                        <Badge tone="success">ครบแล้ว</Badge>
+                        <Badge tone="success">{dueText(c)}</Badge>
                       )}
                     </td>
                     <td className="px-4 py-3">
