@@ -44,7 +44,7 @@ const NAV = [
   { href: "/assets", label: "Asset", icon: Box },
   { href: "/service-board", label: "Service Board", icon: ClipboardList },
   { href: "/cases", label: "เคส (แจ้งซ่อม)", icon: LifeBuoy },
-  { href: "/work-orders", label: "ใบงาน (แจกงานซ่อม)", icon: Wrench },
+  { href: "/work-orders", label: "ใบงาน (แจกงานซ่อม/บริการ)", icon: Wrench },
   { href: "/service-contracts", label: "สัญญาบริการ", icon: Repeat },
   { href: "/warranties", label: "การรับประกัน", icon: ShieldCheck },
   { href: "/technicians", label: "ช่าง", icon: HardHat },
