@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { PhotoViewer } from "@/components/ui/photo-viewer";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
+import { shrinkImage } from "@/lib/image";
 import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
@@ -155,6 +156,8 @@ export function WorkOrderDetail({
   }
 
   const [uploading, setUploading] = useState(false);
+  /** What the upload is doing right now — shrinking, or how far through. */
+  const [uploadNote, setUploadNote] = useState("");
   const { run, busy } = useBusyTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -220,26 +223,38 @@ export function WorkOrderDetail({
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
+    const chosen = Array.from(files);
     setUploading(true);
+    setUploadNote(chosen.length > 1 ? `กำลังย่อรูป ${chosen.length} รูป…` : "กำลังย่อรูป…");
+
+    // Shrunk before it goes anywhere: a camera photo is several MB and nothing
+    // in the app ever shows one larger than 1,600px.
+    const ready = await Promise.all(chosen.map((f) => shrinkImage(f)));
+
+    let done = 0;
+    setUploadNote(`กำลังอัปโหลด 0/${ready.length}`);
     const supabase = createClient();
     // Upload all files in parallel; collect failures into one alert.
     const errors = (
       await Promise.all(
-        Array.from(files).map(async (file) => {
+        ready.map(async (file, i) => {
           const ext = file.name.split(".").pop() || "jpg";
           const rand = Math.random().toString(36).slice(2, 8);
           const path = `${orgId}/${workOrder.id}/${Date.now()}-${rand}.${ext}`;
           const { error } = await supabase.storage
             .from("wo-photos")
             .upload(path, file, { cacheControl: "3600", upsert: false });
-          if (error) return `${file.name}: ${error.message}`;
+          done++;
+          setUploadNote(`กำลังอัปโหลด ${done}/${ready.length}`);
+          if (error) return `${chosen[i].name}: ${error.message}`;
           const res = await addWorkOrderPhoto(workOrder.id, path);
-          return res.ok ? null : `${file.name}: ${res.error}`;
+          return res.ok ? null : `${chosen[i].name}: ${res.error}`;
         })
       )
     ).filter(Boolean);
     if (errors.length > 0) alert("อัปโหลดไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
     setUploading(false);
+    setUploadNote("");
     if (fileRef.current) fileRef.current.value = "";
     router.refresh();
   }
@@ -507,7 +522,7 @@ export function WorkOrderDetail({
               ) : (
                 <ImagePlus className="h-4 w-4" />
               )}
-              {uploading ? "กำลังอัปโหลด…" : "เพิ่มรูป"}
+              {uploading ? uploadNote || "กำลังอัปโหลด…" : "เพิ่มรูป"}
             </Button>
             <input
               ref={fileRef}

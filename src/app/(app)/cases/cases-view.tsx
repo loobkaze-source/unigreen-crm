@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Box, FileText, LifeBuoy, Paperclip, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/client";
+import { shrinkImage } from "@/lib/image";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -314,7 +315,10 @@ export function CasesView({
         const supabase = createClient();
         const errors = (
           await Promise.all(
-            newFiles.map(async (file) => {
+            newFiles.map(async (original) => {
+              // Photos of a fault are the bulk of what gets attached; anything
+              // that is not an image comes back from this untouched.
+              const file = await shrinkImage(original);
               const ext = file.name.split(".").pop() || "bin";
               const rand = Math.random().toString(36).slice(2, 8);
               const path = `${orgId}/${caseId}/${Date.now()}-${rand}.${ext}`;
