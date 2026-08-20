@@ -447,6 +447,14 @@ export function WorkOrderModal({
           <div>
             <Label htmlFor="type">ประเภทงาน</Label>
             <Select id="type" value={form.type} onChange={(e) => set("type", e.target.value)}>
+              {/* A job filed under a value this list no longer has keeps it as an
+                  option of its own. Without it the browser shows the first entry
+                  as selected while the form still holds the old value — so
+                  picking that first entry changes nothing, and saving writes the
+                  old value straight back. */}
+              {form.type && !WO_TYPES.some((t) => t.value === form.type) ? (
+                <option value={form.type}>{form.type} (ค่าเดิม)</option>
+              ) : null}
               {WO_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
