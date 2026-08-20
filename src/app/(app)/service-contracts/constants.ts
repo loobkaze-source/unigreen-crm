@@ -3,7 +3,9 @@ import type { ServiceType, VisitStatus } from "@/lib/database.types";
 type Tone = "default" | "primary" | "success" | "warning" | "danger" | "info" | "muted";
 
 export const SERVICE_TYPES: { value: ServiceType; label: string }[] = [
-  { value: "panel_cleaning", label: "ล้างแผงโซลาร์" },
+  // The database keeps the value it was created with; only the name shown
+  // moved, from the one job to the contract the customer actually signs.
+  { value: "panel_cleaning", label: "สัญญาบำรุงรักษาโซลาร์" },
   { value: "filter_cleaning", label: "ล้างฟิลเตอร์ (EV)" },
   { value: "inspection", label: "ตรวจเช็กระบบ" },
   { value: "maintenance", label: "บำรุงรักษา" },

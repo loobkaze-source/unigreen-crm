@@ -30,7 +30,8 @@ const SOURCE = "import-data/solar_grid_connection_dates.xlsx";
 const OUT_SITES = "import-data/solar-1-sites.xlsx";
 const OUT_CONTRACTS = "import-data/solar-2-contracts.xlsx";
 
-const SERVICE_TYPE = "maintenance";
+/** The type the app now shows as “สัญญาบำรุงรักษาโซลาร์”. */
+const SERVICE_TYPE = "panel_cleaning";
 const BOARD = "unigreen";
 const FREQUENCY = 2;
 const YEARS = 5;

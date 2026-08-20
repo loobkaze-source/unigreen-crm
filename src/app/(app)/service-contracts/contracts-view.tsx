@@ -199,7 +199,7 @@ export function ContractsView({
     <div>
       <PageHeader
         title="สัญญาบริการ"
-        subtitle="สัญญาดูแลรายปี เช่น ล้างแผงโซลาร์ / ล้างฟิลเตอร์ EV — กำหนดรอบและติดตามจำนวนครั้งที่เข้าบริการ"
+        subtitle="สัญญาดูแลรายปี เช่น สัญญาบำรุงรักษาโซลาร์ / ล้างฟิลเตอร์ EV — กำหนดรอบและติดตามจำนวนครั้งที่เข้าบริการ"
       >
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> สร้างสัญญา
@@ -319,7 +319,7 @@ export function ContractsView({
               id="title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="เช่น สัญญาล้างแผงโซลาร์ 5 ปี"
+              placeholder="เช่น สัญญาบำรุงรักษาโซลาร์ 5 ปี"
               required
               autoFocus
             />

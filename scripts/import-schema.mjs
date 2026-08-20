@@ -228,7 +228,7 @@ const SERVICE_CONTRACTS = {
       desc: "ชื่อไซต์งานที่เข้าบริการ ต้องสะกดตรงกับไซต์ที่มีในระบบ" },
     { key: "service_type", req: true, type: "ตัวเลือก", width: 16,
       list: ["panel_cleaning", "filter_cleaning", "inspection", "maintenance", "other"],
-      desc: "ประเภทงาน: panel_cleaning = ล้างแผงโซลาร์, filter_cleaning = ล้างฟิลเตอร์ (EV), inspection = ตรวจเช็กระบบ, maintenance = บำรุงรักษา, other = อื่นๆ · เว้นว่าง = panel_cleaning" },
+      desc: "ประเภทงาน: panel_cleaning = สัญญาบำรุงรักษาโซลาร์, filter_cleaning = ล้างฟิลเตอร์ (EV), inspection = ตรวจเช็กระบบ, maintenance = บำรุงรักษา, other = อื่นๆ · เว้นว่าง = panel_cleaning" },
     { key: "start_date", req: true, type: "วันที่ YYYY-MM-DD", width: 15, fmt: "text",
       desc: "วันเริ่มสัญญา — ใช้เป็นจุดตั้งต้นของทุกรอบเข้าบริการ" },
     { key: "frequency_per_year", type: "จำนวนเต็ม", width: 17,
