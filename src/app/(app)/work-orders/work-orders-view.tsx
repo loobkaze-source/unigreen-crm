@@ -66,6 +66,7 @@ export function WorkOrdersView({
   cases,
   assetIdsByWo,
   initialQuery = "",
+  initialCaseId = null,
   limitHit = false,
 }: {
   workOrders: WorkOrder[];
@@ -77,6 +78,8 @@ export function WorkOrdersView({
   cases: CaseOption[];
   assetIdsByWo: Record<string, string[]>;
   initialQuery?: string;
+  /** Set by ?case=… — open the form already filled in from that case. */
+  initialCaseId?: string | null;
   limitHit?: boolean;
 }) {
   const router = useRouter();
@@ -98,7 +101,8 @@ export function WorkOrdersView({
   }, [query, router]);
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | "all">("all");
   const [tab, setTab] = useState<"list" | "schedule">("list");
-  const [open, setOpen] = useState(false);
+  // Opening straight into the form is the whole point of arriving with a case.
+  const [open, setOpen] = useState(!!initialCaseId);
   const [editing, setEditing] = useState<WorkOrder | null>(null);
   const [, startTransition] = useTransition();
 
@@ -191,6 +195,14 @@ export function WorkOrdersView({
   function openCreate() {
     setEditing(null);
     setOpen(true);
+  }
+  /**
+   * Closing drops ?case= as well, or the form would open itself again on the
+   * next refresh — for a case that has had its work order by then.
+   */
+  function closeModal() {
+    setOpen(false);
+    if (initialCaseId) router.replace("/work-orders");
   }
   function openEdit(w: WorkOrder, e: React.MouseEvent) {
     e.preventDefault();
@@ -351,7 +363,7 @@ export function WorkOrdersView({
       {open ? (
         <WorkOrderModal
           open={open}
-          onClose={() => setOpen(false)}
+          onClose={closeModal}
           editing={editing}
           technicians={technicians}
           companies={companies}
@@ -359,9 +371,10 @@ export function WorkOrdersView({
           sites={sites}
           assets={assets}
           cases={cases}
+          initialCaseId={editing ? null : initialCaseId}
           assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
           onSaved={() => {
-            setOpen(false);
+            closeModal();
             router.refresh();
           }}
         />

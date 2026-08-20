@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { WorkOrder } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,45 @@ const blank = {
   description: "",
 };
 
+/**
+ * The form as the case would fill it in.
+ *
+ * A case already answers what the top of this form asks — the customer, the
+ * site, the contact, the machines with the fault — so both the picker and an
+ * arrival from /cases go through here rather than filling in their own idea of
+ * what a case means.
+ *
+ * The typed fields are only filled when empty: a title already written is the
+ * reason this was opened, and is not worth overwriting with the case's.
+ */
+function withCase(
+  f: typeof blank,
+  c: CaseOption,
+  sites: SiteOption[],
+  contacts: ContactOption[]
+): typeof blank {
+  const site = sites.find((x) => x.id === c.site_id) ?? null;
+  const company_id = c.company_id || site?.company_id || f.company_id;
+  const ofCompany = (x?: { company_id: string | null }) => x?.company_id === company_id;
+  // Keep what is already chosen only where the case does not say otherwise and
+  // the choice still belongs to the case's customer.
+  const site_id = site?.id ?? (ofCompany(sites.find((x) => x.id === f.site_id)) ? f.site_id : "");
+  const sameSite = site_id === f.site_id;
+  return {
+    ...f,
+    case_id: c.id,
+    company_id,
+    site_id,
+    contact_id:
+      c.contact_id || (ofCompany(contacts.find((x) => x.id === f.contact_id)) ? f.contact_id : ""),
+    asset_ids: c.asset_ids.length ? c.asset_ids : sameSite ? f.asset_ids : [],
+    site_address: sameSite ? f.site_address : site?.address ?? "",
+    site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
+    title: f.title || c.subject,
+    description: f.description || c.note,
+  };
+}
+
 export function WorkOrderModal({
   open,
   onClose,
@@ -78,6 +117,7 @@ export function WorkOrderModal({
   sites,
   assets,
   cases,
+  initialCaseId = null,
   assetIds = [],
   onSaved,
 }: {
@@ -90,10 +130,16 @@ export function WorkOrderModal({
   sites: SiteOption[];
   assets: AssetOption[];
   cases: CaseOption[];
+  /** Opened from a case: start a new work order already filled in from it. */
+  initialCaseId?: string | null;
   /** The editing WO's current linked asset ids (empty when creating). */
   assetIds?: string[];
   onSaved: () => void;
 }) {
+  const caseArrivedFrom = useMemo(
+    () => (initialCaseId ? cases.find((c) => c.id === initialCaseId) ?? null : null),
+    [initialCaseId, cases]
+  );
   const [form, setForm] = useState(blank);
   const [error, setError] = useState<string | null>(null);
   const [assetQuery, setAssetQuery] = useState("");
@@ -125,9 +171,11 @@ export function WorkOrderModal({
             site_map_url: editing.site_map_url || "",
             description: editing.description || "",
           }
-        : blank
+        : caseArrivedFrom
+          ? withCase(blank, caseArrivedFrom, sites, contacts)
+          : blank
     );
-  }, [open, editing, assetIds]);
+  }, [open, editing, assetIds, caseArrivedFrom, sites, contacts]);
 
   function set<K extends keyof typeof blank>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -184,28 +232,7 @@ export function WorkOrderModal({
   function selectCase(id: string) {
     const c = cases.find((x) => x.id === id);
     if (!c) return set("case_id", id); // cleared, or a case the list no longer has
-    const site = sites.find((x) => x.id === c.site_id) ?? null;
-    setForm((f) => {
-      const company_id = c.company_id || site?.company_id || f.company_id;
-      const ofCompany = (x?: { company_id: string | null }) => x?.company_id === company_id;
-      // Keep what is already chosen only where the case does not say otherwise
-      // and the choice still belongs to the case's customer.
-      const site_id = site?.id ?? (ofCompany(sites.find((x) => x.id === f.site_id)) ? f.site_id : "");
-      const sameSite = site_id === f.site_id;
-      return {
-        ...f,
-        case_id: id,
-        company_id,
-        site_id,
-        contact_id:
-          c.contact_id || (ofCompany(contacts.find((x) => x.id === f.contact_id)) ? f.contact_id : ""),
-        asset_ids: c.asset_ids.length ? c.asset_ids : sameSite ? f.asset_ids : [],
-        site_address: sameSite ? f.site_address : site?.address ?? "",
-        site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
-        title: f.title || c.subject,
-        description: f.description || c.note,
-      };
-    });
+    setForm((f) => withCase(f, c, sites, contacts));
   }
 
   const visibleSites = form.company_id

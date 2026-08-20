@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Wrench,
   X,
 } from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
@@ -165,6 +166,8 @@ export function CasesView({
   const [addingContact, setAddingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", phone: "" });
+  /** A case just opened, waiting to be told whether it needs a work order. */
+  const [justCreated, setJustCreated] = useState<{ id: string; subject: string } | null>(null);
 
   const contactOptions = useMemo(() => {
     const seen = new Set(contacts.map((c) => c.id));
@@ -399,6 +402,10 @@ export function CasesView({
 
       setNewFiles([]);
       setOpen(false);
+      // A new case is usually the start of a visit, not the end of the thought:
+      // ask while the answer is still obvious rather than making somebody walk
+      // to /work-orders and find the case again.
+      if (!editing && caseId) setJustCreated({ id: caseId, subject: form.subject });
       router.refresh();
     });
   }
@@ -575,6 +582,31 @@ export function CasesView({
           <DataTablePager table={table} />
         </div>
       )}
+
+      {/* Straight after a case is opened: the visit it needs, or nothing. */}
+      <Modal
+        open={justCreated !== null}
+        onClose={() => setJustCreated(null)}
+        title="เปิดเคสแล้ว"
+      >
+        <div className="space-y-4">
+          <p className="text-sm">
+            <span className="font-medium">{justCreated?.subject}</span>
+            <br />
+            สร้างใบงานสำหรับเคสนี้เลยไหม? ลูกค้า ไซต์ ผู้ติดต่อ และเครื่องที่มีปัญหาจะถูกกรอกให้จากเคส
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setJustCreated(null)}>
+              ยังไม่สร้าง
+            </Button>
+            <Button
+              onClick={() => router.push(`/work-orders?case=${justCreated?.id ?? ""}`)}
+            >
+              <Wrench className="h-4 w-4" /> สร้างใบงาน
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={open}

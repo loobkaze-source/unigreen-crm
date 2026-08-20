@@ -8,10 +8,13 @@ const WO_PAGE_LIMIT = 200;
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; case?: string }>;
 }) {
   const { supabase, org } = await getSessionContext();
-  const search = ((await searchParams).q ?? "").trim();
+  const sp = await searchParams;
+  const search = (sp.q ?? "").trim();
+  // Arriving from a case that has just been opened — see cases-view.
+  const fromCase = (sp.case ?? "").trim() || null;
 
   // Newest WO_PAGE_LIMIT rows; ?q= searches server-side so older rows stay
   // reachable as the table grows.
@@ -95,6 +98,7 @@ export default async function WorkOrdersPage({
     <WorkOrdersView
       workOrders={workOrders ?? []}
       initialQuery={search}
+      initialCaseId={fromCase}
       limitHit={(workOrders ?? []).length === WO_PAGE_LIMIT}
       technicians={technicians ?? []}
       companies={companies ?? []}
