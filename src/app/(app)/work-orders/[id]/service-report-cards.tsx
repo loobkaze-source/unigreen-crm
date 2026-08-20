@@ -140,15 +140,20 @@ export function ServiceReportCard({
               id="report_no"
               value={reportNo}
               onChange={(e) => setReportNo(e.target.value)}
-              placeholder={workOrder.case_id ? "ระบบออกให้" : "เช่น 96MDD-13832"}
+              placeholder={
+                workOrder.case_id || workOrder.contract_id ? "ระบบออกให้" : "เช่น 96MDD-13832"
+              }
             />
-            {/* Issued from the case, because one fault can take more than one
-                visit and each visit leaves its own signed report. Still typed
-                over when the technician tears a page from the printed book. */}
+            {/* From the case for a fault, or from the contract and the round
+                for a scheduled visit — either way the number says what the
+                report is about. Still typed over when the technician tears a
+                page out of the printed book. */}
             <p className="mt-1 text-xs text-muted-foreground">
               {workOrder.case_id
                 ? "ออกให้จากรหัสเคส · ครั้งที่เข้าไปแก้ (แก้เองได้)"
-                : "ยังไม่ได้ผูกกับเคส จึงยังไม่มีเลขให้อัตโนมัติ"}
+                : workOrder.contract_id
+                  ? "ออกให้จากเลขที่สัญญา · ครั้งที่เข้าบริการ (แก้เองได้)"
+                  : "ยังไม่ได้ผูกกับเคสหรือสัญญา จึงยังไม่มีเลขให้อัตโนมัติ"}
             </p>
           </div>
           <div>
