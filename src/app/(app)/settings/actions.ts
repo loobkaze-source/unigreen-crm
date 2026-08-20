@@ -22,6 +22,17 @@ export async function assignToBoard(input: {
   if (!boardsFor(input.boardType).some((d) => d.value === input.boardKey))
     return fail("บอร์ดไม่ถูกต้อง");
 
+  // The target must actually be a member of this org — an arbitrary UUID
+  // would hand board visibility to a user from another workspace.
+  const { data: member, error: mErr } = await ctx.supabase
+    .from("organization_members")
+    .select("id")
+    .eq("org_id", ctx.org.id)
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if (mErr) return fail(mErr.message);
+  if (!member) return fail("ผู้ใช้นี้ไม่ได้เป็นสมาชิกขององค์กร");
+
   const { error: e } = await ctx.supabase.from("board_assignments").upsert(
     {
       org_id: ctx.org.id,

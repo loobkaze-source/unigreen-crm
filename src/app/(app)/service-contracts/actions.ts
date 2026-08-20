@@ -28,12 +28,25 @@ function num(v: number | string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+// All date arithmetic stays in UTC: ymd() reads back via toISOString (UTC),
+// so mixing in local-time setMonth would shift a day across the boundary.
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
-  d.setMonth(d.getMonth() + months);
+  d.setUTCMonth(d.getUTCMonth() + months);
   return d;
 }
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+/** input.start_date as a UTC date-only Date; falls back to today in Thailand
+ *  (the server clock is UTC — its "today" is Bangkok's yesterday until 07:00). */
+function contractStart(input: string | undefined): Date | null {
+  if (input) {
+    const d = new Date(input.slice(0, 10) + "T00:00:00Z");
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const bkk = new Date(Date.now() + 7 * 3600_000);
+  return new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), bkk.getUTCDate()));
+}
 
 export async function saveContract(input: ContractInput): Promise<ActionResult> {
   const { supabase, org } = await getSessionContext();
@@ -42,8 +55,8 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
 
   const freq = num(input.frequency_per_year, 2);
   const years = num(input.duration_years, 5);
-  const start = input.start_date ? new Date(input.start_date) : new Date();
-  if (isNaN(start.getTime())) return fail("วันที่เริ่มไม่ถูกต้อง");
+  const start = contractStart(input.start_date);
+  if (!start) return fail("วันที่เริ่มไม่ถูกต้อง");
 
   const payload = {
     org_id: org.id,
@@ -65,6 +78,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
       .from("service_contracts")
       .select("start_date, frequency_per_year, duration_years")
       .eq("id", input.id)
+      .eq("org_id", org.id)
       .maybeSingle();
     if (curErr) return fail(curErr.message);
     if (!current) return fail("ไม่พบสัญญา");
@@ -72,7 +86,8 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     const { error } = await supabase
       .from("service_contracts")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id);
     if (error) return fail(error.message);
 
     // When the schedule inputs change, regenerate the plan: visits already
@@ -85,6 +100,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
       const { data: keptRows, error: keptErr } = await supabase
         .from("service_visits")
         .select("seq")
+        .eq("org_id", org.id)
         .eq("contract_id", input.id)
         .neq("status", "pending");
       if (keptErr) return fail(keptErr.message);
@@ -93,6 +109,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
       const { error: delErr } = await supabase
         .from("service_visits")
         .delete()
+        .eq("org_id", org.id)
         .eq("contract_id", input.id)
         .eq("status", "pending");
       if (delErr) return fail(delErr.message);
@@ -137,17 +154,32 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     due_date: ymd(addMonths(start, i * interval)),
   }));
   const { error: vErr } = await supabase.from("service_visits").insert(visits);
-  if (vErr) return fail(vErr.message);
+  if (vErr) {
+    // Roll the contract back — leaving it standing with zero rounds means the
+    // user's retry mints a duplicate while the first sits broken forever.
+    await supabase
+      .from("service_contracts")
+      .delete()
+      .eq("id", contract.id)
+      .eq("org_id", org.id);
+    return fail("สร้างรอบบริการไม่สำเร็จ: " + vErr.message + " — กรุณาลองใหม่");
+  }
 
   revalidatePath("/service-contracts");
+  revalidatePath("/service-board");
   return ok(contract.id);
 }
 
 export async function deleteContract(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("service_contracts").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("service_contracts")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/service-contracts");
+  revalidatePath("/service-board");
   return ok();
 }
 
@@ -156,16 +188,23 @@ export async function markVisit(
   status: VisitStatus,
   contractId: string
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase
+  const { supabase, org } = await getSessionContext();
+  // Scope by contract too — a mismatched (visit, contract) pair would update
+  // one contract's round while refreshing a different contract's page.
+  const { data: updated, error } = await supabase
     .from("service_visits")
     .update({
       status,
       completed_at: status === "done" ? new Date().toISOString().slice(0, 10) : null,
     })
-    .eq("id", visitId);
+    .eq("id", visitId)
+    .eq("contract_id", contractId)
+    .eq("org_id", org.id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!updated?.length) return fail("ไม่พบรอบบริการนี้ในสัญญา");
   revalidatePath(`/service-contracts/${contractId}`);
   revalidatePath("/service-contracts");
+  revalidatePath("/service-board");
   return ok();
 }

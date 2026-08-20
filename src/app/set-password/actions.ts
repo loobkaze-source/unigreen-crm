@@ -10,7 +10,10 @@ export async function forceSetPassword(newPassword: string): Promise<ActionResul
   if (!userId) return fail("ไม่พบผู้ใช้");
   if ((newPassword || "").length < 6)
     return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-  if (newPassword === "123456")
+  // Every shared temp password the team has ever been given — letting one
+  // through would clear the must-change flag without changing anything.
+  const TEMP_PASSWORDS = ["123456", "Uniwave#2026"];
+  if (TEMP_PASSWORDS.includes(newPassword))
     return fail("กรุณาตั้งรหัสใหม่ที่ไม่ใช่รหัสชั่วคราว");
 
   const supabase = await createClient();

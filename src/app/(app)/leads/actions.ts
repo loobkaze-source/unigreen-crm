@@ -41,11 +41,14 @@ export async function saveLead(input: LeadInput): Promise<ActionResult> {
   };
 
   if (input.id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("leads")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบลูกค้ามุ่งหวังนี้ในองค์กรของคุณ");
   } else {
     const { error } = await supabase.from("leads").insert(payload);
     if (error) return fail(error.message);
@@ -56,8 +59,12 @@ export async function saveLead(input: LeadInput): Promise<ActionResult> {
 }
 
 export async function deleteLead(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("leads").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("leads")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/leads");
   return ok();

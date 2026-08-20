@@ -38,11 +38,14 @@ export async function saveTechnician(
   };
 
   if (input.id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("technicians")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบช่างคนนี้ในองค์กรของคุณ");
   } else {
     const { error } = await supabase.from("technicians").insert(payload);
     if (error) return fail(error.message);
@@ -60,28 +63,34 @@ export async function saveTechnician(
 export async function importTechniciansFromUsers(): Promise<ActionResult> {
   const { supabase, org } = await getSessionContext();
 
-  const { data: members } = await supabase
-    .from("organization_members")
-    .select("user_id")
-    .eq("org_id", org.id)
-    .contains("app_roles", ["Technician"]);
-  const userIds = [...new Set((members ?? []).map((m) => m.user_id as string))];
+  // The two scans are independent — run them together. A failed read must
+  // fail the import, not report "success" having imported nobody.
+  const [membersRes, existingRes] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("user_id")
+      .eq("org_id", org.id)
+      .contains("app_roles", ["Technician"]),
+    supabase
+      .from("technicians")
+      .select("user_id")
+      .eq("org_id", org.id)
+      .not("user_id", "is", null),
+  ]);
+  if (membersRes.error) return fail(membersRes.error.message);
+  if (existingRes.error) return fail(existingRes.error.message);
+  const userIds = [...new Set((membersRes.data ?? []).map((m) => m.user_id as string))];
   if (!userIds.length) return ok();
-
-  const { data: existing } = await supabase
-    .from("technicians")
-    .select("user_id")
-    .eq("org_id", org.id)
-    .not("user_id", "is", null);
-  const linked = new Set((existing ?? []).map((t) => t.user_id as string));
+  const linked = new Set((existingRes.data ?? []).map((t) => t.user_id as string));
 
   const toAdd = userIds.filter((id) => !linked.has(id));
   if (!toAdd.length) return ok();
 
-  const { data: profiles } = await supabase
+  const { data: profiles, error: pErr } = await supabase
     .from("profiles")
     .select("id, full_name, email")
     .in("id", toAdd);
+  if (pErr) return fail(pErr.message);
   const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
 
   const rows = toAdd.map((uid) => {
@@ -107,8 +116,12 @@ export async function importTechniciansFromUsers(): Promise<ActionResult> {
 }
 
 export async function deleteTechnician(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("technicians").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("technicians")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/technicians");
   return ok();

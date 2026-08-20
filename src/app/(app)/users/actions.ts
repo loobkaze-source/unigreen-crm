@@ -66,7 +66,11 @@ export async function updateMember(
   if (roles.length === 0) return fail("กรุณาเลือกบทบาทอย่างน้อย 1 อย่าง");
   const primary = primaryRole(roles);
   const membershipRole = primary === "admin" ? "admin" : "member";
-  const { error: e } = await ctx.supabase
+  // .select() returns the touched rows, so an update that matched nothing
+  // (wrong id, or the owner shielded by .neq) is reported instead of being
+  // silently claimed as success. It also hands back user_id for the
+  // technician-roster step without a second lookup.
+  const { data: updated, error: e } = await ctx.supabase
     .from("organization_members")
     .update({
       app_roles: roles,
@@ -78,21 +82,17 @@ export async function updateMember(
     })
     .eq("id", memberId)
     .eq("org_id", ctx.org.id)
-    .neq("role", "owner");
+    .neq("role", "owner")
+    .select("user_id");
   if (e) return fail(e.message);
+  if (!updated?.length)
+    return fail("ไม่พบสมาชิก หรือเป็นเจ้าของระบบ (แก้ไขบทบาทเจ้าของไม่ได้)");
 
-  if (roles.includes("Technician")) {
-    const { data: mem } = await ctx.supabase
-      .from("organization_members")
-      .select("user_id")
-      .eq("id", memberId)
-      .eq("org_id", ctx.org.id)
-      .maybeSingle();
-    if (mem?.user_id) {
-      const techErr = await ensureTechnician(ctx.supabase, ctx.org.id, mem.user_id);
-      if (techErr)
-        return fail("บันทึกบทบาทแล้ว แต่เพิ่มเข้าทะเบียนช่างไม่สำเร็จ: " + techErr);
-    }
+  const memberUserId = updated[0].user_id as string | null;
+  if (roles.includes("Technician") && memberUserId) {
+    const techErr = await ensureTechnician(ctx.supabase, ctx.org.id, memberUserId);
+    if (techErr)
+      return fail("บันทึกบทบาทแล้ว แต่เพิ่มเข้าทะเบียนช่างไม่สำเร็จ: " + techErr);
   }
 
   revalidatePath("/users");
@@ -132,6 +132,15 @@ export async function createUser(input: {
 
   // Pre-create an invite so the signup trigger routes the new account into this
   // org with the right roles/department (and satisfies invite-only signup).
+  // Remember what was there so a failed create restores it instead of
+  // destroying a pending invite someone else set up.
+  const { data: prevInvite, error: prevErr } = await ctx.supabase
+    .from("invites")
+    .select("app_role, app_roles, department")
+    .eq("org_id", ctx.org.id)
+    .eq("email", email)
+    .maybeSingle();
+  if (prevErr) return fail(prevErr.message);
   const { error: invErr } = await ctx.supabase.from("invites").upsert(
     { org_id: ctx.org.id, email, app_role: role, app_roles: roles, department },
     { onConflict: "org_id,email" }
@@ -145,7 +154,14 @@ export async function createUser(input: {
     user_metadata: { full_name: input.fullName.trim() || email.split("@")[0] },
   });
   if (e) {
-    await ctx.supabase.from("invites").delete().eq("org_id", ctx.org.id).eq("email", email);
+    if (prevInvite) {
+      await ctx.supabase.from("invites").upsert(
+        { org_id: ctx.org.id, email, ...prevInvite },
+        { onConflict: "org_id,email" }
+      );
+    } else {
+      await ctx.supabase.from("invites").delete().eq("org_id", ctx.org.id).eq("email", email);
+    }
     return fail(/already|exists|registered/i.test(e.message) ? "อีเมลนี้มีบัญชีอยู่แล้ว" : e.message);
   }
 
@@ -169,6 +185,11 @@ export async function createUser(input: {
         return fail("สร้างผู้ใช้สำเร็จ แต่เพิ่มเข้าทะเบียนช่างไม่สำเร็จ: " + techErr);
       }
     }
+  } else {
+    // No error but no user either — the account state is unknown, and the
+    // must-change-password flag was never set. Don't report success.
+    revalidatePath("/users");
+    return fail("สร้างผู้ใช้ไม่สำเร็จ (ระบบไม่ส่งข้อมูลบัญชีกลับมา) — ลองใหม่อีกครั้ง");
   }
   revalidatePath("/users");
   revalidatePath("/technicians");
@@ -185,13 +206,18 @@ export async function resetUserPassword(
   if ((newPassword || "").length < 6)
     return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
 
-  const { data: mem } = await ctx.supabase
+  // The owner's password cannot be reset by an admin — that would let any
+  // admin take over the owner's account through the service-role client.
+  const { data: mem, error: memErr } = await ctx.supabase
     .from("organization_members")
-    .select("user_id")
+    .select("user_id, role")
     .eq("id", memberId)
     .eq("org_id", ctx.org.id)
     .maybeSingle();
+  if (memErr) return fail(memErr.message);
   if (!mem?.user_id) return fail("ไม่พบสมาชิก");
+  if (mem.role === "owner")
+    return fail("รีเซ็ตรหัสผ่านของเจ้าของระบบไม่ได้ — เจ้าของต้องเปลี่ยนเองที่หน้า Account");
 
   let admin;
   try {
@@ -219,13 +245,17 @@ export async function resetUserPassword(
 export async function removeMember(memberId: string): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
-  const { error: e } = await ctx.supabase
+  const { data: removed, error: e } = await ctx.supabase
     .from("organization_members")
     .delete()
     .eq("id", memberId)
     .eq("org_id", ctx.org.id)
-    .neq("role", "owner");
+    .neq("role", "owner")
+    .select("id");
   if (e) return fail(e.message);
+  if (!removed?.length)
+    return fail("ไม่พบสมาชิก หรือเป็นเจ้าของระบบ (นำเจ้าของออกไม่ได้)");
   revalidatePath("/users");
+  revalidatePath("/technicians");
   return ok();
 }

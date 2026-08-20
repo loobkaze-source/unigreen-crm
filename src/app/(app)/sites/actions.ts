@@ -31,8 +31,14 @@ export async function saveSite(input: SiteInput): Promise<ActionResult> {
   };
 
   if (input.id) {
-    const { error } = await supabase.from("sites").update(payload).eq("id", input.id);
+    const { data: updated, error } = await supabase
+      .from("sites")
+      .update(payload)
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบไซต์นี้ในองค์กรของคุณ");
     revalidatePath(`/sites/${input.id}`);
   } else {
     const { data, error } = await supabase
@@ -50,8 +56,12 @@ export async function saveSite(input: SiteInput): Promise<ActionResult> {
 }
 
 export async function deleteSite(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("sites").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("sites")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/sites");
   return ok();
@@ -83,8 +93,12 @@ export async function saveAssetGroup(input: AssetGroupInput): Promise<ActionResu
 }
 
 export async function deleteAssetGroup(id: string, siteId: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("asset_groups").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("asset_groups")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath(`/sites/${siteId}`);
   return ok();
@@ -125,6 +139,7 @@ export async function assignAssetsToGroup(
   if (error) return fail(error.message);
 
   revalidatePath(`/sites/${siteId}`);
+  revalidatePath("/assets");
   return ok();
 }
 
@@ -151,14 +166,18 @@ export async function saveEquipment(input: EquipmentInput): Promise<ActionResult
   const name = input.name?.trim();
   if (!name) return fail("กรุณากรอกชื่อ Asset");
 
-  // A group can only hold assets from its own site.
+  // A group can only hold assets from its own site. A failed READ must fail
+  // the save — treating it as "no group" would silently pull the asset out of
+  // its group on an unrelated edit.
   let group_id = input.group_id || null;
   if (group_id) {
-    const { data: g } = await supabase
+    const { data: g, error: gErr } = await supabase
       .from("asset_groups")
       .select("site_id")
       .eq("id", group_id)
+      .eq("org_id", org.id)
       .maybeSingle();
+    if (gErr) return fail(gErr.message);
     if (!g || g.site_id !== input.site_id) group_id = null;
   }
 
@@ -185,17 +204,23 @@ export async function saveEquipment(input: EquipmentInput): Promise<ActionResult
   };
 
   if (input.id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("equipment")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบ Asset นี้ในองค์กรของคุณ");
+    revalidatePath(`/assets/${input.id}`);
   } else {
     const { error } = await supabase.from("equipment").insert(payload);
     if (error) return fail(error.message);
   }
 
   revalidatePath(`/sites/${input.site_id}`);
+  // The asset register lists this equipment too.
+  revalidatePath("/assets");
   return ok();
 }
 
@@ -203,9 +228,14 @@ export async function deleteEquipment(
   id: string,
   siteId: string
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("equipment").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("equipment")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath(`/sites/${siteId}`);
+  revalidatePath("/assets");
   return ok();
 }

@@ -323,7 +323,7 @@ export function WorkOrderDetail({
   function removePhoto(ph: PhotoWithUrl) {
     if (!confirm("ลบรูปนี้?")) return;
     run(`photo-${ph.id}`, async () => {
-      const res = await deleteWorkOrderPhoto(ph.id, ph.path, workOrder.id);
+      const res = await deleteWorkOrderPhoto(ph.id, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });

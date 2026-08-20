@@ -33,17 +33,22 @@ export async function saveActivity(input: ActivityInput): Promise<ActionResult> 
   };
 
   if (input.id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("activities")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบกิจกรรมนี้ในองค์กรของคุณ");
   } else {
     const { error } = await supabase.from("activities").insert(payload);
     if (error) return fail(error.message);
   }
 
   revalidatePath("/activities");
+  // The dashboard lists upcoming activities.
+  revalidatePath("/dashboard");
   return ok();
 }
 
@@ -51,20 +56,27 @@ export async function toggleActivity(
   id: string,
   done: boolean
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
+  const { supabase, org } = await getSessionContext();
   const { error } = await supabase
     .from("activities")
     .update({ done, done_at: done ? new Date().toISOString() : null })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/activities");
+  revalidatePath("/dashboard");
   return ok();
 }
 
 export async function deleteActivity(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("activities").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("activities")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/activities");
+  revalidatePath("/dashboard");
   return ok();
 }

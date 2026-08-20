@@ -39,17 +39,24 @@ function canManageCases(ctx: Pick<SessionContext, "isAdmin" | "appRoles">) {
 }
 const NO_PERMISSION = "เฉพาะ Customer Service / Dispatcher (หรือแอดมิน) เท่านั้นที่จัดการเคสได้";
 
-/** Count work orders on a case that aren't finished (completed/cancelled). */
+/**
+ * Count work orders on a case that aren't finished (completed/cancelled).
+ * A failed query must fail the close, not report zero — this guard exists
+ * to stop a case closing over unfinished jobs.
+ */
 async function openWorkOrders(
   supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
+  orgId: string,
   caseId: string
-): Promise<number> {
-  const { count } = await supabase
+): Promise<{ open: number } | { error: string }> {
+  const { count, error } = await supabase
     .from("work_orders")
     .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
     .eq("case_id", caseId)
     .not("status", "in", "(completed,cancelled)");
-  return count ?? 0;
+  if (error) return { error: error.message };
+  return { open: count ?? 0 };
 }
 
 const CLOSE_BLOCKED = (n: number) =>
@@ -63,8 +70,9 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   if (!subject) return fail("กรุณากรอกหัวข้อเคส");
 
   if (input.id && input.status === "closed") {
-    const open = await openWorkOrders(supabase, input.id);
-    if (open > 0) return fail(CLOSE_BLOCKED(open));
+    const res = await openWorkOrders(supabase, org.id, input.id);
+    if ("error" in res) return fail("ตรวจสอบใบสั่งงานของเคสไม่สำเร็จ: " + res.error);
+    if (res.open > 0) return fail(CLOSE_BLOCKED(res.open));
   }
 
   // De-duplicate the affected-assets list; keep the last condition given.
@@ -102,7 +110,11 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   async function syncCaseAssets(caseId: string): Promise<string | null> {
     // Replace the whole set: drop links no longer present, upsert the rest.
     const keepIds = assetList.map((a) => a.equipment_id);
-    let del = supabase.from("case_assets").delete().eq("case_id", caseId);
+    let del = supabase
+      .from("case_assets")
+      .delete()
+      .eq("org_id", org.id)
+      .eq("case_id", caseId);
     if (keepIds.length) del = del.not("equipment_id", "in", `(${keepIds.join(",")})`);
     const { error: delErr } = await del;
     if (delErr) return delErr.message;
@@ -120,17 +132,21 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
       if (upErr) return upErr.message;
     }
 
-    for (const a of assetList) {
-      if (!a.condition) continue;
-      const { error } = await supabase
-        .from("equipment")
-        .update({ status: a.condition })
-        .eq("id", a.equipment_id)
-        .eq("org_id", org.id)
-        .neq("status", "retired");
-      if (error) return error.message;
-    }
-    return null;
+    // Independent per-asset updates — run them together, not one by one.
+    const results = await Promise.all(
+      assetList
+        .filter((a) => a.condition)
+        .map((a) =>
+          supabase
+            .from("equipment")
+            .update({ status: a.condition })
+            .eq("id", a.equipment_id)
+            .eq("org_id", org.id)
+            .neq("status", "retired")
+        )
+    );
+    const firstErr = results.find((r) => r.error)?.error;
+    return firstErr ? firstErr.message : null;
   }
 
   const caseId = input.id;
@@ -138,8 +154,14 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     // `dept_code` is deliberately absent from `payload`: the code was built
     // from it at insert, and moving one without the other would leave a case
     // filed under a department its own number does not name.
-    const { error } = await supabase.from("cases").update(payload).eq("id", caseId);
+    const { data: updated, error } = await supabase
+      .from("cases")
+      .update(payload)
+      .eq("id", caseId)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบเคสนี้ในองค์กรของคุณ");
     const aErr = await syncCaseAssets(caseId);
     if (aErr) return fail("บันทึกเคสแล้ว แต่จัดการ Asset ไม่สำเร็จ: " + aErr);
     revalidatePath("/cases");
@@ -215,13 +237,22 @@ export async function updateCaseStatus(
   id: string,
   status: CaseStatus
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const { supabase, org } = ctx;
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
   if (status === "closed") {
-    const open = await openWorkOrders(supabase, id);
-    if (open > 0) return fail(CLOSE_BLOCKED(open));
+    const res = await openWorkOrders(supabase, org.id, id);
+    if ("error" in res) return fail("ตรวจสอบใบสั่งงานของเคสไม่สำเร็จ: " + res.error);
+    if (res.open > 0) return fail(CLOSE_BLOCKED(res.open));
   }
-  const { error } = await supabase.from("cases").update({ status }).eq("id", id);
+  const { data: updated, error } = await supabase
+    .from("cases")
+    .update({ status })
+    .eq("id", id)
+    .eq("org_id", org.id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!updated?.length) return fail("ไม่พบเคสนี้ในองค์กรของคุณ");
   revalidatePath("/cases");
   return ok();
 }
@@ -229,7 +260,11 @@ export async function updateCaseStatus(
 export async function deleteCase(id: string): Promise<ActionResult> {
   const ctx = await getSessionContext();
   if (!canManageCases(ctx)) return fail(NO_PERMISSION);
-  const { error } = await ctx.supabase.from("cases").delete().eq("id", id);
+  const { error } = await ctx.supabase
+    .from("cases")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
   revalidatePath("/cases");
   return ok();
@@ -244,6 +279,16 @@ export async function addCaseAttachment(
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
   if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  // The parent case must be ours — org_id on the attachment alone would let a
+  // row be filed under one org while hanging off another org's case.
+  const { data: parent, error: pErr } = await ctx.supabase
+    .from("cases")
+    .select("id")
+    .eq("id", caseId)
+    .eq("org_id", ctx.org.id)
+    .maybeSingle();
+  if (pErr) return fail(pErr.message);
+  if (!parent) return fail("ไม่พบเคสนี้ในองค์กรของคุณ");
   const { error } = await ctx.supabase.from("case_attachments").insert({
     org_id: ctx.org.id,
     case_id: caseId,
@@ -256,16 +301,21 @@ export async function addCaseAttachment(
   return ok();
 }
 
-export async function deleteCaseAttachment(
-  id: string,
-  path: string
-): Promise<ActionResult> {
+export async function deleteCaseAttachment(id: string): Promise<ActionResult> {
   const ctx = await getSessionContext();
   if (!canManageCases(ctx)) return fail(NO_PERMISSION);
-  // DB row first; an orphaned storage object is harmless by contrast.
-  const { error } = await ctx.supabase.from("case_attachments").delete().eq("id", id);
+  // DB row first; an orphaned storage object is harmless by contrast. The
+  // storage path comes from the deleted row itself — never from the caller,
+  // who could otherwise aim it at any object in the bucket.
+  const { data: deleted, error } = await ctx.supabase
+    .from("case_attachments")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", ctx.org.id)
+    .select("path");
   if (error) return fail(error.message);
-  await ctx.supabase.storage.from("case-files").remove([path]);
+  const path = deleted?.[0]?.path;
+  if (path) await ctx.supabase.storage.from("case-files").remove([path]);
   revalidatePath("/cases");
   return ok();
 }

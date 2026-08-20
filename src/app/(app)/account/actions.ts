@@ -1,7 +1,9 @@
 "use server";
 
+import { createClient as createBareClient } from "@supabase/supabase-js";
 import { getSessionContext } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/env";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { isKnownAvatar } from "@/lib/avatars";
 import { revalidatePath } from "next/cache";
@@ -16,15 +18,19 @@ export async function changePassword(input: {
   if (input.newPassword.length < 6)
     return fail("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร");
 
-  const supabase = await createClient();
-
-  // Re-verify the current password before allowing the change.
-  const { error: verifyErr } = await supabase.auth.signInWithPassword({
+  // Re-verify the current password on a throwaway client: signing in on the
+  // session client would mint a new token pair and overwrite the live
+  // session's cookies just to check a password.
+  const verifier = createBareClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: verifyErr } = await verifier.auth.signInWithPassword({
     email,
     password: input.currentPassword,
   });
   if (verifyErr) return fail("รหัสผ่านปัจจุบันไม่ถูกต้อง");
 
+  const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({
     password: input.newPassword,
   });

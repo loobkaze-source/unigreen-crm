@@ -32,11 +32,14 @@ export async function saveContact(input: ContactInput): Promise<ActionResult> {
   };
 
   if (input.id) {
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("contacts")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบผู้ติดต่อนี้ในองค์กรของคุณ");
   } else {
     const { error } = await supabase.from("contacts").insert(payload);
     if (error) return fail(error.message);
@@ -47,8 +50,12 @@ export async function saveContact(input: ContactInput): Promise<ActionResult> {
 }
 
 export async function deleteContact(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("contacts").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("contacts")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/contacts");
   return ok();

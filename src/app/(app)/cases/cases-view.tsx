@@ -413,7 +413,7 @@ export function CasesView({
   function removeAttachment(a: Attachment) {
     if (!confirm(`ลบไฟล์แนบ "${a.name}"?`)) return;
     startTransition(async () => {
-      const res = await deleteCaseAttachment(a.id, a.path);
+      const res = await deleteCaseAttachment(a.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });

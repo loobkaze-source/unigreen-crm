@@ -44,8 +44,14 @@ export async function saveProduct(input: ProductInput): Promise<ActionResult> {
   };
 
   if (input.id) {
-    const { error } = await supabase.from("products").update(payload).eq("id", input.id);
+    const { data: updated, error } = await supabase
+      .from("products")
+      .update(payload)
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .select("id");
     if (error) return fail(error.message);
+    if (!updated?.length) return fail("ไม่พบสินค้านี้ในองค์กรของคุณ");
   } else {
     const { error } = await supabase.from("products").insert(payload);
     if (error) return fail(error.message);
@@ -56,8 +62,12 @@ export async function saveProduct(input: ProductInput): Promise<ActionResult> {
 }
 
 export async function deleteProduct(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("products").delete().eq("id", id);
+  const { supabase, org } = await getSessionContext();
+  const { error } = await supabase
+    .from("products")
+    .delete()
+    .eq("id", id)
+    .eq("org_id", org.id);
   if (error) return fail(error.message);
   revalidatePath("/products");
   return ok();

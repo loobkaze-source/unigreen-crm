@@ -68,7 +68,11 @@ async function syncAssets(
     if (insErr) return insErr.message;
   }
   // Then drop any links no longer selected.
-  let del = supabase.from("work_order_assets").delete().eq("work_order_id", workOrderId);
+  let del = supabase
+    .from("work_order_assets")
+    .delete()
+    .eq("org_id", orgId)
+    .eq("work_order_id", workOrderId);
   if (unique.length) del = del.not("equipment_id", "in", `(${unique.join(",")})`);
   const { error: delErr } = await del;
   if (delErr) return delErr.message;
@@ -114,21 +118,40 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     scheduled_end: endIso,
     description: input.description?.trim() || null,
   };
-  if (input.status === "completed") payload.completed_at = new Date().toISOString();
-
   if (input.id) {
+    // completed_at marks the moment the job FINISHED — stamp it only on the
+    // transition into completed. Editing a long-finished job's description
+    // must not restamp its history (or re-trigger the asset restore).
+    const { data: existing, error: exErr } = await supabase
+      .from("work_orders")
+      .select("status")
+      .eq("id", input.id)
+      .eq("org_id", org.id)
+      .maybeSingle();
+    if (exErr) return fail(exErr.message);
+    if (!existing) return fail("ไม่พบใบสั่งงานนี้ในองค์กรของคุณ");
+    const becameCompleted =
+      input.status === "completed" && existing.status !== "completed";
+    if (becameCompleted) payload.completed_at = new Date().toISOString();
+    else if (input.status !== "completed" && existing.status === "completed")
+      payload.completed_at = null;
+
     const { error } = await supabase
       .from("work_orders")
       .update(payload)
-      .eq("id", input.id);
+      .eq("id", input.id)
+      .eq("org_id", org.id);
     if (error) return fail(error.message);
     const aErr = await syncAssets(supabase, org.id, input.id, assetIds);
     if (aErr) return fail(aErr);
-    if (input.status === "completed") {
-      await restoreAssetsOnComplete(supabase, org.id, input.id);
+    if (becameCompleted) {
+      const rErr = await restoreAssetsOnComplete(supabase, org.id, input.id);
+      if (rErr) return fail("บันทึกงานแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + rErr);
     }
-    revalidatePath(`/work-orders/${input.id}`);
+    revalidatePath(`/work-orders/${input.id}`, "layout");
+    revalidatePath("/my-jobs");
   } else {
+    if (input.status === "completed") payload.completed_at = new Date().toISOString();
     // New WO is owned by its creator (the Dispatcher).
     payload.owner_id = userId;
     const { data, error } = await supabase
@@ -142,49 +165,61 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     // A job raised for a round of a contract is that round's evidence, so the
     // round points at it from the moment it exists.
     if (input.visit_id) {
-      await supabase
+      const { error: vErr } = await supabase
         .from("service_visits")
         .update({ work_order_id: data.id })
         .eq("id", input.visit_id)
         .eq("org_id", org.id);
-      revalidatePath(`/service-contracts/${input.contract_id ?? ""}`);
+      if (vErr) {
+        // The job exists — say so, and say the round didn't get linked.
+        return fail("สร้างใบสั่งงานแล้ว แต่ผูกกับรอบบริการไม่สำเร็จ: " + vErr.message);
+      }
+      if (input.contract_id) revalidatePath(`/service-contracts/${input.contract_id}`);
       revalidatePath("/service-contracts");
     }
     revalidatePath("/work-orders");
+    revalidatePath("/service-board");
     return ok(data.id);
   }
 
   revalidatePath("/work-orders");
+  revalidatePath("/service-board");
   return ok(input.id);
 }
 
 /**
  * When a work order completes, machines it covered that were reported
  * degraded/down go back to operational (retired assets are left alone).
+ * Returns an error message or null — a silent failure here leaves the fleet
+ * register showing a repaired machine as still down.
  */
 async function restoreAssetsOnComplete(
   supabase: Awaited<ReturnType<typeof getSessionContext>>["supabase"],
   orgId: string,
   workOrderId: string
-) {
-  const [{ data: wo }, { data: links }] = await Promise.all([
+): Promise<string | null> {
+  const [woRes, linksRes] = await Promise.all([
     supabase.from("work_orders").select("asset_id").eq("id", workOrderId).maybeSingle(),
     supabase
       .from("work_order_assets")
       .select("equipment_id")
       .eq("work_order_id", workOrderId),
   ]);
+  if (woRes.error) return woRes.error.message;
+  if (linksRes.error) return linksRes.error.message;
   const ids = new Set<string>();
-  if (wo?.asset_id) ids.add(wo.asset_id as string);
-  (links ?? []).forEach((l) => ids.add(l.equipment_id as string));
-  if (ids.size === 0) return;
-  await supabase
+  if (woRes.data?.asset_id) ids.add(woRes.data.asset_id as string);
+  (linksRes.data ?? []).forEach((l) => ids.add(l.equipment_id as string));
+  if (ids.size === 0) return null;
+  const { error } = await supabase
     .from("equipment")
     .update({ status: "operational" })
     .in("id", [...ids])
     .eq("org_id", orgId)
     .in("status", ["degraded", "down"]);
+  if (error) return error.message;
   revalidatePath("/assets");
+  return null;
 }
 
 /**
@@ -206,21 +241,29 @@ async function myTechnicianId(
 
 const NOT_YOURS = "ใบสั่งงานนี้ไม่ได้มอบหมายให้คุณ";
 
-/** Guard: a field-only technician may only touch their own work order. */
+/**
+ * Guard for every per-job action: the job must exist in the caller's org
+ * (anyone), and a field-only technician may only touch their own job.
+ * The two lookups don't depend on each other, so they run together.
+ */
 async function assertMayWork(
   ctx: Awaited<ReturnType<typeof getSessionContext>>,
   workOrderId: string
 ): Promise<string | null> {
-  if (ctx.isAdmin || !isTechnicianOnly(ctx.appRoles)) return null;
-  const techId = await myTechnicianId(ctx);
-  if (!techId) return NOT_YOURS;
-  const { data } = await ctx.supabase
-    .from("work_orders")
-    .select("technician_id")
-    .eq("id", workOrderId)
-    .eq("org_id", ctx.org.id)
-    .maybeSingle();
-  return data && data.technician_id === techId ? null : NOT_YOURS;
+  const fieldTech = !ctx.isAdmin && isTechnicianOnly(ctx.appRoles);
+  const [techId, woRes] = await Promise.all([
+    fieldTech ? myTechnicianId(ctx) : Promise.resolve(null),
+    ctx.supabase
+      .from("work_orders")
+      .select("technician_id")
+      .eq("id", workOrderId)
+      .eq("org_id", ctx.org.id)
+      .maybeSingle(),
+  ]);
+  if (woRes.error) return woRes.error.message;
+  if (!woRes.data) return "ไม่พบใบสั่งงานนี้ในองค์กรของคุณ";
+  if (!fieldTech) return null;
+  return techId && woRes.data.technician_id === techId ? null : NOT_YOURS;
 }
 
 /** The assigned technician acknowledges the job ("กดรับงาน"). */
@@ -228,13 +271,18 @@ export async function acceptWorkOrder(id: string): Promise<ActionResult> {
   const ctx = await getSessionContext();
   const { supabase, org, userId } = ctx;
 
-  const techId = await myTechnicianId(ctx);
-  const { data: wo } = await supabase
-    .from("work_orders")
-    .select("technician_id, accepted_at")
-    .eq("id", id)
-    .eq("org_id", org.id)
-    .maybeSingle();
+  // Both lookups need only the session — run them together.
+  const [techId, woRes] = await Promise.all([
+    myTechnicianId(ctx),
+    supabase
+      .from("work_orders")
+      .select("technician_id, accepted_at")
+      .eq("id", id)
+      .eq("org_id", org.id)
+      .maybeSingle(),
+  ]);
+  if (woRes.error) return fail(woRes.error.message);
+  const wo = woRes.data;
   if (!wo) return fail("ไม่พบใบสั่งงาน");
   // Only the technician it was assigned to can accept it — not an admin on
   // their behalf, otherwise the timestamp would not mean anything.
@@ -250,6 +298,7 @@ export async function acceptWorkOrder(id: string): Promise<ActionResult> {
   revalidatePath("/my-jobs");
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${id}`);
+  revalidatePath("/service-board");
   return ok(id);
 }
 
@@ -293,13 +342,17 @@ export async function updateWorkOrderStatus(
     .eq("id", id)
     .eq("org_id", org.id);
   if (error) return fail(error.message);
-  if (status === "completed") await restoreAssetsOnComplete(supabase, org.id, id);
+  if (status === "completed") {
+    const rErr = await restoreAssetsOnComplete(supabase, org.id, id);
+    if (rErr) return fail("ปิดงานแล้ว แต่ปรับสถานะเครื่องไม่สำเร็จ: " + rErr);
+  }
   // A contract's progress is read from its rounds' jobs, so a page showing it
   // has to be told when one of those jobs moves.
   revalidatePath("/service-contracts");
   revalidatePath("/my-jobs");
   revalidatePath("/work-orders");
-  revalidatePath(`/work-orders/${id}`);
+  revalidatePath(`/work-orders/${id}`, "layout");
+  revalidatePath("/service-board");
   return ok();
 }
 
@@ -314,6 +367,7 @@ export async function deleteWorkOrder(id: string): Promise<ActionResult> {
   if (error) return fail(error.message);
   revalidatePath("/work-orders");
   revalidatePath("/my-jobs");
+  revalidatePath("/service-board");
   return ok();
 }
 
@@ -333,7 +387,9 @@ export async function addWorkOrderPart(
 
   const label = name?.trim();
   if (!label) return fail("กรุณากรอกชื่ออะไหล่");
-  const price = Number(unitPrice);
+  // "No price recorded" stays null — Number(null) is 0, which on a billed job
+  // is a real (and wrong) price.
+  const price = unitPrice == null ? null : Number(unitPrice);
   const { error } = await ctx.supabase.from("work_order_parts").insert({
     org_id: ctx.org.id,
     work_order_id: workOrderId,
@@ -341,11 +397,12 @@ export async function addWorkOrderPart(
     name: label,
     qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
     unit: unit?.trim() || null,
-    unit_price: Number.isFinite(price) && price >= 0 ? price : null,
+    unit_price: price != null && Number.isFinite(price) && price >= 0 ? price : null,
     source: source === "store" || source === "labor" ? source : "material",
   });
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -364,7 +421,8 @@ export async function saveTechnicianRemark(
     .eq("id", workOrderId)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -437,7 +495,8 @@ export async function saveWorkOrderDiagnosis(
     }
   }
 
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -482,8 +541,17 @@ export async function saveServiceReport(
     update.billing = patch.billing && BILLINGS.includes(patch.billing) ? patch.billing : null;
   if ("work_kinds" in patch)
     update.work_kinds = (patch.work_kinds ?? []).filter((k) => WORK_KINDS.includes(k));
-  if ("started_at" in patch) update.started_at = patch.started_at || null;
-  if ("finished_at" in patch) update.finished_at = patch.finished_at || null;
+  // Normalize through iso() like every other timestamp, and refuse an
+  // inverted time card — the exact bad record this card exists to prevent.
+  if ("started_at" in patch) update.started_at = iso(patch.started_at);
+  if ("finished_at" in patch) update.finished_at = iso(patch.finished_at);
+  if (
+    typeof update.started_at === "string" &&
+    typeof update.finished_at === "string" &&
+    update.finished_at < update.started_at
+  ) {
+    return fail("เวลาเสร็จงานต้องไม่มาก่อนเวลาเริ่มงาน");
+  }
   if ("mileage_start" in patch) update.mileage_start = num(patch.mileage_start);
   if ("mileage_end" in patch) update.mileage_end = num(patch.mileage_end);
   if (Object.keys(update).length === 0) return ok();
@@ -494,7 +562,8 @@ export async function saveServiceReport(
     .eq("id", workOrderId)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   revalidatePath("/my-jobs");
   return ok();
 }
@@ -527,7 +596,8 @@ export async function saveWorkOrderSignature(
     .eq("id", workOrderId)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   revalidatePath("/my-jobs");
   return ok();
 }
@@ -545,7 +615,8 @@ export async function deleteWorkOrderPart(
     .eq("id", id)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -555,15 +626,18 @@ export async function addWorkOrderPhoto(
   path: string,
   caption?: string
 ): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
-  const { error } = await supabase.from("work_order_photos").insert({
-    org_id: org.id,
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+  const { error } = await ctx.supabase.from("work_order_photos").insert({
+    org_id: ctx.org.id,
     work_order_id: workOrderId,
     path,
     caption: caption?.trim() || null,
   });
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -589,7 +663,8 @@ export async function saveWorkOrderPhotoCaption(
     .eq("id", id)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
@@ -608,30 +683,47 @@ export async function reorderWorkOrderPhotos(
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
 
-  for (const [position, id] of ids.entries()) {
-    const { error } = await ctx.supabase
-      .from("work_order_photos")
-      .update({ position })
-      .eq("id", id)
-      .eq("work_order_id", workOrderId)
-      .eq("org_id", ctx.org.id);
-    if (error) return fail(error.message);
-  }
-  revalidatePath(`/work-orders/${workOrderId}`);
+  // One round trip per photo, but all in flight together — a 30-photo job
+  // reorders in one network beat instead of thirty.
+  const results = await Promise.all(
+    ids.map((id, position) =>
+      ctx.supabase
+        .from("work_order_photos")
+        .update({ position })
+        .eq("id", id)
+        .eq("work_order_id", workOrderId)
+        .eq("org_id", ctx.org.id)
+    )
+  );
+  const firstErr = results.find((r) => r.error)?.error;
+  if (firstErr) return fail(firstErr.message);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
 
 export async function deleteWorkOrderPhoto(
   id: string,
-  path: string,
   workOrderId: string
 ): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
   // Delete the DB row first: if this fails the photo is untouched; an
   // orphaned storage object (row gone, remove fails) is harmless by contrast.
-  const { error } = await supabase.from("work_order_photos").delete().eq("id", id);
+  // The storage path comes from the deleted row — never from the caller, who
+  // could otherwise aim it at any object in the bucket.
+  const { data: deleted, error } = await ctx.supabase
+    .from("work_order_photos")
+    .delete()
+    .eq("id", id)
+    .eq("work_order_id", workOrderId)
+    .eq("org_id", ctx.org.id)
+    .select("path");
   if (error) return fail(error.message);
-  await supabase.storage.from("wo-photos").remove([path]);
-  revalidatePath(`/work-orders/${workOrderId}`);
+  const path = deleted?.[0]?.path;
+  if (path) await ctx.supabase.storage.from("wo-photos").remove([path]);
+  // "layout" also refreshes the nested /report page these fields print on.
+  revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
 }
