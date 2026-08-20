@@ -95,7 +95,7 @@ export const priorityMeta = (v: WorkOrderPriority) =>
  * left for a job with no case to derive one from.
  */
 export const woCode = (
-  w: { number: number | null; report_no?: string | null } | number | null
+  w: { number: number | null; report_no: string | null } | number | null
 ) => {
   if (w !== null && typeof w === "object") {
     return w.report_no?.trim() || serial(w.number);

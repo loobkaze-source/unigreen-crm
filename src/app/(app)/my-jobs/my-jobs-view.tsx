@@ -36,7 +36,7 @@ export type Job = {
   id: string;
   number: number | null;
   /** The service-report number, when the job has one — see woCode. */
-  reportNo: string | null;
+  report_no: string | null;
   title: string;
   status: WorkOrderStatus;
   type: WorkOrderType;

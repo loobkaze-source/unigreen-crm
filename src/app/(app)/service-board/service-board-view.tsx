@@ -14,6 +14,7 @@ type Board = { value: string; label: string };
 type WO = {
   id: string;
   number: number | null;
+  report_no: string | null;
   title: string;
   status: string;
   board_key: string | null;
