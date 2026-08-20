@@ -115,6 +115,9 @@ export function ContractsView({
   );
   const table = useDataTable(filtered, columns, {
     initialSort: { key: "nextDue", dir: "asc" },
+    // A contract is read one at a time — ten on screen is a working list, and
+    // the pager is there from the eleventh rather than only past fifty.
+    pageSizes: [10, 25, 50, 100, 250, 500],
   });
 
   function openCreate() {

@@ -61,14 +61,19 @@ export type DataTable<T> = {
   activeFilterCount: number;
   page: number;
   pageSize: number;
+  /** The sizes this table's pager offers, smallest first. */
+  pageSizes: number[];
   pageCount: number;
   setPage: (p: number) => void;
   setPageSize: (n: number) => void;
 };
 
-/** Rows put on screen at once. Enough to scroll, far short of what stalls a tab. */
-const DEFAULT_PAGE_SIZE = 50;
-/** Offered in the pager. 500 is about where laying out the rows starts to drag. */
+/**
+ * Offered in the pager, and the first of them is what the table opens at:
+ * enough to scroll, far short of what stalls a tab. 500 is about where laying
+ * out the rows starts to drag. A table whose rows are worth reading a few at a
+ * time passes its own sizes to useDataTable.
+ */
 const PAGE_SIZES = [50, 100, 500];
 /** Above this many options, a column filter is typed into rather than scrolled. */
 const SEARCHABLE_FROM = 12;
@@ -85,13 +90,14 @@ const SEARCHABLE_FROM = 12;
 export function useDataTable<T>(
   rows: T[],
   columns: ColumnDef<T>[],
-  opts?: { initialSort?: { key: string; dir: SortDir }; pageSize?: number }
+  opts?: { initialSort?: { key: string; dir: SortDir }; pageSizes?: number[] }
 ): DataTable<T> {
+  const pageSizes = opts?.pageSizes?.length ? opts.pageSizes : PAGE_SIZES;
   const [sort, setSort] = useState<Sort>(opts?.initialSort ?? null);
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setSize] = useState(opts?.pageSize ?? DEFAULT_PAGE_SIZE);
+  const [pageSize, setSize] = useState(pageSizes[0]);
 
   const colByKey = useMemo(
     () => new Map(columns.map((c) => [c.key, c])),
@@ -182,6 +188,7 @@ export function useDataTable<T>(
     activeFilterCount,
     page: current,
     pageSize,
+    pageSizes,
     pageCount,
     setPage,
     setPageSize: (n: number) => {
@@ -198,7 +205,7 @@ export function useDataTable<T>(
  * take the control that did it off the screen.
  */
 export function DataTablePager<T>({ table }: { table: DataTable<T> }) {
-  if (table.matched.length <= PAGE_SIZES[0]) return null;
+  if (table.matched.length <= table.pageSizes[0]) return null;
   const onlyPage = table.pageCount <= 1;
   const first = (table.page - 1) * table.pageSize + 1;
   const last = Math.min(table.page * table.pageSize, table.matched.length);
@@ -217,7 +224,7 @@ export function DataTablePager<T>({ table }: { table: DataTable<T> }) {
             onChange={(e) => table.setPageSize(Number(e.target.value))}
             className="h-7 rounded-md border border-input bg-card px-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {PAGE_SIZES.map((n) => (
+            {table.pageSizes.map((n) => (
               <option key={n} value={n}>
                 {n} แถว/หน้า
               </option>
