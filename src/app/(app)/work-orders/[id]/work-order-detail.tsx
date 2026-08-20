@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   ArrowLeft,
+  Box,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -173,6 +174,9 @@ export function WorkOrderDetail({
   const [uploadNote, setUploadNote] = useState("");
   const { run, busy } = useBusyTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  /** The assets on this job, in the order the picker lists them. */
+  const linkedAssets = assets.filter((a) => assetIds.includes(a.id));
 
   const s = statusMeta(workOrder.status);
   const p = priorityMeta(workOrder.priority);
@@ -418,6 +422,27 @@ export function WorkOrderDetail({
               ) : null}
             </div>
           </div>
+          {/* The machines the job is about. They arrive from the case that
+              raised it, and a technician who cannot see them here has to open
+              the edit form to find out what they are going to. */}
+          {linkedAssets.length ? (
+            <div className="sm:col-span-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Box className="h-4 w-4" /> เครื่องที่มีปัญหา ({linkedAssets.length})
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {linkedAssets.map((a) => (
+                  <Link
+                    key={a.id}
+                    href={`/assets/${a.id}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs text-accent-foreground hover:bg-muted"
+                  >
+                    {a.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {workOrder.description ? (
             <div className="sm:col-span-2">
               <div className="text-xs text-muted-foreground">รายละเอียด</div>
