@@ -11,7 +11,6 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
-  Circle,
   ImagePlus,
   LifeBuoy,
   Loader2,
@@ -27,7 +26,6 @@ import {
 } from "lucide-react";
 import type {
   WorkOrder,
-  WorkOrderItem,
   WorkOrderPhoto,
 } from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
@@ -70,16 +68,13 @@ const WorkOrderModal = dynamic(
   { ssr: false }
 );
 import {
-  addChecklistItem,
   addWorkOrderPart,
   saveTechnicianRemark,
   saveWorkOrderSignature,
   addWorkOrderPhoto,
-  deleteChecklistItem,
   deleteWorkOrderPart,
   deleteWorkOrder,
   deleteWorkOrderPhoto,
-  toggleChecklistItem,
   updateWorkOrderStatus,
 } from "../actions";
 
@@ -114,7 +109,6 @@ function useBusyTransition() {
 
 export function WorkOrderDetail({
   workOrder,
-  items,
   photos,
   parts,
   technicians,
@@ -139,7 +133,6 @@ export function WorkOrderDetail({
   contactName,
 }: {
   workOrder: WorkOrder;
-  items: WorkOrderItem[];
   photos: PhotoWithUrl[];
   parts: PartRow[];
   technicians: Option[];
@@ -170,7 +163,6 @@ export function WorkOrderDetail({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [newItem, setNewItem] = useState("");
   // Which photo the full-screen viewer is showing (null = closed).
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
@@ -194,7 +186,6 @@ export function WorkOrderDetail({
 
   const s = statusMeta(workOrder.status);
   const p = priorityMeta(workOrder.priority);
-  const doneCount = items.filter((i) => i.done).length;
 
   const mapHref =
     workOrder.site_map_url ||
@@ -223,31 +214,6 @@ export function WorkOrderDetail({
       const res = await deleteWorkOrder(workOrder.id);
       if (!res.ok) alert(res.error);
       else router.push("/work-orders");
-    });
-  }
-  function addItem(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newItem.trim()) return;
-    run("addItem", async () => {
-      const res = await addChecklistItem(workOrder.id, newItem);
-      if (!res.ok) return alert(res.error);
-      setNewItem("");
-      router.refresh();
-    });
-  }
-  function toggleItem(item: WorkOrderItem) {
-    run(`tick-${item.id}`, async () => {
-      const res = await toggleChecklistItem(item.id, !item.done, workOrder.id);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
-    });
-  }
-  function removeItem(item: WorkOrderItem) {
-    if (!confirm(`ลบรายการตรวจ “${item.label}”?`)) return;
-    run(`del-${item.id}`, async () => {
-      const res = await deleteChecklistItem(item.id, workOrder.id);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
     });
   }
 
@@ -486,84 +452,6 @@ export function WorkOrderDetail({
             onSaved={() => router.refresh()}
           />
         </div>
-
-        {/* Checklist */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              เช็กลิสต์หน้างาน{" "}
-              <span className="text-sm font-normal text-muted-foreground">
-                ({doneCount}/{items.length})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1">
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  className="group flex items-center gap-2 rounded-md px-1 py-1.5 hover:bg-muted/40"
-                >
-                  <button
-                    onClick={() => toggleItem(item)}
-                    className="text-muted-foreground hover:text-primary"
-                    aria-label="สลับสถานะ"
-                  >
-                    {item.done ? (
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-                    ) : (
-                      <Circle className="h-5 w-5" />
-                    )}
-                  </button>
-                  <span
-                    className={cn(
-                      "flex-1 text-sm",
-                      item.done && "text-muted-foreground line-through"
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                  <button
-                    onClick={() => removeItem(item)}
-                    disabled={busy(`del-${item.id}`)}
-                    className={cn(
-                      "transition-opacity md:opacity-0 md:group-hover:opacity-100",
-                      busy(`del-${item.id}`) && "md:opacity-100"
-                    )}
-                    aria-label="ลบ"
-                  >
-                    {busy(`del-${item.id}`) ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    )}
-                  </button>
-                </div>
-              ))}
-              {items.length === 0 ? (
-                <p className="py-2 text-sm text-muted-foreground">
-                  ยังไม่มีรายการตรวจ เพิ่มรายการด้านล่าง
-                </p>
-              ) : null}
-            </div>
-
-            <form onSubmit={addItem} className="mt-3 flex gap-2">
-              <Input
-                value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
-                placeholder="เพิ่มรายการตรวจ เช่น ตรวจสายดิน…"
-              />
-              <Button type="submit" disabled={busy("addItem")}>
-                {busy("addItem") ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                เพิ่ม
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
 
         {/* Materials used on the job, and anything drawn from company stock.
             Same shape, same totals — one component, two sources. */}

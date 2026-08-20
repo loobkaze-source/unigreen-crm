@@ -317,60 +317,6 @@ export async function deleteWorkOrder(id: string): Promise<ActionResult> {
   return ok();
 }
 
-// ---- Checklist ------------------------------------------------------------
-export async function addChecklistItem(
-  workOrderId: string,
-  label: string
-): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
-  const text = label?.trim();
-  if (!text) return fail("กรุณากรอกรายการ");
-
-  const { data: last } = await supabase
-    .from("work_order_items")
-    .select("position")
-    .eq("work_order_id", workOrderId)
-    .order("position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { error } = await supabase.from("work_order_items").insert({
-    org_id: org.id,
-    work_order_id: workOrderId,
-    label: text,
-    position: (last?.position ?? -1) + 1,
-  });
-  if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
-  return ok();
-}
-
-export async function toggleChecklistItem(
-  id: string,
-  done: boolean,
-  workOrderId: string
-): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase
-    .from("work_order_items")
-    .update({ done })
-    .eq("id", id);
-  if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
-  return ok();
-}
-
-export async function deleteChecklistItem(
-  id: string,
-  workOrderId: string
-): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
-  const { error } = await supabase.from("work_order_items").delete().eq("id", id);
-  if (error) return fail(error.message);
-  revalidatePath(`/work-orders/${workOrderId}`);
-  return ok();
-}
-
 // ---- Parts replaced ---------------------------------------------------------
 export async function addWorkOrderPart(
   workOrderId: string,

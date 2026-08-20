@@ -42,7 +42,6 @@ export default async function WorkOrderDetailPage({
   }
 
   const [
-    itemsRes,
     photosRes,
     partsRes,
     techRes,
@@ -55,11 +54,6 @@ export default async function WorkOrderDetailPage({
     tagsRes,
     codesRes,
   ] = await Promise.all([
-    supabase
-      .from("work_order_items")
-      .select("*")
-      .eq("work_order_id", id)
-      .order("position", { ascending: true }),
     supabase
       .from("work_order_photos")
       .select("*")
@@ -123,7 +117,6 @@ export default async function WorkOrderDetailPage({
       .limit(1000),
   ]);
 
-  const items = rows(itemsRes);
   const photos = rows(photosRes);
   const parts = rows(partsRes);
   const technicians = rows(techRes);
@@ -177,7 +170,6 @@ export default async function WorkOrderDetailPage({
   return (
     <WorkOrderDetail
       workOrder={workOrder}
-      items={items ?? []}
       photos={photosWithUrl}
       signatureUrl={
         workOrder.signature_path
