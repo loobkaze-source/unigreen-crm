@@ -71,6 +71,7 @@ import {
   addWorkOrderPart,
   saveTechnicianRemark,
   saveWorkOrderSignature,
+  saveWorkOrderPhotoCaption,
   addWorkOrderPhoto,
   deleteWorkOrderPart,
   deleteWorkOrder,
@@ -550,10 +551,10 @@ export function WorkOrderDetail({
                 ยังไม่มีรูป — กด “เพิ่มรูป” เพื่ออัปโหลดภาพหน้างาน
               </p>
             ) : (
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {photos.map((ph, i) => (
+                  <div key={ph.id}>
                   <div
-                    key={ph.id}
                     className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
                   >
                     <button
@@ -585,6 +586,12 @@ export function WorkOrderDetail({
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
                     </button>
+                  </div>
+                  <PhotoCaption
+                    photo={ph}
+                    workOrderId={workOrder.id}
+                    onSaved={() => router.refresh()}
+                  />
                   </div>
                 ))}
               </div>
@@ -697,6 +704,58 @@ export function WorkOrderDetail({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The caption under one photo, saved when the box is left.
+ *
+ * A photograph of a corroded fitting says nothing on its own a year later, and
+ * the report prints these under each picture — so this is the difference
+ * between evidence and a page of pipes. Saved on blur rather than behind a
+ * button: on site the next thing anyone does is tap the following photo.
+ */
+function PhotoCaption({
+  photo,
+  workOrderId,
+  onSaved,
+}: {
+  photo: PhotoWithUrl;
+  workOrderId: string;
+  onSaved: () => void;
+}) {
+  const saved = photo.caption ?? "";
+  const [text, setText] = useState(saved);
+  const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
+
+  function commit() {
+    if (text.trim() === saved.trim() || saving) return;
+    setSaving(true);
+    startTransition(async () => {
+      const res = await saveWorkOrderPhotoCaption(photo.id, text, workOrderId);
+      setSaving(false);
+      if (!res.ok) {
+        setText(saved);
+        return alert(res.error);
+      }
+      onSaved();
+    });
+  }
+
+  return (
+    <input
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") setText(saved);
+      }}
+      disabled={saving}
+      placeholder="คำบรรยาย…"
+      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-xs disabled:opacity-50"
+    />
   );
 }
 

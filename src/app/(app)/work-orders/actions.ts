@@ -567,6 +567,32 @@ export async function addWorkOrderPhoto(
   return ok();
 }
 
+/**
+ * The caption under a site photo.
+ *
+ * A photograph of a corroded fitting says nothing on its own once the visit is
+ * a year old, and the report prints these under each picture — so this is the
+ * difference between evidence and a page of pipes.
+ */
+export async function saveWorkOrderPhotoCaption(
+  id: string,
+  caption: string,
+  workOrderId: string
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  const { error } = await ctx.supabase
+    .from("work_order_photos")
+    .update({ caption: caption.trim() || null })
+    .eq("id", id)
+    .eq("org_id", ctx.org.id);
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
 export async function deleteWorkOrderPhoto(
   id: string,
   path: string,
