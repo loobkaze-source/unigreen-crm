@@ -162,41 +162,78 @@ const label = (c) =>
 /**
  * Rows the owner has ruled on, because the names alone could not.
  *
- * `null` means the plan row has no contract here to record against — the
- * agreement ran out years ago, or the customer is one of the Hoymiles sites
- * that is not in the CRM yet. Anything listed is checked; anything not listed
- * is still the matcher's guess.
+ * A row can name more than one contract: a station's forecourt and its 7-Eleven
+ * are two agreements and one afternoon's work, and the plan writes them on one
+ * line ("ปตท.ธนวิน 24 (PTT&7-Eleven)"). `null` means there is nothing here to
+ * record against — the agreement ran out years ago, or the customer is one of
+ * the Hoymiles sites not loaded yet.
  */
 const BY_HAND = {
   "หอพัก PJ House พิษณุโลก": [null, "หมดสัญญาไปนานแล้ว"],
   "Café Amazon กันทรวิชัย (หจก.สารคามพัฒนาการก่อสร้าง)": [
-    "UNG-2025-0002",
+    ["UNG-2025-0002"],
     "ลูกค้ายืนยัน: หจก.สารคามพัฒนาการก่อสร้าง",
   ],
+  // Both agreements at one station, cleaned in one visit.
+  "ปตท.ธนวิน 24 (PTT&7-Eleven) (เจ๊เมย)": [
+    ["UNG-2022-0002", "UNG-2022-0003"],
+    "ปั๊มและ 7-Eleven ของธนวิน 24",
+  ],
+  "ปตท. วังมะนาว (PTT&7-Eleven) (เฮียจรรยา)": [
+    ["UNG-2023-0008", "UNG-2023-0009"],
+    "ปั๊มและ 7-Eleven วังมะนาว — บ้านเฮียจรรยาเป็นอีกแถวหนึ่ง",
+  ],
+  "ปตท. เกษตรวิสัย (PTT & 7-Eleven) (คุณเอกวัฒน์)": [
+    ["UNG-2024-0008", "UNG-2024-0009"],
+    "ปั๊มและ 7-Eleven เกษตรวิสัย — เมืองเกษตรวิสัยเป็นอีกแถวหนึ่ง",
+  ],
+  "PTT Station ปตท.แยกเกษมพล (PTT & 7-Eleven) +บ้านคุณเล็กปั๊มแยกเกษมพล (บจ.ปทุมพฤกษรักษ์ ออยล์)": [
+    ["UNG-2024-0018"],
+    "แยกเกษมพล (บ้านคุณเล็ก) — UNG-2024-0017 เป็นพลูตาหลวง คนละสถานี",
+  ],
+  // The 7-Eleven is certain; which of the two หล่มสัก stations shares the row
+  // is not, so only the certain half is recorded.
+  "PTT ปตท.หล่มสัก + 7-Eleven สาขา น้ำชุน (หล่มสัก)": [
+    ["UNG-2024-0015"],
+    "7-Eleven น้ำชุน — ยังไม่ได้ตัดสินว่าปั๊มหล่มสักเป็น UNG-2024-0004 หรือ 0016",
+  ],
+  // Matched on a name the two happen to share, nothing more.
+  "บ้านคุณธนกร life boulevard พระราม 2": [null, "ไม่มีในระบบ (คนละพระราม)"],
+  "บ้านคุณดาว life boulevard พระราม 2": [null, "ไม่มีในระบบ (คนละพระราม)"],
+  "บ้านคุณวีรชัย จ.ชลบุรี": [null, "ไม่มีในระบบ (ชนแค่ชื่อวีรชัย)"],
+  "PTT Station ปตท.ยูพาร์ค (บจ.ดี เอนเนอร์จี แอนด์ รีเทล)": [null, "ไม่มีในระบบ"],
+  "ปตท. กาฬสินธุ์ - สหัสขันธุ์ (PTT & 7-Eleven) (เจ๊เม่ย)": [null, "ไม่มีในระบบ (คนละสาขา)"],
 };
+
 
 /** The best contract for a plan row, and whether anything else came close. */
 function match(planSite) {
   const ruled = BY_HAND[planSite];
   if (ruled) {
-    const [no, why] = ruled;
-    if (!no) return { c: null, why: `ตรวจแล้ว: ${why}` };
-    const c = contracts.find((x) => x.contract_no === no);
-    if (!c) throw new Error(`BY_HAND ชี้ไปที่สัญญา ${no} ซึ่งไม่มีในระบบ`);
-    return { c, why };
+    const [nos, why] = ruled;
+    if (!nos) return { cs: [], why: `ตรวจแล้ว: ${why}` };
+    const cs = nos.map((no) => {
+      const c = contracts.find((x) => x.contract_no === no);
+      if (!c) throw new Error(`BY_HAND ชี้ไปที่สัญญา ${no} ซึ่งไม่มีในระบบ`);
+      return c;
+    });
+    return { cs, why };
   }
   const ranked = contracts
     .map((c) => ({ c, n: score(planSite, label(c)) }))
     .filter((x) => x.n >= 4)
     .sort((a, b) => b.n - a.n);
-  if (!ranked.length) return { c: null, why: "ไม่พบสัญญาที่ตรง" };
+  if (!ranked.length) return { cs: [], why: "ไม่พบสัญญาที่ตรง" };
   const [top, next] = ranked;
   // Two contracts equally close is a station with more than one agreement; the
   // plan row cannot say which, so it is left for someone who can.
   if (next && next.n === top.n) {
-    return { c: null, why: `ตรงเท่ากันหลายสัญญา (${ranked.filter((x) => x.n === top.n).map((x) => x.c.contract_no).join(", ")})` };
+    return {
+      cs: [],
+      why: `ตรงเท่ากันหลายสัญญา (${ranked.filter((x) => x.n === top.n).map((x) => x.c.contract_no).join(", ")})`,
+    };
   }
-  return { c: top.c, n: top.n };
+  return { cs: [top.c], n: top.n };
 }
 
 // ---------------------------------------------------------------------------
@@ -207,17 +244,21 @@ const skipped = [];
 const used = new Map(); // contract id -> plan site, so two rows cannot claim one
 
 for (const [site, done] of plan) {
-  const { c, why, n } = match(site);
-  if (!c) {
+  const { cs, why, n } = match(site);
+  if (!cs.length) {
     skipped.push({ site, done, why });
     continue;
   }
-  if (used.has(c.id)) {
-    skipped.push({ site, done, why: `สัญญา ${c.contract_no} ถูกจับคู่กับ “${used.get(c.id)}” ไปแล้ว` });
-    continue;
+  // One row can name a station's forecourt and its shop; each contract still
+  // gets its own record of the visit.
+  for (const c of cs) {
+    if (used.has(c.id)) {
+      skipped.push({ site, done, why: `สัญญา ${c.contract_no} ถูกจับคู่กับ “${used.get(c.id)}” ไปแล้ว` });
+      continue;
+    }
+    used.set(c.id, site);
+    matched.push({ site, done, c, n });
   }
-  used.set(c.id, site);
-  matched.push({ site, done, c, n });
 }
 
 console.log(`ไฟล์: ${FILE}`);
@@ -233,7 +274,7 @@ for (const m of matched.sort((a, b) => a.c.contract_no.localeCompare(b.c.contrac
 }
 
 console.log(`\nข้าม ${skipped.length} ไซต์ (ไม่มีในระบบ หรือชี้ได้หลายสัญญา):`);
-skipped.forEach((x) => console.log(`   ${String(x.done).padStart(2)}  ${x.site.slice(0, 52).padEnd(54)} ${x.why}`));
+skipped.forEach((x) => console.log(`   ${String(x.done).padStart(2)}  ${x.site.padEnd(54)} ${x.why}`));
 
 // ---------------------------------------------------------------------------
 //  แผ่นตรวจการจับคู่
@@ -315,4 +356,77 @@ if (!APPLY) {
   console.log("   --export  เขียนแผ่นตรวจการจับคู่ออกมาแก้");
   console.log("   --apply   เขียนใบงานย้อนหลังลงระบบ");
   process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
+//  เขียนใบงานย้อนหลัง
+// ---------------------------------------------------------------------------
+/**
+ * Rounds 1..N of each contract get a finished work order, on the owner's word
+ * that no cleaning has ever been missed. The round's own due date is used as
+ * the day it happened: the plan's service dates are half prose and half Excel
+ * date serials, and a due date at least says which quarter's visit this was
+ * rather than inventing a precision nobody recorded.
+ *
+ * A round that already points at a job is left alone, so this can be re-run
+ * after another export without doubling anything.
+ */
+let created = 0;
+let already = 0;
+let short = [];
+
+for (const m of matched) {
+  const { data: visits, error: vErr } = await sb
+    .from("service_visits")
+    .select("id, seq, due_date, work_order_id")
+    .eq("contract_id", m.c.id)
+    .eq("org_id", ORG.id)
+    .order("seq")
+    .limit(m.done);
+  if (vErr) throw new Error(`อ่านรอบของ ${m.c.contract_no} ไม่ได้: ${vErr.message}`);
+  if ((visits ?? []).length < m.done) {
+    short.push(`${m.c.contract_no} มี ${visits.length} รอบ แต่ล้างไป ${m.done} ครั้ง`);
+  }
+
+  for (const v of visits ?? []) {
+    if (v.work_order_id) {
+      already++;
+      continue;
+    }
+    const { data: wo, error } = await sb
+      .from("work_orders")
+      .insert({
+        org_id: ORG.id,
+        title: `ล้างแผงโซลาร์ ครั้งที่ ${v.seq}`,
+        type: "electrical",
+        status: "completed",
+        priority: "normal",
+        job_class: "PM",
+        billing: "contract",
+        board_key: m.c.board_key,
+        company_id: m.c.company_id,
+        site_id: m.c.site_id,
+        contract_id: m.c.id,
+        scheduled_start: `${v.due_date}T09:00:00+07:00`,
+        completed_at: `${v.due_date}T12:00:00+07:00`,
+        description: `บันทึกย้อนหลังจากแผน Aftersales — ${m.site}`,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(`สร้างใบงานของ ${m.c.contract_no} รอบ ${v.seq} ไม่ได้: ${error.message}`);
+
+    const { error: lErr } = await sb
+      .from("service_visits")
+      .update({ work_order_id: wo.id })
+      .eq("id", v.id)
+      .eq("org_id", ORG.id);
+    if (lErr) throw new Error(`ผูกใบงานกับรอบ ${v.seq} ไม่ได้: ${lErr.message}`);
+    created++;
+  }
+}
+
+console.log(`สร้างใบงานย้อนหลัง ${created} ใบ · มีอยู่แล้ว ${already} รอบ`);
+if (short.length) {
+  console.log("รอบในระบบน้อยกว่าจำนวนครั้งที่ล้าง:");
+  short.forEach((x) => console.log(`   ${x}`));
 }
