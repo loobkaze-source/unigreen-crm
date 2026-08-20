@@ -111,9 +111,8 @@ export default async function WorkOrderDetailPage({
     // rather than an empty box on every job.
     supabase
       .from("work_orders")
-      .select("fault_code, repair_code")
+      .select("fault_codes, repair_codes, causes")
       .eq("org_id", org.id)
-      .or("fault_code.not.is.null,repair_code.not.is.null")
       .limit(1000),
   ]);
 
@@ -133,9 +132,15 @@ export default async function WorkOrderDetailPage({
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
   const crewIds = rows(woTechsRes).map((r) => r.technician_id as string);
+  // Flattened and de-duplicated here so the field is handed a vocabulary
+  // rather than a thousand jobs to pick through.
   const used = rows(codesRes);
-  const faultCodes = used.map((r) => r.fault_code as string).filter(Boolean);
-  const repairCodes = used.map((r) => r.repair_code as string).filter(Boolean);
+  const distinct = (key: "fault_codes" | "repair_codes" | "causes") => [
+    ...new Set(used.flatMap((r) => (r[key] as string[] | null) ?? []).filter(Boolean)),
+  ];
+  const faultCodes = distinct("fault_codes");
+  const repairCodes = distinct("repair_codes");
+  const causeTags = distinct("causes");
   const assetList = (assets ?? []).map((a) => {
     const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
     const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
@@ -179,6 +184,7 @@ export default async function WorkOrderDetailPage({
       crewIds={crewIds}
       faultCodes={faultCodes}
       repairCodes={repairCodes}
+      causeTags={causeTags}
       orgId={org.id}
       canEdit={!fieldOnly}
       backHref={fieldOnly ? "/my-jobs" : "/work-orders"}

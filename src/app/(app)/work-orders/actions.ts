@@ -395,9 +395,9 @@ export async function saveTechnicianRemark(
 export async function saveWorkOrderDiagnosis(
   workOrderId: string,
   patch: {
-    fault_code?: string;
-    repair_code?: string;
-    cause?: string;
+    fault_codes?: string[];
+    repair_codes?: string[];
+    causes?: string[];
     remedy?: string;
     technician_ids?: string[];
   }
@@ -406,11 +406,18 @@ export async function saveWorkOrderDiagnosis(
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
 
-  const text = (v: string | undefined) => (v?.trim() ? v.trim() : null);
   const update: Record<string, unknown> = {};
-  for (const k of ["fault_code", "repair_code", "cause", "remedy"] as const) {
-    if (k in patch) update[k] = text(patch[k]);
+  for (const k of ["fault_codes", "repair_codes", "causes"] as const) {
+    // Trimmed and de-duplicated here as well as in the field: the same tag typed
+    // with a trailing space is the same tag, and only this end can be sure.
+    if (k in patch) {
+      const seen = new Set<string>();
+      update[k] = (patch[k] ?? [])
+        .map((t) => t.trim())
+        .filter((t) => t && !seen.has(t.toLowerCase()) && seen.add(t.toLowerCase()));
+    }
   }
+  if ("remedy" in patch) update.remedy = patch.remedy?.trim() || null;
   if (Object.keys(update).length) {
     const { error } = await ctx.supabase
       .from("work_orders")

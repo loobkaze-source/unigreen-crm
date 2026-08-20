@@ -210,10 +210,13 @@ export interface WorkOrder extends Mutable {
   accepted_by: string | null;
   /** The technician's own note from site (dispatcher's brief is `description`). */
   technician_remark: string | null;
-  /** How the job was closed: the symptom's code, the fix's code, and the words. */
-  fault_code: string | null;
-  repair_code: string | null;
-  cause: string | null;
+  /**
+   * How the job was closed. One visit regularly answers more than one fault and
+   * applies more than one fix, so the three are lists; the remedy is prose.
+   */
+  fault_codes: string[];
+  repair_codes: string[];
+  causes: string[];
   remedy: string | null;
   /** The customer's reference for the visit, and our report book number. */
   customer_job_no: string | null;

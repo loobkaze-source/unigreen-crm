@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox } from "@/components/ui/combobox";
+import { TagInput } from "@/components/ui/tag-input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { WO_BILLING, WO_WORK_KINDS } from "../constants";
@@ -362,27 +363,26 @@ export function DiagnosisCard({
   crewIds,
   faultCodes,
   repairCodes,
+  causeTags,
   onSaved,
 }: {
   workOrder: WorkOrder;
   technicians: { id: string; name: string }[];
   crewIds: string[];
+  /** Values used on other jobs, offered while typing. */
   faultCodes: string[];
   repairCodes: string[];
+  causeTags: string[];
   onSaved: () => void;
 }) {
   const { saving, save } = useSave(saveWorkOrderDiagnosis, workOrder.id, onSaved);
-  const [fault, setFault] = useState(workOrder.fault_code ?? "");
-  const [repair, setRepair] = useState(workOrder.repair_code ?? "");
-  const [cause, setCause] = useState(workOrder.cause ?? "");
+  const [fault, setFault] = useState<string[]>(workOrder.fault_codes ?? []);
+  const [repair, setRepair] = useState<string[]>(workOrder.repair_codes ?? []);
+  const [causes, setCauses] = useState<string[]>(workOrder.causes ?? []);
   const [remedy, setRemedy] = useState(workOrder.remedy ?? "");
   const [crew, setCrew] = useState<string[]>(crewIds);
 
   const nameOf = (id: string) => technicians.find((t) => t.id === id)?.name ?? "—";
-  const options = (used: string[]) =>
-    [...new Set(used.filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b, "th"))
-      .map((v) => ({ value: v, label: v }));
 
   return (
     <Card>
@@ -394,9 +394,9 @@ export function DiagnosisCard({
           saving={saving}
           onClick={() =>
             save({
-              fault_code: fault,
-              repair_code: repair,
-              cause,
+              fault_codes: fault,
+              repair_codes: repair,
+              causes,
               remedy,
               technician_ids: crew,
             })
@@ -406,38 +406,36 @@ export function DiagnosisCard({
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="fault_code">รหัสอาการเสีย</Label>
-            <Combobox
-              id="fault_code"
+            <Label htmlFor="fault_codes">รหัสอาการเสีย</Label>
+            <TagInput
+              id="fault_codes"
               value={fault}
               onChange={setFault}
-              allowCustom
-              placeholder="เช่น F01 : ไม่อ่านค่าระดับน้ำมัน"
-              options={options(faultCodes)}
+              suggestions={faultCodes}
+              placeholder="เช่น F01 : ไม่อ่านค่าระดับน้ำมัน — คั่นด้วยจุลภาค"
             />
           </div>
           <div>
-            <Label htmlFor="repair_code">รหัสซ่อม</Label>
-            <Combobox
-              id="repair_code"
+            <Label htmlFor="repair_codes">รหัสซ่อม</Label>
+            <TagInput
+              id="repair_codes"
               value={repair}
               onChange={setRepair}
-              allowCustom
-              placeholder="เช่น S03 : เปลี่ยนอุปกรณ์ใหม่"
-              options={options(repairCodes)}
+              suggestions={repairCodes}
+              placeholder="เช่น S03 : เปลี่ยนอุปกรณ์ใหม่ — คั่นด้วยจุลภาค"
             />
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="cause">สาเหตุของปัญหา</Label>
-            <Textarea
-              id="cause"
-              rows={3}
-              value={cause}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCause(e.target.value)}
-              placeholder="พบอะไรหน้างาน ทำไมถึงเสีย"
+            <Label htmlFor="causes">สาเหตุของปัญหา</Label>
+            <TagInput
+              id="causes"
+              value={causes}
+              onChange={setCauses}
+              suggestions={causeTags}
+              placeholder="เช่น ไฟกระชาก — คั่นด้วยจุลภาค"
             />
           </div>
           <div>

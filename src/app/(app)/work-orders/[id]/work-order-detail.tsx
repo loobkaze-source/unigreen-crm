@@ -128,6 +128,7 @@ export function WorkOrderDetail({
   crewIds,
   faultCodes,
   repairCodes,
+  causeTags,
   orgId,
   signatureUrl,
   canEdit = true,
@@ -154,6 +155,7 @@ export function WorkOrderDetail({
   /** Codes already used on other jobs, offered in the two pickers. */
   faultCodes: string[];
   repairCodes: string[];
+  causeTags: string[];
   orgId: string;
   /** The customer's signature for this job, once there is one. */
   signatureUrl: string | null;
@@ -480,6 +482,7 @@ export function WorkOrderDetail({
             crewIds={crewIds}
             faultCodes={faultCodes}
             repairCodes={repairCodes}
+            causeTags={causeTags}
             onSaved={() => router.refresh()}
           />
         </div>
