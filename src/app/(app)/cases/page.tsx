@@ -27,6 +27,8 @@ export default async function CasesPage({
       `subject.ilike.%${term}%`,
       `employee.ilike.%${term}%`,
       `note.ilike.%${term}%`,
+      // The number the customer quotes is the one they search by.
+      `customer_wo_ref.ilike.%${term}%`,
     ];
     const digits = search.replace(/\D/g, "");
     if (digits) ors.push(`number.eq.${Number(digits)}`);

@@ -125,6 +125,7 @@ export function CasesView({
     status: "open" as CaseStatus,
     case_type: "",
     case_from: "ลูกค้า",
+    customer_wo_ref: "",
     employee: "",
     team: "",
     company_id: "",
@@ -151,6 +152,7 @@ export function CasesView({
       return (
         c.subject.toLowerCase().includes(q) ||
         (c.employee || "").toLowerCase().includes(q) ||
+        (c.customer_wo_ref || "").toLowerCase().includes(q) ||
         (c.note || "").toLowerCase().includes(q)
       );
     });
@@ -242,6 +244,7 @@ export function CasesView({
       status: c.status,
       case_type: c.case_type || "",
       case_from: c.case_from || "",
+      customer_wo_ref: c.customer_wo_ref || "",
       employee: c.employee || "",
       team: c.team || "",
       company_id: c.company_id || "",
@@ -445,6 +448,11 @@ export function CasesView({
                         className="block text-left"
                       >
                         <div className="font-medium hover:text-primary">{c.subject}</div>
+                        {c.customer_wo_ref ? (
+                          <div className="font-mono text-xs text-muted-foreground">
+                            WO ref. {c.customer_wo_ref}
+                          </div>
+                        ) : null}
                         {c.note ? (
                           <div className="max-w-md truncate text-xs text-muted-foreground">
                             {c.note}
@@ -526,6 +534,15 @@ export function CasesView({
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
               required
               autoFocus
+            />
+          </div>
+          <div>
+            <Label htmlFor="customer_wo_ref">WO ref. ของลูกค้า (ถ้ามี)</Label>
+            <Input
+              id="customer_wo_ref"
+              value={form.customer_wo_ref}
+              onChange={(e) => setForm({ ...form, customer_wo_ref: e.target.value })}
+              placeholder="รหัสใบงานที่ลูกค้าออกให้ เช่น 9476691D-1004179"
             />
           </div>
           <div className="grid grid-cols-3 gap-3">

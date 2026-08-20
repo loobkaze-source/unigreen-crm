@@ -373,6 +373,8 @@ export interface Case extends Mutable {
   status: CaseStatus;
   case_type: string | null;
   case_from: string | null;
+  /** The customer's own work-order number for this fault, when they quote one. */
+  customer_wo_ref: string | null;
   note: string | null;
   action: string | null;
   employee: string | null;

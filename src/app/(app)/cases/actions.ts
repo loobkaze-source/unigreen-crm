@@ -12,6 +12,7 @@ export type CaseInput = {
   status: CaseStatus;
   case_type?: string;
   case_from?: string;
+  customer_wo_ref?: string;
   note?: string;
   action?: string;
   employee?: string;
@@ -79,6 +80,7 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     status: input.status || "open",
     case_type: input.case_type?.trim() || null,
     case_from: input.case_from?.trim() || null,
+    customer_wo_ref: input.customer_wo_ref?.trim() || null,
     note: input.note?.trim() || null,
     action: input.action?.trim() || null,
     employee: input.employee?.trim() || null,
