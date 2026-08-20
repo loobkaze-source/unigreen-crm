@@ -203,7 +203,7 @@ export function WorkOrderDetail({
     });
   }
   function removeWorkOrder() {
-    if (!confirm(`ลบใบสั่งงาน "${woCode(workOrder.number)} ${workOrder.title}"?`))
+    if (!confirm(`ลบใบสั่งงาน "${woCode(workOrder)} ${workOrder.title}"?`))
       return;
     run("delete", async () => {
       const res = await deleteWorkOrder(workOrder.id);
@@ -316,7 +316,7 @@ export function WorkOrderDetail({
         <div>
           <div className="flex items-center gap-2">
             <span className="font-mono text-sm text-muted-foreground">
-              {woCode(workOrder.number)}
+              {woCode(workOrder)}
             </span>
             <Badge tone={s.tone}>{s.label}</Badge>
             <Badge tone={p.tone}>{p.label}</Badge>
@@ -719,7 +719,7 @@ export function WorkOrderDetail({
         open={signing}
         onClose={() => setSigning(false)}
         onSave={saveSignature}
-        subtitle={[woCode(workOrder.number), workOrder.title].filter(Boolean).join(" · ")}
+        subtitle={[woCode(workOrder), workOrder.title].filter(Boolean).join(" · ")}
         defaultName={contactName ?? ""}
       />
 

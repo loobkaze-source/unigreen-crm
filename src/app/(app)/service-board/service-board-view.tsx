@@ -170,7 +170,7 @@ export function ServiceBoardView({
                     <Link href={`/work-orders/${w.id}`} className="block">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs text-muted-foreground">
-                          {woCode(w.number)}
+                          {woCode(w)}
                         </span>
                         <Badge tone={s.tone}>{s.label}</Badge>
                         {w.job_class ? <Badge tone="info">{jobClassLabel(w.job_class)}</Badge> : null}

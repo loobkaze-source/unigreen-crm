@@ -34,6 +34,8 @@ import {
 export type Job = {
   id: string;
   number: number | null;
+  /** The service-report number, when the job has one — see woCode. */
+  reportNo: string | null;
   title: string;
   status: WorkOrderStatus;
   type: WorkOrderType;
@@ -280,7 +282,7 @@ export function MyJobsView({
         onSave={saveSignature}
         subtitle={
           signing
-            ? [woCode(signing.number), signing.title].filter(Boolean).join(" · ")
+            ? [woCode(signing), signing.title].filter(Boolean).join(" · ")
             : undefined
         }
         defaultName={signing?.contactName ?? ""}
@@ -315,7 +317,7 @@ function JobCard({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-mono text-xs text-muted-foreground">{woCode(job.number)}</span>
+              <span className="font-mono text-xs text-muted-foreground">{woCode(job)}</span>
               <Badge tone={st.tone}>{st.label}</Badge>
               {job.priority === "urgent" || job.priority === "high" ? (
                 <Badge tone={pr.tone}>{pr.label}</Badge>

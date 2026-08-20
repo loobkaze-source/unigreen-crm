@@ -125,7 +125,7 @@ export function WorkOrdersView({
       if (!q) return true;
       return (
         w.title.toLowerCase().includes(q) ||
-        woCode(w.number).toLowerCase().includes(q) ||
+        woCode(w).toLowerCase().includes(q) ||
         (w.site_address || "").toLowerCase().includes(q)
       );
     });
@@ -216,7 +216,7 @@ export function WorkOrdersView({
   function remove(w: WorkOrder, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`ลบใบสั่งงาน "${woCode(w.number)} ${w.title}"?`)) return;
+    if (!confirm(`ลบใบสั่งงาน "${woCode(w)} ${w.title}"?`)) return;
     startTransition(async () => {
       const res = await deleteWorkOrder(w.id);
       if (!res.ok) alert(res.error);
@@ -408,7 +408,7 @@ function WorkOrderRow({
         <Link href={`/work-orders/${w.id}`} className="block">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-muted-foreground">
-              {woCode(w.number)}
+              {woCode(w)}
             </span>
             {w.priority !== "normal" && w.priority !== "low" ? (
               <Badge tone={p.tone}>{p.label}</Badge>
@@ -479,7 +479,7 @@ function ScheduleCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-muted-foreground">
-            {woCode(w.number)}
+            {woCode(w)}
           </span>
           <Badge tone={s.tone}>{s.label}</Badge>
         </div>

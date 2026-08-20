@@ -145,7 +145,7 @@ export default async function AssetLifetimePage({
         w.job_class === "CM" || w.type === "repair"
           ? "bg-amber-100 text-amber-700"
           : "bg-accent text-accent-foreground",
-      title: `${woCode(w.number)} · ${w.title}`,
+      title: `${woCode(w)} · ${w.title}`,
       detail: (
         <span className="flex flex-wrap items-center gap-1.5">
           <span>{typeLabel(w.type)}</span>
@@ -349,7 +349,7 @@ export default async function AssetLifetimePage({
                             href={`/work-orders/${wo.id}`}
                             className="text-xs text-muted-foreground hover:text-primary"
                           >
-                            {woCode(wo.number)} · {wo.title}
+                            {woCode(wo)} · {wo.title}
                           </Link>
                         ) : null}
                       </div>

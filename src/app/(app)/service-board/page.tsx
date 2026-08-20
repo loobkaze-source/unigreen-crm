@@ -32,7 +32,7 @@ export default async function ServiceBoardPage() {
       supabase
         .from("work_orders")
         .select(
-          "id, number, title, status, board_key, scheduled_start, job_class, billing, technician_id"
+          "id, number, report_no, title, status, board_key, scheduled_start, job_class, billing, technician_id"
         )
         .eq("org_id", org.id)
         .in("board_key", boardKeys)

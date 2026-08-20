@@ -69,5 +69,22 @@ export const statusMeta = (v: WorkOrderStatus) =>
 export const priorityMeta = (v: WorkOrderPriority) =>
   WO_PRIORITIES.find((x) => x.value === v) ?? WO_PRIORITIES[1];
 
-export const woCode = (n: number | null) =>
+/**
+ * What a job is called.
+ *
+ * One raised against a case takes the case's number and which visit it is —
+ * MRD-0826-00001-01 — because that is the number on the report the customer
+ * signs, and the number they quote back when they ring. WO-0001 is what is
+ * left for a job with no case to derive one from.
+ */
+export const woCode = (
+  w: { number: number | null; report_no?: string | null } | number | null
+) => {
+  if (w !== null && typeof w === "object") {
+    return w.report_no?.trim() || serial(w.number);
+  }
+  return serial(w);
+};
+
+const serial = (n: number | null) =>
   n == null ? "WO-—" : `WO-${String(n).padStart(4, "0")}`;

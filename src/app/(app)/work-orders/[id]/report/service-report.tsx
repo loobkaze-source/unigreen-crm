@@ -118,7 +118,7 @@ export function ServiceReport({
               รายงานการซ่อม / SERVICE REPORT
             </div>
             <Field label="JOB NO." value={w.customer_job_no ?? ""} />
-            <Field label="SERVICE REPORT NO." value={w.report_no || woCode(w.number)} />
+            <Field label="SERVICE REPORT NO." value={woCode(w)} />
             <Field label="วันที่/DATE" value={dmy(w.started_at ?? w.scheduled_start)} />
             <div className="flex gap-1">
               <Field label="เวลาเริ่มงาน/TIME" value={hm(w.started_at)} className="flex-1" />

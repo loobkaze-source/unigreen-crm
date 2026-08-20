@@ -94,6 +94,7 @@ export default async function MyJobsPage() {
     return {
       id: w.id,
       number: w.number,
+      reportNo: w.report_no,
       title: w.title,
       status: w.status,
       type: w.type,

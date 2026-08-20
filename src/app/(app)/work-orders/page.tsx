@@ -28,7 +28,12 @@ export default async function WorkOrdersPage({
   if (search) {
     // Escape ilike wildcards; drop chars that would break the .or() syntax.
     const term = search.replace(/[%_]/g, "\\$&").replace(/[,()]/g, " ").trim();
-    const ors = [`title.ilike.%${term}%`, `site_address.ilike.%${term}%`];
+    // The code people quote is the report number now, so search that too.
+    const ors = [
+      `title.ilike.%${term}%`,
+      `report_no.ilike.%${term}%`,
+      `site_address.ilike.%${term}%`,
+    ];
     const digits = search.replace(/\D/g, "");
     if (digits) ors.push(`number.eq.${Number(digits)}`);
     woQuery = woQuery.or(ors.join(","));
