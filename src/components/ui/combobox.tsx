@@ -100,8 +100,25 @@ export function Combobox({
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
-  function choose(option: ComboboxOption) {
-    onChange(option.value);
+  /**
+   * Hands the value up, and tells the DOM around it that something changed.
+   * This control is a button, so picking in it fires none of the events an
+   * <input> would — a form watching for edits would never hear about it.
+   */
+  /**
+   * Hands the value up, and tells the DOM around it that something changed.
+   * This control is a button, so picking in it fires none of the events an
+   * <input> would, and a form watching for edits would never hear about it.
+   * The event goes out from the root — `from` is whatever the reader clicked
+   * or typed into — so a listener can tell a pick from a search keystroke.
+   */
+  function commit(next: string, from: Element) {
+    onChange(next);
+    from.closest("[data-combobox]")?.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function choose(option: ComboboxOption, from: Element) {
+    commit(option.value, from);
     setOpen(false);
   }
 
@@ -114,14 +131,14 @@ export function Combobox({
       setActive((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (shown[active]) choose(shown[active]);
+      if (shown[active]) choose(shown[active], e.currentTarget);
     } else if (e.key === "Escape") {
       setOpen(false);
     }
   }
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    <div ref={rootRef} data-combobox className={cn("relative", className)}>
       <button
         type="button"
         id={id}
@@ -145,7 +162,7 @@ export function Combobox({
         <button
           type="button"
           aria-label="ล้างค่า"
-          onClick={() => onChange("")}
+          onClick={(e) => commit("", e.currentTarget)}
           className={cn(
             "absolute top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition hover:bg-muted hover:text-foreground",
             compact ? "right-5" : "right-7"
@@ -167,6 +184,7 @@ export function Combobox({
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
+              data-combobox-search
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -187,7 +205,7 @@ export function Combobox({
                   <button
                     type="button"
                     onMouseEnter={() => setActive(i)}
-                    onClick={() => choose(o)}
+                    onClick={(e) => choose(o, e.currentTarget)}
                     className={cn(
                       "flex w-full items-start gap-2 px-3 py-1.5 text-left text-sm",
                       i === active && "bg-muted"
