@@ -202,14 +202,15 @@ export function WorkOrderDetail({
     });
   }
   function toggleItem(item: WorkOrderItem) {
-    run(`item-${item.id}`, async () => {
+    run(`tick-${item.id}`, async () => {
       const res = await toggleChecklistItem(item.id, !item.done, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
     });
   }
   function removeItem(item: WorkOrderItem) {
-    run(`item-${item.id}`, async () => {
+    if (!confirm(`ลบรายการตรวจ “${item.label}”?`)) return;
+    run(`del-${item.id}`, async () => {
       const res = await deleteChecklistItem(item.id, workOrder.id);
       if (!res.ok) alert(res.error);
       else router.refresh();
@@ -301,8 +302,17 @@ export function WorkOrderDetail({
               <Button variant="secondary" onClick={() => setEditing(true)}>
                 <Pencil className="h-4 w-4" /> แก้ไข
               </Button>
-              <Button variant="ghost" size="icon" onClick={removeWorkOrder}>
-                <Trash2 className="h-4 w-4 text-destructive" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={removeWorkOrder}
+                disabled={busy("delete")}
+              >
+                {busy("delete") ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                )}
               </Button>
             </>
           ) : null}
@@ -395,10 +405,18 @@ export function WorkOrderDetail({
                   </span>
                   <button
                     onClick={() => removeItem(item)}
-                    className="transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                    disabled={busy(`del-${item.id}`)}
+                    className={cn(
+                      "transition-opacity md:opacity-0 md:group-hover:opacity-100",
+                      busy(`del-${item.id}`) && "md:opacity-100"
+                    )}
                     aria-label="ลบ"
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    {busy(`del-${item.id}`) ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    )}
                   </button>
                 </div>
               ))}
@@ -528,10 +546,18 @@ export function WorkOrderDetail({
                     </button>
                     <button
                       onClick={() => removePhoto(ph)}
-                      className="absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                      disabled={busy(`photo-${ph.id}`)}
+                      className={cn(
+                        "absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white transition-opacity md:opacity-0 md:group-hover:opacity-100",
+                        busy(`photo-${ph.id}`) && "md:opacity-100"
+                      )}
                       aria-label="ลบรูป"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {busy(`photo-${ph.id}`) ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
                     </button>
                   </div>
                 ))}
@@ -651,6 +677,7 @@ function PartsCard({
   }
 
   function remove(part: PartRow) {
+    if (!confirm(`ลบ “${part.name}” ออกจากรายการ?`)) return;
     run(`part-${part.id}`, async () => {
       const res = await deleteWorkOrderPart(part.id, workOrderId);
       if (!res.ok) alert(res.error);
@@ -695,10 +722,18 @@ function PartsCard({
                 ) : null}
                 <button
                   onClick={() => remove(part)}
-                  className="transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                  disabled={busy(`part-${part.id}`)}
+                  className={cn(
+                    "transition-opacity md:opacity-0 md:group-hover:opacity-100",
+                    busy(`part-${part.id}`) && "md:opacity-100"
+                  )}
                   aria-label="ลบ"
                 >
-                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  {busy(`part-${part.id}`) ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  )}
                 </button>
               </div>
             );
