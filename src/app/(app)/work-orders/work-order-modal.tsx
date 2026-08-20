@@ -11,11 +11,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { SERVICE_BOARDS } from "@/lib/departments";
+import { cn } from "@/lib/utils";
 import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
 export type ContactOption = { id: string; name: string; company_id: string | null };
+/** A service contract, plus what the work-order form fills in from it. */
+export type ContractOption = {
+  id: string;
+  name: string;
+  title: string;
+  company_id: string | null;
+  site_id: string | null;
+  board_key: string | null;
+};
+
 /** A case, plus everything the work-order form fills in from it. */
 export type CaseOption = {
   id: string;
@@ -56,6 +67,7 @@ const blank = {
   billing: "",
   board_key: "",
   case_id: "",
+  contract_id: "",
   asset_ids: [] as string[],
   technician_id: "",
   company_id: "",
@@ -95,6 +107,7 @@ function withCase(
   return {
     ...f,
     case_id: c.id,
+    contract_id: "",
     company_id,
     site_id,
     contact_id:
@@ -117,6 +130,7 @@ export function WorkOrderModal({
   sites,
   assets,
   cases,
+  contracts,
   initialCaseId = null,
   assetIds = [],
   onSaved,
@@ -130,6 +144,7 @@ export function WorkOrderModal({
   sites: SiteOption[];
   assets: AssetOption[];
   cases: CaseOption[];
+  contracts: ContractOption[];
   /** Opened from a case: start a new work order already filled in from it. */
   initialCaseId?: string | null;
   /** The editing WO's current linked asset ids (empty when creating). */
@@ -141,6 +156,15 @@ export function WorkOrderModal({
     [initialCaseId, cases]
   );
   const [form, setForm] = useState(blank);
+  const [source, setSource] = useState<"case" | "contract">("case");
+
+  // Opening picks the tab the record is already on, without an effect that
+  // would set state a render after the form was built.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    setSource(open && editing?.contract_id ? "contract" : "case");
+  }
   const [error, setError] = useState<string | null>(null);
   const [assetQuery, setAssetQuery] = useState("");
   const [pending, startTransition] = useTransition();
@@ -160,6 +184,7 @@ export function WorkOrderModal({
             billing: editing.billing || "",
             board_key: editing.board_key || "",
             case_id: editing.case_id || "",
+            contract_id: editing.contract_id || "",
             asset_ids: assetIds,
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
@@ -229,6 +254,40 @@ export function WorkOrderModal({
    * The typed fields are only filled when empty: a title already written is
    * the reason this was opened, and is not worth overwriting with the case's.
    */
+  /**
+   * A contract says whose it is and which site it covers, so picking one fills
+   * those in the same way a case does. It does not say what the job is: the
+   * contract's own title ("สัญญาบำรุงรักษาโซลาร์ 5 ปี — …") is a poor name for a
+   * single visit, so the title is left to be written.
+   */
+  function selectContract(id: string) {
+    const c = contracts.find((x) => x.id === id);
+    if (!c) return set("contract_id", id);
+    const site = sites.find((x) => x.id === c.site_id) ?? null;
+    setForm((f) => {
+      const site_id = site?.id ?? "";
+      const sameSite = site_id === f.site_id;
+      return {
+        ...f,
+        contract_id: id,
+        case_id: "",
+        company_id: c.company_id || site?.company_id || f.company_id,
+        site_id,
+        asset_ids: sameSite ? f.asset_ids : [],
+        site_address: sameSite ? f.site_address : site?.address ?? "",
+        site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
+        board_key: f.board_key || c.board_key || "",
+      };
+    });
+  }
+
+  /** Which of the two the job answers. Switching drops the other, because it is
+   *  one or the other — a job is not raised under a contract and a case both. */
+  function switchSource(next: "case" | "contract") {
+    setSource(next);
+    setForm((f) => ({ ...f, [next === "case" ? "contract_id" : "case_id"]: "" }));
+  }
+
   function selectCase(id: string) {
     const c = cases.find((x) => x.id === id);
     if (!c) return set("case_id", id); // cleared, or a case the list no longer has
@@ -244,6 +303,9 @@ export function WorkOrderModal({
   const visibleCases = form.company_id
     ? cases.filter((c) => c.company_id === form.company_id || c.id === form.case_id)
     : cases;
+  const visibleContracts = form.company_id
+    ? contracts.filter((c) => c.company_id === form.company_id || c.id === form.contract_id)
+    : contracts;
   const visibleAssets = assets.filter(
     (a) => (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
   );
@@ -292,6 +354,7 @@ export function WorkOrderModal({
         company_id: form.company_id || null,
         site_id: form.site_id || null,
         contact_id: form.contact_id || null,
+        contract_id: form.contract_id || null,
         scheduled_start: form.scheduled_start || null,
         scheduled_end: form.scheduled_end || null,
         site_address: form.site_address,
@@ -316,6 +379,50 @@ export function WorkOrderModal({
             {error}
           </p>
         ) : null}
+
+        {/* First, because it is the question that answers most of the others:
+            a case or a contract fills in the customer, the site and the rest. */}
+        <div>
+          <Label>งานนี้มาจาก</Label>
+          <div className="mb-2 mt-1 flex gap-2">
+            {([
+              { key: "case", label: "เคส (แจ้งซ่อม)" },
+              { key: "contract", label: "สัญญาบริการ" },
+            ] as const).map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => switchSource(s.key)}
+                aria-pressed={source === s.key}
+                className={cn(
+                  "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                  source === s.key
+                    ? "border-primary bg-primary text-white"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+          {source === "case" ? (
+            <Combobox
+              id="case_id"
+              value={form.case_id}
+              onChange={selectCase}
+              placeholder="— เลือกเคส (ไม่ระบุก็ได้) —"
+              options={visibleCases.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          ) : (
+            <Combobox
+              id="contract_id"
+              value={form.contract_id}
+              onChange={selectContract}
+              placeholder="— เลือกสัญญาบริการ (ไม่ระบุก็ได้) —"
+              options={visibleContracts.map((c) => ({ value: c.id, label: c.name }))}
+            />
+          )}
+        </div>
 
         <div>
           <Label htmlFor="title">ชื่องาน *</Label>
@@ -445,16 +552,6 @@ export function WorkOrderModal({
               onChange={(v) => set("technician_id", v)}
               placeholder="— ยังไม่มอบหมาย —"
               options={technicians.map((t) => ({ value: t.id, label: t.name }))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="case_id">เคส / Ticket ที่เกี่ยวข้อง</Label>
-            <Combobox
-              id="case_id"
-              value={form.case_id}
-              onChange={selectCase}
-              placeholder="— ไม่ระบุ —"
-              options={visibleCases.map((c) => ({ value: c.id, label: c.name }))}
             />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { assetCode } from "@/lib/asset";
 import { loadCaseOptions } from "./case-options";
+import { loadContractOptions } from "./contract-options";
 import { WorkOrdersView } from "./work-orders-view";
 
 const WO_PAGE_LIMIT = 200;
@@ -88,6 +89,7 @@ export default async function WorkOrdersPage({
   const woAssets = rows(woAssetsRes);
 
   const caseList = await loadCaseOptions(supabase, org.id);
+  const contractList = await loadContractOptions(supabase, org.id);
 
   const assetIdsByWo: Record<string, string[]> = {};
   for (const r of woAssets ?? []) {
@@ -109,6 +111,7 @@ export default async function WorkOrdersPage({
       }))}
       assetIdsByWo={assetIdsByWo}
       cases={caseList}
+      contracts={contractList}
       sites={sites ?? []}
       assets={(assets ?? []).map((a) => {
         const ident =

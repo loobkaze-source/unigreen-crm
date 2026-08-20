@@ -5,6 +5,7 @@ import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { assetCode } from "@/lib/asset";
 import { loadCaseOptions } from "../case-options";
+import { loadContractOptions } from "../contract-options";
 import { WorkOrderDetail } from "./work-order-detail";
 
 export default async function WorkOrderDetailPage({
@@ -112,6 +113,7 @@ export default async function WorkOrderDetailPage({
   const woAssets = rows(woAssetsRes);
 
   const caseList = await loadCaseOptions(supabase, org.id);
+  const contractList = await loadContractOptions(supabase, org.id);
 
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
@@ -153,6 +155,7 @@ export default async function WorkOrderDetailPage({
       sites={sites ?? []}
       assets={assetList}
       cases={caseList}
+      contracts={contractList}
       assetIds={assetIds}
       orgId={org.id}
       canEdit={!fieldOnly}

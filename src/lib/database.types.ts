@@ -192,6 +192,8 @@ export interface WorkOrder extends Mutable {
   board_key: string | null;
   site_id: string | null;
   case_id: string | null;
+  /** The service contract this job is done under, when it answers one. */
+  contract_id: string | null;
   company_id: string | null;
   contact_id: string | null;
   deal_id: string | null;

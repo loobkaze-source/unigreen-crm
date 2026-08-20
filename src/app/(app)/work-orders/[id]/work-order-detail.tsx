@@ -12,9 +12,11 @@ import {
   CheckCircle2,
   Circle,
   ImagePlus,
+  LifeBuoy,
   Loader2,
   PenLine,
   Printer,
+  Repeat,
   MapPin,
   Pencil,
   Plus,
@@ -52,6 +54,7 @@ import type {
   Option,
   ContactOption,
   CaseOption,
+  ContractOption,
   SiteOption,
   AssetOption,
 } from "../work-order-modal";
@@ -115,6 +118,7 @@ export function WorkOrderDetail({
   sites,
   assets,
   cases,
+  contracts,
   assetIds,
   orgId,
   signatureUrl,
@@ -135,6 +139,7 @@ export function WorkOrderDetail({
   sites: SiteOption[];
   assets: AssetOption[];
   cases: CaseOption[];
+  contracts: ContractOption[];
   assetIds: string[];
   orgId: string;
   /** The customer's signature for this job, once there is one. */
@@ -369,6 +374,20 @@ export function WorkOrderDetail({
           <Info icon={Wrench} label="ประเภทงาน" value={typeLabel(workOrder.type)} />
           <Info icon={User} label="ช่างผู้รับผิดชอบ" value={technicianName || "ยังไม่มอบหมาย"} />
           <Info icon={Building2} label="ลูกค้า" value={companyName || "—"} />
+          {/* Which agreement or report the job answers — one or the other. */}
+          {workOrder.contract_id ? (
+            <Info
+              icon={Repeat}
+              label="สัญญาบริการ"
+              value={contracts.find((c) => c.id === workOrder.contract_id)?.name || "—"}
+            />
+          ) : workOrder.case_id ? (
+            <Info
+              icon={LifeBuoy}
+              label="เคสที่เกี่ยวข้อง"
+              value={cases.find((c) => c.id === workOrder.case_id)?.name || "—"}
+            />
+          ) : null}
           <Info icon={User} label="ผู้ติดต่อ" value={contactName || "—"} />
           <Info
             icon={CalendarClock}
@@ -697,6 +716,7 @@ export function WorkOrderDetail({
           sites={sites}
           assets={assets}
           cases={cases}
+          contracts={contracts}
           assetIds={assetIds}
           onSaved={() => {
             setEditing(false);

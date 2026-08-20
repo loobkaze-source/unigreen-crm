@@ -45,6 +45,7 @@ import type {
   Option,
   ContactOption,
   CaseOption,
+  ContractOption,
   SiteOption,
   AssetOption,
 } from "./work-order-modal";
@@ -64,6 +65,7 @@ export function WorkOrdersView({
   sites,
   assets,
   cases,
+  contracts,
   assetIdsByWo,
   initialQuery = "",
   initialCaseId = null,
@@ -76,6 +78,7 @@ export function WorkOrdersView({
   sites: SiteOption[];
   assets: AssetOption[];
   cases: CaseOption[];
+  contracts: ContractOption[];
   assetIdsByWo: Record<string, string[]>;
   initialQuery?: string;
   /** Set by ?case=… — open the form already filled in from that case. */
@@ -371,6 +374,7 @@ export function WorkOrdersView({
           sites={sites}
           assets={assets}
           cases={cases}
+          contracts={contracts}
           initialCaseId={editing ? null : initialCaseId}
           assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
           onSaved={() => {

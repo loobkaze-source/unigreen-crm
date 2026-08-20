@@ -23,6 +23,7 @@ export type WorkOrderInput = {
   board_key?: string | null;
   site_id?: string | null;
   case_id?: string | null;
+  contract_id?: string | null;
   company_id?: string | null;
   contact_id?: string | null;
   technician_id?: string | null;
@@ -99,6 +100,7 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     board_key: oneOf(input.board_key, ["unigreen", "product_sales", "services_sales"]),
     site_id: input.site_id || null,
     case_id: input.case_id || null,
+    contract_id: input.contract_id || null,
     company_id: input.company_id || null,
     contact_id: input.contact_id || null,
     technician_id: input.technician_id || null,
