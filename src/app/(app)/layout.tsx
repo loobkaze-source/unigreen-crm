@@ -22,6 +22,7 @@ export default async function AppLayout({
       user={{
         name: profile?.full_name || displayUsername(email) || "User",
         email: displayUsername(email),
+        avatarUrl: profile?.avatar_url ?? null,
       }}
       orgName={org.name}
       appRoles={appRoles}

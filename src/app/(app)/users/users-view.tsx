@@ -32,6 +32,8 @@ type Member = {
   department: string;
   name: string;
   email: string;
+  /** The face they picked for themselves, if any. */
+  avatarUrl: string | null;
 };
 
 export function UsersView({
@@ -246,7 +248,7 @@ export function UsersView({
                   <tr key={m.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={m.name || displayUsername(m.email)} />
+                        <Avatar name={m.name || displayUsername(m.email)} src={m.avatarUrl} />
                         <div>
                           <div className="font-medium">{m.name || "—"}</div>
                           <div className="text-xs text-muted-foreground">{displayUsername(m.email)}</div>

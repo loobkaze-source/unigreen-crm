@@ -66,7 +66,7 @@ export function AppShell({
   isAdmin = false,
   children,
 }: {
-  user: { name: string; email: string };
+  user: { name: string; email: string; avatarUrl: string | null };
   orgName: string;
   appRoles?: string[];
   isAdmin?: boolean;
@@ -223,9 +223,19 @@ export function AppShell({
               className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 hover:bg-sidebar-accent"
               title="บัญชีของฉัน"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
-                {initials(user.name)}
-              </span>
+              {user.avatarUrl ? (
+                <Image
+                  src={user.avatarUrl}
+                  alt=""
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white">
+                  {initials(user.name)}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-white">
                   {user.name}

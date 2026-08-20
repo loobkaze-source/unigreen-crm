@@ -12,6 +12,7 @@ export default async function AccountPage() {
       email={displayUsername(email)}
       appRole={isAdmin ? "admin" : appRoles.join(" · ") || "—"}
       department={isAdmin ? "ทุกแผนก" : departmentLabel(department)}
+      avatarUrl={profile?.avatar_url ?? null}
     />
   );
 }

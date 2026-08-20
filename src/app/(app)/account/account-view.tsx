@@ -1,27 +1,49 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { KeyRound, ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Check, KeyRound, ShieldCheck, Smile } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { changePassword } from "./actions";
+import { AVATARS } from "@/lib/avatars";
+import { cn } from "@/lib/utils";
+import { changePassword, saveAvatar } from "./actions";
 
 export function AccountView({
   name,
   email,
   appRole,
   department,
+  avatarUrl,
 }: {
   name: string;
   email: string;
   appRole: string;
   department: string;
+  avatarUrl: string | null;
 }) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [avatar, setAvatar] = useState(avatarUrl);
+
+  /** Optimistic: the face changes under the finger, then the server catches up. */
+  function pickAvatar(url: string | null) {
+    const previous = avatar;
+    setAvatar(url);
+    startTransition(async () => {
+      const res = await saveAvatar(url);
+      if (!res.ok) {
+        setAvatar(previous);
+        return alert(res.error);
+      }
+      router.refresh();
+    });
+  }
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -53,7 +75,7 @@ export function AccountView({
 
       {/* Profile card */}
       <div className="flex items-center gap-4 rounded-lg border border-border bg-card p-5 shadow-sm">
-        <Avatar name={name || email} className="h-14 w-14 text-base" />
+        <Avatar name={name || email} src={avatar} className="h-14 w-14 text-base" />
         <div className="min-w-0">
           <div className="text-lg font-semibold">{name}</div>
           <div className="truncate text-sm text-muted-foreground">{email}</div>
@@ -61,6 +83,53 @@ export function AccountView({
             <Badge tone="primary">{appRole}</Badge>
             <Badge tone="muted">{department}</Badge>
           </div>
+        </div>
+      </div>
+
+      {/* Pick a face. Sixty of them, so the grid is the whole control — a
+          dropdown of thumbnails would be worse in every way. */}
+      <div className="rounded-lg border border-border bg-card p-5 shadow-sm">
+        <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+          <Smile className="h-4 w-4 text-primary" /> รูปประจำตัว
+        </div>
+        <p className="mb-4 text-xs text-muted-foreground">
+          เลือกรูปที่อยากใช้ — บันทึกให้ทันทีที่กด
+        </p>
+
+        <div className="grid grid-cols-6 gap-2 sm:grid-cols-10">
+          <button
+            type="button"
+            onClick={() => pickAvatar(null)}
+            disabled={pending}
+            title="ใช้อักษรย่อ"
+            className={cn(
+              "flex aspect-square items-center justify-center rounded-full border text-xs font-semibold text-muted-foreground transition",
+              avatar === null
+                ? "border-primary ring-2 ring-primary"
+                : "border-dashed border-border hover:bg-muted"
+            )}
+          >
+            ย่อ
+          </button>
+          {AVATARS.map((url) => (
+            <button
+              key={url}
+              type="button"
+              onClick={() => pickAvatar(url)}
+              disabled={pending}
+              className={cn(
+                "relative aspect-square overflow-hidden rounded-full ring-2 transition",
+                url === avatar ? "ring-primary" : "ring-transparent hover:ring-border"
+              )}
+            >
+              <Image src={url} alt="" fill sizes="64px" className="object-cover" />
+              {url === avatar ? (
+                <span className="absolute inset-0 flex items-center justify-center bg-primary/25">
+                  <Check className="h-5 w-5 text-white drop-shadow" />
+                </span>
+              ) : null}
+            </button>
+          ))}
         </div>
       </div>
 

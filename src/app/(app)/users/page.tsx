@@ -13,7 +13,7 @@ export default async function UsersPage() {
 
   const ids = (members ?? []).map((m) => m.user_id);
   const { data: profiles } = ids.length
-    ? await supabase.from("profiles").select("id, full_name, email").in("id", ids)
+    ? await supabase.from("profiles").select("id, full_name, email, avatar_url").in("id", ids)
     : { data: [] };
 
   const pmap = new Map((profiles ?? []).map((p) => [p.id, p]));
@@ -30,6 +30,7 @@ export default async function UsersPage() {
     department: (m.department as string) || "",
     name: pmap.get(m.user_id)?.full_name || "",
     email: pmap.get(m.user_id)?.email || "",
+    avatarUrl: (pmap.get(m.user_id)?.avatar_url as string | null) ?? null,
   }));
 
   return (

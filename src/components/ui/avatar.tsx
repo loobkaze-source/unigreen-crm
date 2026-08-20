@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/utils";
 
@@ -19,14 +20,30 @@ function colorFor(seed: string) {
 export function Avatar({
   name,
   text,
+  src,
   className,
 }: {
   name: string | null | undefined;
   /** Optional short label to show inside the circle (e.g. a nickname) instead of initials. */
   text?: string | null;
+  /** A picked avatar image. Falls back to initials when absent. */
+  src?: string | null;
   className?: string;
 }) {
   const label = name || "?";
+  if (src) {
+    return (
+      <span
+        className={cn(
+          "relative inline-flex h-9 w-9 shrink-0 overflow-hidden rounded-full bg-muted",
+          className
+        )}
+        title={label}
+      >
+        <Image src={src} alt={label} fill sizes="96px" className="object-cover" />
+      </span>
+    );
+  }
   const display = text && text.trim() ? text.trim().slice(0, 4) : initials(label);
   return (
     <span
