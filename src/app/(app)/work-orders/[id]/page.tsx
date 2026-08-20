@@ -52,6 +52,7 @@ export default async function WorkOrderDetailPage({
     assetsRes,
     woAssetsRes,
     woTechsRes,
+    tagsRes,
     codesRes,
   ] = await Promise.all([
     supabase
@@ -107,8 +108,14 @@ export default async function WorkOrderDetailPage({
       .select("technician_id")
       .eq("work_order_id", id)
       .order("created_at"),
-    // Codes already used, so the two pickers offer what the team has settled on
-    // rather than an empty box on every job.
+    // What the pickers suggest: the catalogue carried over from the old system,
+    // most-used first, and whatever has been typed since.
+    supabase
+      .from("service_tags")
+      .select("kind, value, uses")
+      .eq("org_id", org.id)
+      .order("uses", { ascending: false })
+      .limit(2000),
     supabase
       .from("work_orders")
       .select("fault_codes, repair_codes, causes")
@@ -132,15 +139,20 @@ export default async function WorkOrderDetailPage({
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
   const crewIds = rows(woTechsRes).map((r) => r.technician_id as string);
-  // Flattened and de-duplicated here so the field is handed a vocabulary
-  // rather than a thousand jobs to pick through.
+  // Flattened and de-duplicated here so the field is handed a vocabulary rather
+  // than a thousand jobs to pick through. The catalogue leads, in the order the
+  // old system used them; anything typed since follows.
   const used = rows(codesRes);
-  const distinct = (key: "fault_codes" | "repair_codes" | "causes") => [
-    ...new Set(used.flatMap((r) => (r[key] as string[] | null) ?? []).filter(Boolean)),
-  ];
-  const faultCodes = distinct("fault_codes");
-  const repairCodes = distinct("repair_codes");
-  const causeTags = distinct("causes");
+  const catalogue = rows(tagsRes);
+  const vocabulary = (kind: string, key: "fault_codes" | "repair_codes" | "causes") => [
+    ...new Set([
+      ...catalogue.filter((t) => t.kind === kind).map((t) => t.value as string),
+      ...used.flatMap((r) => (r[key] as string[] | null) ?? []),
+    ]),
+  ].filter(Boolean);
+  const faultCodes = vocabulary("fault", "fault_codes");
+  const repairCodes = vocabulary("repair", "repair_codes");
+  const causeTags = vocabulary("cause", "causes");
   const assetList = (assets ?? []).map((a) => {
     const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
     const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
