@@ -159,8 +159,32 @@ const coName = new Map(companies.map((x) => [x.id, x.name]));
 const label = (c) =>
   `${siteName.get(c.site_id) ?? ""} ${coName.get(c.company_id) ?? ""}`;
 
+/**
+ * Rows the owner has ruled on, because the names alone could not.
+ *
+ * `null` means the plan row has no contract here to record against — the
+ * agreement ran out years ago, or the customer is one of the Hoymiles sites
+ * that is not in the CRM yet. Anything listed is checked; anything not listed
+ * is still the matcher's guess.
+ */
+const BY_HAND = {
+  "หอพัก PJ House พิษณุโลก": [null, "หมดสัญญาไปนานแล้ว"],
+  "Café Amazon กันทรวิชัย (หจก.สารคามพัฒนาการก่อสร้าง)": [
+    "UNG-2025-0002",
+    "ลูกค้ายืนยัน: หจก.สารคามพัฒนาการก่อสร้าง",
+  ],
+};
+
 /** The best contract for a plan row, and whether anything else came close. */
 function match(planSite) {
+  const ruled = BY_HAND[planSite];
+  if (ruled) {
+    const [no, why] = ruled;
+    if (!no) return { c: null, why: `ตรวจแล้ว: ${why}` };
+    const c = contracts.find((x) => x.contract_no === no);
+    if (!c) throw new Error(`BY_HAND ชี้ไปที่สัญญา ${no} ซึ่งไม่มีในระบบ`);
+    return { c, why };
+  }
   const ranked = contracts
     .map((c) => ({ c, n: score(planSite, label(c)) }))
     .filter((x) => x.n >= 4)
