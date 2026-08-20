@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
   MapPin,
@@ -311,6 +312,16 @@ function JobCard({
   // The person on site beats the company switchboard.
   const callNumber = job.contactPhone ?? job.companyPhone;
 
+  /** A job closed with nothing signed is the one thing worth asking about. */
+  function closeJob() {
+    if (
+      !job.signatureUrl &&
+      !confirm("ยังไม่มีลายเซ็นลูกค้าในงานนี้ ปิดงานเลยไหม?")
+    )
+      return;
+    onStatus("completed");
+  }
+
   return (
     <div className="rounded-lg border border-border bg-card shadow-sm">
       <Link href={`/work-orders/${job.id}`} className="block p-4 active:bg-muted/40">
@@ -411,8 +422,16 @@ function JobCard({
         </div>
       )}
 
-      {/* Field actions — big tap targets, no page change needed. */}
-      <div className="flex items-stretch gap-px border-t border-border bg-border">
+      {/* Field actions — big tap targets, no page change needed. Skipped
+          entirely when there is nothing to put in it, or the strip of border
+          it is drawn on shows up as a line under the card. */}
+      <div
+        className={cn(
+          "flex items-stretch gap-px border-t border-border bg-border",
+          !job.mapUrl && !callNumber && !needsAccept && (done || job.status === "in_progress")
+            && "hidden"
+        )}
+      >
         {job.mapUrl ? (
           <a
             href={job.mapUrl}
@@ -443,20 +462,34 @@ function JobCard({
             <ThumbsUp className="h-4 w-4" />
             {busy ? "กำลังบันทึก…" : "รับงาน"}
           </button>
-        ) : !done ? (
+        ) : !done && job.status !== "in_progress" ? (
           <button
             type="button"
             disabled={busy}
-            onClick={() =>
-              onStatus(job.status === "in_progress" ? "completed" : "in_progress")
-            }
+            onClick={() => onStatus("in_progress")}
             className="flex flex-1 items-center justify-center gap-1.5 bg-card py-3 text-sm font-medium text-primary active:bg-muted disabled:opacity-50"
           >
             <PlayCircle className="h-4 w-4" />
-            {busy ? "กำลังบันทึก…" : job.status === "in_progress" ? "ปิดงาน" : "เริ่มงาน"}
+            {busy ? "กำลังบันทึก…" : "เริ่มงาน"}
           </button>
         ) : null}
       </div>
+
+      {/* Closing the job is the last thing that happens on site and the thing a
+          thumb is reaching for, so it gets the bottom of the card to itself
+          rather than a third of a row shared with the phone. Under the
+          signature, because that is the order the two happen in. */}
+      {needsAccept || done ? null : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={closeJob}
+          className="flex w-full items-center justify-center gap-2 rounded-b-lg border-t border-border bg-emerald-600 py-4 text-base font-semibold text-white active:bg-emerald-700 disabled:opacity-50"
+        >
+          <CheckCircle2 className="h-5 w-5" />
+          {busy ? "กำลังบันทึก…" : "ปิดงาน"}
+        </button>
+      )}
     </div>
   );
 }
