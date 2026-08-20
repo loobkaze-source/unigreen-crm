@@ -6,13 +6,30 @@ import type {
 
 type Tone = "default" | "primary" | "success" | "warning" | "danger" | "info" | "muted";
 
+/**
+ * The system the job is on. Not the shape of the visit — CM/PM says whether it
+ * is corrective, and the six ticks on the service report say what was done.
+ *
+ * The values are slugs so a label can be reworded without touching a single
+ * stored row; add to the list to offer another machine.
+ */
 export const WO_TYPES: { value: WorkOrderType; label: string }[] = [
-  { value: "survey", label: "สำรวจหน้างาน" },
-  { value: "installation", label: "ติดตั้ง" },
-  { value: "maintenance", label: "บำรุงรักษา" },
-  { value: "repair", label: "ซ่อมแซม" },
-  { value: "other", label: "อื่นๆ" },
+  { value: "atg_fafnir", label: "ATG_ FAFNIR -DEll" },
+  { value: "vru", label: "VRU" },
+  { value: "hanging_part", label: "Hanging Part" },
+  { value: "submersible_pump", label: "Submersible Pump" },
+  { value: "diaphragm_pump", label: "Diaphragm Pump" },
+  { value: "air_compressor", label: "Air Compressor" },
+  { value: "double_wall_pipe", label: "Double-Wall Pipe" },
+  { value: "dispenser", label: "Dispensor" },
+  { value: "pos", label: "POS" },
+  { value: "ev_charger", label: "EV Charger" },
+  { value: "solar_battery", label: "Solar Cell& Battery" },
+  { value: "water_pump", label: "Water Pump" },
 ];
+
+/** What a job opened before this list existed still shows. */
+export const DEFAULT_WO_TYPE: WorkOrderType = "atg_fafnir";
 
 export const WO_STATUSES: { value: WorkOrderStatus; label: string; tone: Tone }[] = [
   { value: "new", label: "ใหม่", tone: "muted" },

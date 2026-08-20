@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { isTechnicianOnly } from "@/lib/roles";
+import { DEFAULT_WO_TYPE } from "./constants";
 import type {
   WorkOrderPriority,
   WorkOrderStatus,
@@ -91,7 +92,7 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
   const payload: Record<string, unknown> = {
     org_id: org.id,
     title,
-    type: input.type || "installation",
+    type: input.type || DEFAULT_WO_TYPE,
     status: input.status || "new",
     priority: input.priority || "normal",
     job_class: oneOf(input.job_class, ["CM", "PM"]),

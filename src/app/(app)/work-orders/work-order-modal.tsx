@@ -12,7 +12,14 @@ import { Modal } from "@/components/ui/modal";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { SERVICE_BOARDS } from "@/lib/departments";
 import { cn } from "@/lib/utils";
-import { WO_BILLING, WO_JOB_CLASS, WO_PRIORITIES, WO_STATUSES, WO_TYPES } from "./constants";
+import {
+  DEFAULT_WO_TYPE,
+  WO_BILLING,
+  WO_JOB_CLASS,
+  WO_PRIORITIES,
+  WO_STATUSES,
+  WO_TYPES,
+} from "./constants";
 import { saveWorkOrder } from "./actions";
 
 export type Option = { id: string; name: string };
@@ -60,7 +67,7 @@ function toLocalInput(iso: string | null): string {
 
 const blank = {
   title: "",
-  type: "installation",
+  type: DEFAULT_WO_TYPE,
   status: "new",
   priority: "normal",
   job_class: "",

@@ -130,12 +130,12 @@ export interface Activity extends Mutable {
   lead_id: string | null;
 }
 
-export type WorkOrderType =
-  | "survey"
-  | "installation"
-  | "maintenance"
-  | "repair"
-  | "other";
+/**
+ * The system a job is on — ATG, VRU, a dispenser. Free text since 0043, for the
+ * same reason equipment.category is: a station's machines outgrow any list
+ * fixed in a migration. The app's own list is WO_TYPES.
+ */
+export type WorkOrderType = string;
 export type WorkOrderStatus =
   | "new"
   | "scheduled"
