@@ -18,11 +18,12 @@ const sarabun = Sarabun({
 });
 
 /**
- * The paper the report has always been printed on is pale green, and the rules
- * on it are black. Keeping both means a printout dropped on a desk beside the
- * old book is recognisably the same document.
+ * White, and said out loud rather than left to the page: the sheet is drawn
+ * inside an app that has a background of its own, and a printer that has been
+ * told to print backgrounds will use whatever it finds. The green this was
+ * tried in came out yellow on paper.
  */
-const PAPER = "#dcefe1";
+const PAPER = "#ffffff";
 
 type Part = {
   id: string;
