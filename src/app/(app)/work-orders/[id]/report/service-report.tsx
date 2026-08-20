@@ -1,7 +1,28 @@
+import { Sarabun } from "next/font/google";
 import type { WorkOrder } from "@/lib/database.types";
 import type { COMPANY } from "@/lib/company";
+import { cn } from "@/lib/utils";
 import { woCode } from "../../constants";
 import { PrintBar } from "./print-button";
+
+/**
+ * The report is the one thing here that leaves the building on paper, and
+ * Sarabun is what Thai official documents are set in — it holds its shape at
+ * the eight-point sizes a form this dense needs, where the screen font goes
+ * muddy. Loaded only by this page, so the rest of the app is unaffected.
+ */
+const sarabun = Sarabun({
+  subsets: ["thai", "latin"],
+  weight: ["400", "600", "700"],
+  display: "swap",
+});
+
+/**
+ * The paper the report has always been printed on is pale green, and the rules
+ * on it are black. Keeping both means a printout dropped on a desk beside the
+ * old book is recognisably the same document.
+ */
+const PAPER = "#dcefe1";
 
 type Part = {
   id: string;
@@ -73,8 +94,8 @@ function Tick({ on }: { on: boolean }) {
 function Field({ label, value, className = "" }: { label: string; value?: string; className?: string }) {
   return (
     <div className={`flex items-baseline gap-1 ${className}`}>
-      <span className="shrink-0 whitespace-pre">{label}</span>
-      <span className="min-w-0 flex-1 border-b border-dotted border-black px-1">{value || " "}</span>
+      <span className="shrink-0 whitespace-pre font-semibold">{label}</span>
+      <span className="min-w-0 flex-1 px-1">{value || " "}</span>
     </div>
   );
 }
@@ -125,13 +146,24 @@ export function ServiceReport({
     <div className="mx-auto w-full max-w-[210mm] print:max-w-none">
       <PrintBar backHref={`/work-orders/${w.id}`} />
 
-      <style>{`@page { size: A4 portrait; margin: 8mm; }`}</style>
+      <style>{`
+        @page { size: A4 portrait; margin: 8mm; }
+        @media print {
+          .report-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
 
-      <div className="mx-auto w-[194mm] border border-black bg-white p-0 text-[2.9mm] leading-[1.5] text-black print:w-full">
+      <div
+      className={cn(
+        sarabun.className,
+        "report-sheet mx-auto w-[194mm] border border-black p-0 text-[3.1mm] leading-[1.45] text-black print:w-full"
+      )}
+      style={{ backgroundColor: PAPER }}
+    >
         {/* ---- head ---------------------------------------------------- */}
         <div className="flex border-b border-black">
           <div className="w-1/2 border-r border-black p-[2mm]">
-            <div className="text-[3.6mm] font-bold">{company.nameEn}</div>
+            <div className="text-[4mm] font-bold">{company.nameEn}</div>
             <div className="font-semibold">{company.nameTh}</div>
             {company.addressLines.map((l) => (
               <div key={l}>{l}</div>
@@ -140,7 +172,7 @@ export function ServiceReport({
             <div>แฟกซ์ {company.fax}</div>
           </div>
           <div className="w-1/2 p-[2mm]">
-            <div className="mb-[1.5mm] text-center text-[3.6mm] font-bold">
+            <div className="mb-[1.5mm] text-center text-[4.2mm] font-bold">
               รายงานการซ่อม / SERVICE REPORT
             </div>
             <Field label="JOB NO." value={w.customer_job_no ?? ""} />
@@ -173,8 +205,8 @@ export function ServiceReport({
             <div className="font-semibold">ชื่อลูกค้า/CUSTOMER</div>
             <Field label="1. ชื่อ/NAME" value={customerName} />
             <div className="mt-[1mm] flex items-baseline gap-1">
-              <span className="shrink-0">2. ที่อยู่/LOCATION</span>
-              <span className="min-w-0 flex-1 whitespace-pre-line border-b border-dotted border-black px-1">
+              <span className="shrink-0 font-semibold">2. ที่อยู่/LOCATION</span>
+              <span className="min-w-0 flex-1 whitespace-pre-line px-1">
                 {location || " "}
               </span>
             </div>
@@ -192,9 +224,9 @@ export function ServiceReport({
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="text-left">
-                    <th className="border-b border-black font-normal">3. ชื่อ/NAME</th>
-                    <th className="border-b border-black font-normal">4. รุ่น/MODEL</th>
-                    <th className="border-b border-black font-normal">5. SERIAL NO.</th>
+                    <th className="border-b border-black">3. ชื่อ/NAME</th>
+                    <th className="border-b border-black">4. รุ่น/MODEL</th>
+                    <th className="border-b border-black">5. SERIAL NO.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -227,8 +259,7 @@ export function ServiceReport({
           </div>
 
           <div className="mt-[2mm] flex items-baseline gap-1">
-            <span className="shrink-0">15. DESCRIPTION OF WORK</span>
-            <span className="flex-1 border-b border-dotted border-black" />
+            <span className="shrink-0 font-semibold">15. DESCRIPTION OF WORK</span>
           </div>
           {/* The codes are what a year of these gets counted by, so they print
               with the work rather than being left in the system. */}
@@ -242,9 +273,8 @@ export function ServiceReport({
               on under the codes they read as a caption to them. */}
           <div className="mt-[1.5mm] flex items-baseline gap-1">
             <span className="shrink-0 font-semibold">หมายเหตุของช่าง/TECHNICIAN REMARK</span>
-            <span className="flex-1 border-b border-dotted border-black" />
           </div>
-          <div className="min-h-[18mm] whitespace-pre-line pt-[1mm]">
+          <div className="min-h-[15mm] whitespace-pre-line pt-[1mm]">
             {w.technician_remark || w.description || ""}
           </div>
         </div>
@@ -256,11 +286,11 @@ export function ServiceReport({
             <table className="mt-[1mm] w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="w-[8mm] border border-black p-[0.8mm] font-normal">ลำดับ</th>
-                  <th className="border border-black p-[0.8mm] font-normal">รายละเอียด/DESCRIPTION</th>
-                  <th className="w-[14mm] border border-black p-[0.8mm] font-normal">จำนวน</th>
-                  <th className="w-[20mm] border border-black p-[0.8mm] font-normal">ราคาต่อหน่วย</th>
-                  <th className="w-[22mm] border border-black p-[0.8mm] font-normal">ราคารวม</th>
+                  <th className="w-[8mm] border border-black p-[0.8mm]">ลำดับ</th>
+                  <th className="border border-black p-[0.8mm]">รายละเอียด/DESCRIPTION</th>
+                  <th className="w-[14mm] border border-black p-[0.8mm]">จำนวน</th>
+                  <th className="w-[20mm] border border-black p-[0.8mm]">ราคาต่อหน่วย</th>
+                  <th className="w-[22mm] border border-black p-[0.8mm]">ราคารวม</th>
                 </tr>
               </thead>
               <tbody>
@@ -296,9 +326,9 @@ export function ServiceReport({
             <table className="mt-[1mm] w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="border border-black p-[0.8mm] font-normal">รายละเอียด</th>
-                  <th className="w-[12mm] border border-black p-[0.8mm] font-normal">ชม.</th>
-                  <th className="w-[22mm] border border-black p-[0.8mm] font-normal">ราคา/บาท</th>
+                  <th className="border border-black p-[0.8mm]">รายละเอียด</th>
+                  <th className="w-[12mm] border border-black p-[0.8mm]">ชม.</th>
+                  <th className="w-[22mm] border border-black p-[0.8mm]">ราคา/บาท</th>
                 </tr>
               </thead>
               <tbody>
@@ -329,9 +359,8 @@ export function ServiceReport({
           <div className="w-1/2 border-r border-black p-[2mm]">
             <div className="flex items-baseline gap-1">
               <span className="shrink-0 font-semibold">หมายเหตุ/REMARK</span>
-              <span className="flex-1 border-b border-dotted border-black" />
             </div>
-            <div className="min-h-[12mm] whitespace-pre-line pt-[1mm]">{w.description ?? ""}</div>
+            <div className="min-h-[10mm] whitespace-pre-line pt-[1mm]">{w.description ?? ""}</div>
             <div className="mt-[2mm] flex gap-1">
               <Field label="พนักงานบริการ/CUSTOMER SERVICE" value={technicianName} className="flex-1" />
             </div>
@@ -349,7 +378,7 @@ export function ServiceReport({
 
           <div className="w-1/2 p-[2mm]">
             <div className="font-semibold">ลูกค้ารับรองรายงาน/SERVICE REPORT ACCEPTED BY CUSTOMER</div>
-            <div className="text-[2.6mm]">
+            <div className="text-[2.9mm]">
               ข้าพเจ้าได้รับการบริการและตรวจสอบสินค้าตามรายการข้างต้นเรียบร้อยแล้ว
             </div>
             <div className="relative mt-[1mm] h-[18mm]">
@@ -358,7 +387,7 @@ export function ServiceReport({
                 <img
                   src={signatureUrl}
                   alt="ลายเซ็นลูกค้า"
-                  className="absolute inset-0 mx-auto h-full w-auto object-contain"
+                  className="absolute inset-0 mx-auto h-full w-auto object-contain mix-blend-multiply"
                 />
               ) : null}
             </div>
@@ -367,7 +396,7 @@ export function ServiceReport({
           </div>
         </div>
 
-        <div className="border-t border-black p-[1.5mm] text-center text-[2.5mm]">
+        <div className="border-t border-black p-[1.5mm] text-center text-[2.7mm]">
           {company.footnote}
         </div>
       </div>
@@ -376,7 +405,13 @@ export function ServiceReport({
           the first sheet is the one that gets signed and filed, and a customer
           reading it should not have to turn past photographs to reach it. */}
       {photos.length ? (
-        <div className="mx-auto mt-[6mm] w-[194mm] border border-black bg-white text-[2.9mm] text-black print:mt-0 print:w-full print:break-before-page">
+        <div
+          className={cn(
+            sarabun.className,
+            "report-sheet mx-auto mt-[6mm] w-[194mm] border border-black text-[3.1mm] leading-[1.45] text-black print:mt-0 print:w-full print:break-before-page"
+          )}
+          style={{ backgroundColor: PAPER }}
+        >
           <div className="flex items-baseline justify-between border-b border-black p-[2mm]">
             <div className="font-bold">รูปหน้างาน / SITE PHOTOS</div>
             <div>
