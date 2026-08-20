@@ -162,8 +162,21 @@ export interface Technician extends Mutable {
 
 /** งานซ่อมแก้ไข (CM) หรือ บำรุงรักษาเชิงป้องกัน (PM). */
 export type WorkOrderJobClass = "CM" | "PM";
-/** อยู่ในประกัน หรือ มีค่าใช้จ่าย (ได้ค่าซ่อม). */
-export type WorkOrderBilling = "warranty" | "paid";
+/** อยู่ในประกัน · ในสัญญาบำรุงรักษา · หรือเก็บเงินลูกค้า (ข้อ 6–8 ในใบรายงานการซ่อม). */
+export type WorkOrderBilling = "warranty" | "contract" | "paid";
+
+/**
+ * ข้อ 9–14 ในใบรายงานการซ่อม — what was actually done on the visit, and a
+ * visit is regularly several at once. Separate from `type`, which is the one
+ * word the dispatcher files the job under before anyone has been.
+ */
+export type WorkKind =
+  | "installation"
+  | "repair"
+  | "cmn"
+  | "calibrate"
+  | "relocate"
+  | "pm";
 
 export interface WorkOrder extends Mutable {
   id: string;
@@ -195,6 +208,16 @@ export interface WorkOrder extends Mutable {
   accepted_by: string | null;
   /** The technician's own note from site (dispatcher's brief is `description`). */
   technician_remark: string | null;
+  /** The customer's reference for the visit, and our report book number. */
+  customer_job_no: string | null;
+  report_no: string | null;
+  /** When the work was actually done — `scheduled_*` is when it was booked. */
+  started_at: string | null;
+  finished_at: string | null;
+  /** Odometer out and back; the difference is the distance claimed. */
+  mileage_start: number | null;
+  mileage_end: number | null;
+  work_kinds: WorkKind[];
   /** The customer's signature, in the wo-photos bucket. Null until signed. */
   signature_path: string | null;
   signed_by: string | null;

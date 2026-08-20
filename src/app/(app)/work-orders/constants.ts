@@ -37,8 +37,25 @@ export const WO_JOB_CLASS = [
 
 export const WO_BILLING = [
   { value: "warranty", label: "อยู่ในประกัน", tone: "success" as Tone },
+  { value: "contract", label: "สัญญาบำรุงรักษา", tone: "info" as Tone },
   { value: "paid", label: "มีค่าซ่อม", tone: "warning" as Tone },
 ] as const;
+
+/**
+ * ข้อ 9–14 ในใบรายงานการซ่อม, in the order they are printed on it, so the card
+ * reads the same way round as the paper the technicians already know.
+ */
+export const WO_WORK_KINDS = [
+  { value: "installation", label: "งานติดตั้ง" },
+  { value: "repair", label: "งานซ่อม" },
+  { value: "cmn", label: "ตรวจเช็คการทำงาน (CMN)" },
+  { value: "calibrate", label: "ตรวจความเที่ยงตรง" },
+  { value: "relocate", label: "ย้ายอุปกรณ์" },
+  { value: "pm", label: "ซ่อมบำรุง (P.M.)" },
+] as const;
+
+export const workKindLabel = (v: string) =>
+  WO_WORK_KINDS.find((x) => x.value === v)?.label ?? v;
 
 export const jobClassLabel = (v: string | null) =>
   WO_JOB_CLASS.find((x) => x.value === v)?.label ?? v ?? "";

@@ -338,7 +338,7 @@ export async function addWorkOrderPart(
   equipmentId?: string | null,
   unit?: string | null,
   unitPrice?: number | null,
-  source: "material" | "store" = "material"
+  source: "material" | "store" | "labor" = "material"
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
@@ -355,7 +355,7 @@ export async function addWorkOrderPart(
     qty: Number.isFinite(qty) && qty > 0 ? qty : 1,
     unit: unit?.trim() || null,
     unit_price: Number.isFinite(price) && price >= 0 ? price : null,
-    source: source === "store" ? "store" : "material",
+    source: source === "store" || source === "labor" ? source : "material",
   });
   if (error) return fail(error.message);
   revalidatePath(`/work-orders/${workOrderId}`);
@@ -378,6 +378,64 @@ export async function saveTechnicianRemark(
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
   revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
+/**
+ * The fields the printed service report asks for, saved together.
+ *
+ * One action rather than one per box: a technician fills the card in as a unit
+ * and taps save once, and a partial patch is how a job ends up with a start
+ * time and no finish. Only the keys sent are written, so the time card cannot
+ * blank the mileage the other card just saved.
+ */
+export type ServiceReportPatch = {
+  report_no?: string;
+  customer_job_no?: string;
+  billing?: string | null;
+  work_kinds?: string[];
+  started_at?: string | null;
+  finished_at?: string | null;
+  mileage_start?: number | null;
+  mileage_end?: number | null;
+};
+
+const WORK_KINDS = ["installation", "repair", "cmn", "calibrate", "relocate", "pm"];
+const BILLINGS = ["warranty", "contract", "paid"];
+
+export async function saveServiceReport(
+  workOrderId: string,
+  patch: ServiceReportPatch
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  const text = (v: string | undefined) => (v?.trim() ? v.trim() : null);
+  const num = (v: number | null | undefined) =>
+    v == null || !Number.isFinite(v) || v < 0 ? null : v;
+
+  const update: Record<string, unknown> = {};
+  if ("report_no" in patch) update.report_no = text(patch.report_no);
+  if ("customer_job_no" in patch) update.customer_job_no = text(patch.customer_job_no);
+  if ("billing" in patch)
+    update.billing = patch.billing && BILLINGS.includes(patch.billing) ? patch.billing : null;
+  if ("work_kinds" in patch)
+    update.work_kinds = (patch.work_kinds ?? []).filter((k) => WORK_KINDS.includes(k));
+  if ("started_at" in patch) update.started_at = patch.started_at || null;
+  if ("finished_at" in patch) update.finished_at = patch.finished_at || null;
+  if ("mileage_start" in patch) update.mileage_start = num(patch.mileage_start);
+  if ("mileage_end" in patch) update.mileage_end = num(patch.mileage_end);
+  if (Object.keys(update).length === 0) return ok();
+
+  const { error } = await ctx.supabase
+    .from("work_orders")
+    .update(update)
+    .eq("id", workOrderId)
+    .eq("org_id", ctx.org.id);
+  if (error) return fail(error.message);
+  revalidatePath(`/work-orders/${workOrderId}`);
+  revalidatePath("/my-jobs");
   return ok();
 }
 

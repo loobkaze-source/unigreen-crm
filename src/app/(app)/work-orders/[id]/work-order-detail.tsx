@@ -37,6 +37,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { shrinkImage } from "@/lib/image";
 import { SignaturePad } from "@/components/app/signature-pad";
+import { ServiceReportCard, TimeMileageCard } from "./service-report-cards";
 import { fmtDateTime } from "@/lib/format";
 import {
   WO_STATUSES,
@@ -403,6 +404,11 @@ export function WorkOrderDetail({
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* The paper report's own head: its number, the customer's, and the
+            boxes ticked down items 6–14. */}
+        <ServiceReportCard workOrder={workOrder} onSaved={() => router.refresh()} />
+        <TimeMileageCard workOrder={workOrder} onSaved={() => router.refresh()} />
+
         {/* Checklist */}
         <Card>
           <CardHeader>
@@ -487,7 +493,7 @@ export function WorkOrderDetail({
           title="วัสดุที่ใช้"
           emptyText="ยังไม่มีวัสดุที่ใช้ในงานนี้"
           source="material"
-          parts={parts.filter((p) => p.source !== "store")}
+          parts={parts.filter((p) => p.source !== "store" && p.source !== "labor")}
           assets={assets}
           assetIds={assetIds}
           workOrderId={workOrder.id}
@@ -505,10 +511,28 @@ export function WorkOrderDetail({
           onChanged={() => router.refresh()}
         />
 
-        {/* Technician's note from site */}
+        {/* ค่าแรง/LABOR CHARGE — priced the same way, so the same card. */}
+        <PartsCard
+          title="ค่าแรง"
+          emptyText="ยังไม่ได้คิดค่าแรงสำหรับงานนี้"
+          source="labor"
+          namePlaceholder="รายละเอียด เช่น ค่าแรงช่าง 2 คน"
+          qtyPlaceholder="ชม."
+          unitPlaceholder="หน่วย เช่น ชม."
+          pricePlaceholder="ราคาต่อชั่วโมง (บาท)"
+          perUnit="ชม."
+          parts={parts.filter((p) => p.source === "labor")}
+          assets={assets}
+          assetIds={assetIds}
+          workOrderId={workOrder.id}
+          onChanged={() => router.refresh()}
+        />
+
+        {/* Item 15 on the paper report — what the technician actually did. The
+            dispatcher's brief is `description`, shown in the details above. */}
         <Card>
           <CardHeader>
-            <CardTitle>หมายเหตุจากช่าง</CardTitle>
+            <CardTitle>รายละเอียดงานที่ทำ (ช่างบันทึก)</CardTitle>
           </CardHeader>
           <CardContent>
             <Textarea
@@ -707,6 +731,11 @@ function PartsCard({
   title,
   emptyText,
   source,
+  namePlaceholder = "ชื่อรายการ เช่น มอเตอร์, สายพาน…",
+  qtyPlaceholder = "จำนวน",
+  unitPlaceholder = "หน่วย เช่น ชิ้น",
+  pricePlaceholder = "ราคาต่อหน่วย (บาท)",
+  perUnit = "หน่วย",
   parts,
   assets,
   assetIds,
@@ -715,7 +744,13 @@ function PartsCard({
 }: {
   title: string;
   emptyText: string;
-  source: "material" | "store";
+  source: "material" | "store" | "labor";
+  /** Wording only — labour is counted in hours, materials in pieces. */
+  namePlaceholder?: string;
+  qtyPlaceholder?: string;
+  unitPlaceholder?: string;
+  pricePlaceholder?: string;
+  perUnit?: string;
   parts: PartRow[];
   assets: AssetOption[];
   assetIds: string[];
@@ -789,7 +824,7 @@ function PartsCard({
                     ×{Number(part.qty)}
                     {part.unit ? ` ${part.unit}` : ""}
                     {part.unit_price != null
-                      ? ` · ${formatCurrency(Number(part.unit_price))}/หน่วย`
+                      ? ` · ${formatCurrency(Number(part.unit_price))}/${perUnit}`
                       : ""}
                   </span>
                   {asset ? (
@@ -843,7 +878,7 @@ function PartsCard({
             <Input
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-              placeholder="ชื่อรายการ เช่น มอเตอร์, สายพาน…"
+              placeholder={namePlaceholder}
             />
             <Input
               type="number"
@@ -853,7 +888,7 @@ function PartsCard({
               onChange={(e) => setDraft({ ...draft, qty: e.target.value })}
               className="w-20"
               aria-label="จำนวน"
-              placeholder="จำนวน"
+              placeholder={qtyPlaceholder}
             />
           </div>
           <div className="flex gap-2">
@@ -862,7 +897,7 @@ function PartsCard({
               onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
               className="w-28"
               aria-label="หน่วย"
-              placeholder="หน่วย เช่น ชิ้น"
+              placeholder={unitPlaceholder}
             />
             <Input
               type="number"
@@ -871,7 +906,7 @@ function PartsCard({
               value={draft.unit_price}
               onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })}
               aria-label="ราคาต่อหน่วย"
-              placeholder="ราคาต่อหน่วย (บาท)"
+              placeholder={pricePlaceholder}
             />
           </div>
           <div className="flex gap-2">
