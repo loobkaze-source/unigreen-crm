@@ -14,13 +14,30 @@ export default async function ActivitiesPage() {
         .order("due_date", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(500),
-      fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
-      supabase
-        .from("contacts")
-        .select("id, first_name, last_name")
-        .eq("org_id", org.id)
-        .order("first_name"),
-      supabase.from("deals").select("id, title").eq("org_id", org.id).order("title"),
+      fetchAllRes(() =>
+        supabase
+          .from("companies")
+          .select("id, name")
+          .eq("org_id", org.id)
+          .order("name")
+          .order("id")
+      ),
+      fetchAllRes(() =>
+        supabase
+          .from("contacts")
+          .select("id, first_name, last_name")
+          .eq("org_id", org.id)
+          .order("first_name")
+          .order("id")
+      ),
+      fetchAllRes(() =>
+        supabase
+          .from("deals")
+          .select("id, title")
+          .eq("org_id", org.id)
+          .order("title")
+          .order("id")
+      ),
     ]);
 
   const activities = rows(activitiesRes);

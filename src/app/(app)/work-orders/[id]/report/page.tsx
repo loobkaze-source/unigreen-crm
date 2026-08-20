@@ -50,11 +50,14 @@ export default async function ServiceReportPage({
           .eq("id", workOrder.technician_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase.from("work_order_assets").select("equipment_id").eq("work_order_id", id),
-    // Everyone who was there, and everything they photographed.
+    supabase
+      .from("work_order_assets")
+      .select("equipment(id, name, brand, model, serial_number, project_number)")
+      .eq("work_order_id", id),
+    // Everyone who was there (names embedded), and everything they photographed.
     supabase
       .from("work_order_technicians")
-      .select("technician_id")
+      .select("technician_id, technicians(name, nickname)")
       .eq("work_order_id", id)
       .order("created_at"),
     supabase
@@ -70,13 +73,19 @@ export default async function ServiceReportPage({
       .order("created_at"),
     ]);
 
-  const equipmentIds = rows(linkRes).map((r) => r.equipment_id as string);
-  const assetsRes = equipmentIds.length
-    ? await supabase
-        .from("equipment")
-        .select("id, name, brand, model, serial_number, project_number")
-        .in("id", equipmentIds)
-    : { data: [], error: null };
+  type AssetEmbed = {
+    equipment: {
+      id: string;
+      name: string;
+      brand: string | null;
+      model: string | null;
+      serial_number: string | null;
+      project_number: string | null;
+    } | null;
+  };
+  const linkedAssets = rows<AssetEmbed>(linkRes as never)
+    .map((r) => r.equipment)
+    .filter((e): e is NonNullable<AssetEmbed["equipment"]> => Boolean(e));
 
   const parts = rows(partsRes).map((p) => ({
     id: p.id as string,
@@ -87,15 +96,15 @@ export default async function ServiceReportPage({
     source: (p.source as string) ?? "material",
   }));
 
-  const crewIds = rows(crewRes).map((r) => r.technician_id as string);
-  const crewRows = crewIds.length
-    ? await supabase.from("technicians").select("id, name, nickname").in("id", crewIds)
-    : { data: [], error: null };
   // In the order they were added, which is the order the report lists them.
-  const crew = crewIds
-    .map((cid) => rows(crewRows).find((t) => t.id === cid))
+  type CrewEmbed = {
+    technician_id: string;
+    technicians: { name: string | null; nickname: string | null } | null;
+  };
+  const crew = rows<CrewEmbed>(crewRes as never)
+    .map((r) => r.technicians)
     .filter(Boolean)
-    .map((t) => ((t!.name as string) || (t!.nickname as string)) ?? "");
+    .map((t) => (t!.name || t!.nickname) ?? "");
 
   const contact = contactRes.data;
   return (
@@ -112,10 +121,10 @@ export default async function ServiceReportPage({
       technicianName={
         (techRes.data?.name as string) || (techRes.data?.nickname as string) || ""
       }
-      assets={rows(assetsRes).map((a) => ({
-        name: a.name as string,
-        model: [a.brand, a.model].filter(Boolean).join(" ") as string,
-        serial: ((a.serial_number as string) || (a.project_number as string) || "") as string,
+      assets={linkedAssets.map((a) => ({
+        name: a.name,
+        model: [a.brand, a.model].filter(Boolean).join(" "),
+        serial: a.serial_number || a.project_number || "",
       }))}
       parts={parts}
       crew={crew}

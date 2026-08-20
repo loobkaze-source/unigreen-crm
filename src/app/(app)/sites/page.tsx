@@ -38,14 +38,23 @@ export default async function SitesPage() {
         .select("*")
         .eq("org_id", org.id)
         .order("created_at", { ascending: false })
+        .order("id")
     ),
-    fetchAll(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
+    fetchAll(() =>
+      supabase
+        .from("companies")
+        .select("id, name")
+        .eq("org_id", org.id)
+        .order("name")
+        .order("id")
+    ),
     fetchAll(() =>
       supabase
         .from("contacts")
         .select("id, first_name, last_name")
         .eq("org_id", org.id)
         .order("first_name")
+        .order("id")
     ),
     // Machine count and the kinds/brands/models present, aggregated in the DB
     // rather than by fetching all 5,877 equipment rows. Ordered because

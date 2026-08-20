@@ -15,22 +15,23 @@ export async function loadCaseOptions(
   supabase: SessionContext["supabase"],
   orgId: string
 ): Promise<CaseOption[]> {
+  // The linked assets ride along embedded — one round trip, and no giant
+  // .in(...500 ids) URL for the junction table.
   const casesRes = await supabase
     .from("cases")
-    .select("id, code, number, subject, note, company_id, site_id, contact_id")
+    .select(
+      "id, code, number, subject, note, company_id, site_id, contact_id, case_assets(equipment_id)"
+    )
     .eq("org_id", orgId)
     .order("number", { ascending: false })
     .limit(CASE_LIMIT);
   const cases = rows(casesRes);
   if (!cases.length) return [];
 
-  const linksRes = await supabase
-    .from("case_assets")
-    .select("case_id, equipment_id")
-    .in("case_id", cases.map((c) => c.id as string));
   const assetIds: Record<string, string[]> = {};
-  for (const l of rows(linksRes)) {
-    (assetIds[l.case_id as string] ??= []).push(l.equipment_id as string);
+  for (const c of cases) {
+    const links = (c as { case_assets?: { equipment_id: string }[] }).case_assets;
+    if (links?.length) assetIds[c.id as string] = links.map((l) => l.equipment_id);
   }
 
   return cases.map((c) => ({

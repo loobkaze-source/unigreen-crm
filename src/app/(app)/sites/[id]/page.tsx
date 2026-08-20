@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, fetchAllRes } from "@/lib/data";
+import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import type { Site } from "@/lib/database.types";
 import { SiteDetail } from "./site-detail";
+
+type SiteRow = Site & {
+  companies: { name: string } | null;
+  contacts: { first_name: string; last_name: string | null } | null;
+};
 
 export default async function SiteDetailPage({
   params,
@@ -10,21 +16,30 @@ export default async function SiteDetailPage({
   const { id } = await params;
   const { supabase, org } = await getSessionContext();
 
-  const { data: site } = await supabase
-    .from("sites")
-    .select("*")
-    .eq("id", id)
-    .eq("org_id", org.id)
-    .maybeSingle();
+  // The customer and contact names ride along embedded — this page used to
+  // fetch every company and 500 contacts to resolve two strings.
+  const site = row<SiteRow>(
+    await supabase
+      .from("sites")
+      .select("*, companies(name), contacts(first_name, last_name)")
+      .eq("id", id)
+      .eq("org_id", org.id)
+      .maybeSingle()
+  );
   if (!site) notFound();
 
-  const [{ data: equipment }, { data: groups }, { data: warranties }, { data: contracts }, { data: companies }, { data: contacts }, { data: products }] =
+  const [equipmentRes, groupsRes, warrantiesRes, contractsRes, productsRes] =
     await Promise.all([
-      supabase
-        .from("equipment")
-        .select("*")
-        .eq("site_id", id)
-        .order("created_at", { ascending: false }),
+      // A large solar site can hold more than PostgREST's silent 1,000-row cap.
+      fetchAllRes(() =>
+        supabase
+          .from("equipment")
+          .select("*")
+          .eq("org_id", org.id)
+          .eq("site_id", id)
+          .order("created_at", { ascending: false })
+          .order("id")
+      ),
       supabase
         .from("asset_groups")
         .select("id, name, site_id")
@@ -41,28 +56,20 @@ export default async function SiteDetailPage({
         .select("id, title, status, end_date")
         .eq("site_id", id)
         .order("created_at", { ascending: false }),
-      fetchAllRes(() =>
-        supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
-      ),
-      supabase
-        .from("contacts")
-        .select("id, first_name, last_name")
-        .eq("org_id", org.id)
-        .order("first_name")
-        .limit(500),
       supabase
         .from("products")
         .select("name, price")
         .eq("org_id", org.id)
         .not("price", "is", null)
+        .order("name")
         .limit(1000),
     ]);
 
-  const companyList = companies ?? [];
-  const contactList = (contacts ?? []).map((c) => ({
-    id: c.id,
-    name: [c.first_name, c.last_name].filter(Boolean).join(" "),
-  }));
+  const equipment = rows(equipmentRes);
+  const groups = rows(groupsRes);
+  const warranties = rows(warrantiesRes);
+  const contracts = rows(contractsRes);
+  const products = rows(productsRes);
 
   // Match each asset to a product by "brand model" (or model) → sale price,
   // so the asset table can show the price on hover.
@@ -96,8 +103,14 @@ export default async function SiteDetailPage({
       warranties={warranties ?? []}
       contracts={contracts ?? []}
       priceByAsset={priceByAsset}
-      companyName={companyList.find((c) => c.id === site.company_id)?.name}
-      contactName={contactList.find((c) => c.id === site.contact_id)?.name}
+      companyName={site.companies?.name}
+      contactName={
+        site.contacts
+          ? [site.contacts.first_name, site.contacts.last_name]
+              .filter(Boolean)
+              .join(" ")
+          : undefined
+      }
     />
   );
 }

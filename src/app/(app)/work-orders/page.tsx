@@ -20,10 +20,12 @@ export default async function WorkOrdersPage({
   const fromVisit = (sp.visit ?? "").trim() || null;
 
   // Newest WO_PAGE_LIMIT rows; ?q= searches server-side so older rows stay
-  // reachable as the table grows.
+  // reachable as the table grows. The linked assets ride along embedded —
+  // fetching the whole junction table org-wide would silently truncate at
+  // PostgREST's 1,000-row cap long before the job list does.
   let woQuery = supabase
     .from("work_orders")
-    .select("*")
+    .select("*, work_order_assets(equipment_id)")
     .eq("org_id", org.id)
     .order("created_at", { ascending: false })
     .limit(WO_PAGE_LIMIT);
@@ -41,6 +43,7 @@ export default async function WorkOrdersPage({
     woQuery = woQuery.or(ors.join(","));
   }
 
+  // One parallel wave — every query here depends only on the session.
   const [
     woRes,
     techRes,
@@ -48,7 +51,9 @@ export default async function WorkOrdersPage({
     contactsRes,
     sitesRes,
     assetsRes,
-    woAssetsRes,
+    caseList,
+    contractList,
+    visitRes,
   ] = await Promise.all([
     woQuery,
     supabase
@@ -57,22 +62,28 @@ export default async function WorkOrdersPage({
       .eq("org_id", org.id)
       .eq("active", true)
       .order("name")
-        .limit(500),
+      .limit(500),
     fetchAllRes(() =>
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+      supabase
+        .from("companies")
+        .select("id, name")
+        .eq("org_id", org.id)
+        .order("name")
+        .order("id")
     ),
     supabase
       .from("contacts")
       .select("id, first_name, last_name, company_id")
       .eq("org_id", org.id)
       .order("first_name")
-        .limit(500),
+      .limit(500),
     fetchAllRes(() =>
       supabase
         .from("sites")
         .select("id, name, company_id, address, map_url")
         .eq("org_id", org.id)
         .order("name")
+        .order("id")
     ),
     fetchAllRes(() =>
       supabase
@@ -80,11 +91,18 @@ export default async function WorkOrdersPage({
         .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
         .eq("org_id", org.id)
         .order("code")
+        .order("id")
     ),
-    supabase
-      .from("work_order_assets")
-      .select("work_order_id, equipment_id")
-      .eq("org_id", org.id),
+    loadCaseOptions(supabase, org.id),
+    loadContractOptions(supabase, org.id),
+    fromVisit
+      ? supabase
+          .from("service_visits")
+          .select("id, seq, due_date, contract_id")
+          .eq("id", fromVisit)
+          .eq("org_id", org.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const workOrders = rows(woRes);
@@ -93,22 +111,12 @@ export default async function WorkOrdersPage({
   const contacts = rows(contactsRes);
   const sites = rows(sitesRes);
   const assets = rows(assetsRes);
-  const woAssets = rows(woAssetsRes);
-
-  const caseList = await loadCaseOptions(supabase, org.id);
-  const contractList = await loadContractOptions(supabase, org.id);
-  const visitRes = fromVisit
-    ? await supabase
-        .from("service_visits")
-        .select("id, seq, due_date, contract_id")
-        .eq("id", fromVisit)
-        .eq("org_id", org.id)
-        .maybeSingle()
-    : { data: null };
 
   const assetIdsByWo: Record<string, string[]> = {};
-  for (const r of woAssets ?? []) {
-    (assetIdsByWo[r.work_order_id] ??= []).push(r.equipment_id);
+  for (const w of workOrders ?? []) {
+    const links = (w as { work_order_assets?: { equipment_id: string }[] })
+      .work_order_assets;
+    if (links?.length) assetIdsByWo[w.id] = links.map((l) => l.equipment_id);
   }
 
   return (

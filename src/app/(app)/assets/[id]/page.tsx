@@ -67,29 +67,33 @@ export default async function AssetLifetimePage({
     eq.group_id
       ? supabase.from("asset_groups").select("name").eq("id", eq.group_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
-    supabase.from("work_orders").select("*").eq("asset_id", id),
-    supabase.from("work_order_assets").select("work_order_id").eq("equipment_id", id),
+    supabase.from("work_orders").select("*").eq("org_id", org.id).eq("asset_id", id),
+    // The M2M-linked jobs ride along embedded — no dependent second query.
+    supabase
+      .from("work_order_assets")
+      .select("work_orders(*)")
+      .eq("org_id", org.id)
+      .eq("equipment_id", id),
     supabase
       .from("work_order_parts")
       .select("id, work_order_id, name, qty, created_at")
+      .eq("org_id", org.id)
       .eq("equipment_id", id)
       .order("created_at", { ascending: true }),
   ]);
 
   const site = siteRes.data as { id: string; name: string } | null;
   const groupNm = (groupRes.data as { name: string } | null)?.name;
-  const parts = (partsRes.data ?? []) as PartRow[];
+  const parts = rows<PartRow>(partsRes as never);
 
   // Work orders touching this asset: direct asset_id + M2M links, deduped.
   const directWos = rows<WorkOrder>(directWoRes as never);
-  const linkedIds = (linkRes.data ?? [])
-    .map((r) => r.work_order_id as string)
-    .filter((woId) => !directWos.some((w) => w.id === woId));
-  const linkedWos: WorkOrder[] = linkedIds.length
-    ? rows<WorkOrder>(
-        (await supabase.from("work_orders").select("*").in("id", linkedIds)) as never
-      )
-    : [];
+  const linkedWos = rows<{ work_orders: WorkOrder | null }>(linkRes as never)
+    .map((r) => r.work_orders)
+    .filter(
+      (w): w is WorkOrder =>
+        Boolean(w) && !directWos.some((d) => d.id === w!.id)
+    );
   const workOrders = [...directWos, ...linkedWos].sort((a, b) =>
     (a.scheduled_start || a.created_at).localeCompare(b.scheduled_start || b.created_at)
   );

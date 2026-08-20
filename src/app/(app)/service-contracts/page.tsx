@@ -6,20 +6,39 @@ export default async function ServiceContractsPage() {
 
   const [contractsRes, visitStatsRes, companiesRes, sitesRes, techRes] =
     await Promise.all([
-    supabase
-      .from("service_contracts")
-      .select("*")
-      .eq("org_id", org.id)
-      .order("created_at", { ascending: false })
-      .limit(1000),
+    fetchAllRes(() =>
+      supabase
+        .from("service_contracts")
+        .select("*")
+        .eq("org_id", org.id)
+        .order("created_at", { ascending: false })
+        .order("id")
+    ),
     // Aggregated per contract in SQL (view, migration 0022) instead of
     // pulling every visit row org-wide.
-    supabase
-      .from("contract_visit_stats")
-      .select("contract_id, total, done, next_due")
-      .eq("org_id", org.id),
-    fetchAllRes(() => supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")),
-    fetchAllRes(() => supabase.from("sites").select("id, name").eq("org_id", org.id).order("name")),
+    fetchAllRes(() =>
+      supabase
+        .from("contract_visit_stats")
+        .select("contract_id, total, done, next_due")
+        .eq("org_id", org.id)
+        .order("contract_id")
+    ),
+    fetchAllRes(() =>
+      supabase
+        .from("companies")
+        .select("id, name")
+        .eq("org_id", org.id)
+        .order("name")
+        .order("id")
+    ),
+    fetchAllRes(() =>
+      supabase
+        .from("sites")
+        .select("id, name")
+        .eq("org_id", org.id)
+        .order("name")
+        .order("id")
+    ),
     supabase
       .from("technicians")
       .select("id, name")

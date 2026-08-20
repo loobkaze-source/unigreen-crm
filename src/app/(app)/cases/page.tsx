@@ -14,9 +14,13 @@ export default async function CasesPage({
   const search = ((await searchParams).q ?? "").trim();
   const canManage = isAdmin || hasRole(appRoles, ...CASE_ROLES);
 
+  // Attachments and linked assets ride along embedded — they used to be a
+  // second wave of .in(...200 ids) queries serialized behind this one.
   let casesQuery = supabase
     .from("cases")
-    .select("*")
+    .select(
+      "*, case_attachments(id, path, name, mime, created_at), case_assets(equipment_id, condition)"
+    )
     .eq("org_id", org.id)
     .order("case_date", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
@@ -40,20 +44,28 @@ export default async function CasesPage({
     await Promise.all([
       casesQuery,
       fetchAllRes(() =>
-        supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+        supabase
+          .from("companies")
+          .select("id, name")
+          .eq("org_id", org.id)
+          .order("name")
+          .order("id")
       ),
-      supabase
-        .from("contacts")
-        .select("id, first_name, last_name")
-        .eq("org_id", org.id)
-        .order("first_name")
-        .limit(500),
+      fetchAllRes(() =>
+        supabase
+          .from("contacts")
+          .select("id, first_name, last_name")
+          .eq("org_id", org.id)
+          .order("first_name")
+          .order("id")
+      ),
       fetchAllRes(() =>
         supabase
           .from("sites")
           .select("id, name, company_id")
           .eq("org_id", org.id)
           .order("name")
+          .order("id")
       ),
       fetchAllRes(() =>
         supabase
@@ -62,6 +74,7 @@ export default async function CasesPage({
           .eq("org_id", org.id)
           .neq("status", "retired")
           .order("code")
+          .order("id")
       ),
       supabase
         .from("organization_members")
@@ -86,25 +99,12 @@ export default async function CasesPage({
   const supporterIds = holding("Technical Supporter");
   const dispatcherIds = holding("Dispatcher");
   const namedIds = [...new Set([...supporterIds, ...dispatcherIds])];
-  const caseIds = cases.map((c) => c.id as string);
-  const [profilesRes, attachmentsRes, caseAssetsRes] = await Promise.all([
-    namedIds.length
-      ? supabase.from("profiles").select("id, full_name, email").in("id", namedIds)
-      : Promise.resolve({ data: [], error: null }),
-    caseIds.length
-      ? supabase
-          .from("case_attachments")
-          .select("id, case_id, path, name, mime")
-          .in("case_id", caseIds)
-          .order("created_at", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
-    caseIds.length
-      ? supabase
-          .from("case_assets")
-          .select("case_id, equipment_id, condition")
-          .in("case_id", caseIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  // The one remaining dependent query: profiles keyed by the member ids
+  // (no FK from organization_members to profiles, so no embed).
+  const profilesRes = namedIds.length
+    ? await supabase.from("profiles").select("id, full_name, email").in("id", namedIds)
+    : { data: [], error: null };
+  if (profilesRes.error) throw new Error(profilesRes.error.message);
 
   const nameOf = new Map(
     (profilesRes.data ?? []).map((p) => [
@@ -116,19 +116,40 @@ export default async function CasesPage({
     ids.map((id) => ({ id, name: nameOf.get(id) ?? "—" })).sort((a, b) => a.name.localeCompare(b.name, "th"));
   const supporters = asOptions(supporterIds);
   const dispatchers = asOptions(dispatcherIds);
-  const attachments = (attachmentsRes.data ?? []).map((a) => ({
-    id: a.id as string,
-    case_id: a.case_id as string,
-    path: a.path as string,
-    name: (a.name as string) || "ไฟล์แนบ",
-    mime: (a.mime as string) || "",
-    url: `${SUPABASE_URL}/storage/v1/object/public/case-files/${a.path}`,
-  }));
-  const caseAssets = (caseAssetsRes.data ?? []).map((r) => ({
-    case_id: r.case_id as string,
-    equipment_id: r.equipment_id as string,
-    condition: (r.condition as "operational" | "degraded" | "down" | null) ?? null,
-  }));
+
+  type EmbeddedAttachment = {
+    id: string;
+    path: string;
+    name: string | null;
+    mime: string | null;
+    created_at: string;
+  };
+  type EmbeddedCaseAsset = {
+    equipment_id: string;
+    condition: "operational" | "degraded" | "down" | null;
+  };
+  const attachments = cases
+    .flatMap((c) =>
+      (((c as { case_attachments?: EmbeddedAttachment[] }).case_attachments ?? []).map(
+        (a) => ({ ...a, case_id: c.id as string })
+      ))
+    )
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+    .map((a) => ({
+      id: a.id,
+      case_id: a.case_id,
+      path: a.path,
+      name: a.name || "ไฟล์แนบ",
+      mime: a.mime || "",
+      url: `${SUPABASE_URL}/storage/v1/object/public/case-files/${a.path}`,
+    }));
+  const caseAssets = cases.flatMap((c) =>
+    (((c as { case_assets?: EmbeddedCaseAsset[] }).case_assets ?? []).map((r) => ({
+      case_id: c.id as string,
+      equipment_id: r.equipment_id,
+      condition: r.condition ?? null,
+    })))
+  );
 
   return (
     <CasesView

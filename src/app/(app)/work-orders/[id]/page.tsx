@@ -16,28 +16,33 @@ export default async function WorkOrderDetailPage({
   const { id } = await params;
   const { supabase, org, userId, isAdmin, appRoles } = await getSessionContext();
 
-  const workOrder = row<WorkOrder>(
-    await supabase
+  // The job row and (for a field technician) their technician record depend
+  // only on the session — fetch together.
+  const fieldOnly = !isAdmin && isTechnicianOnly(appRoles);
+  const [woRow, techRow] = await Promise.all([
+    supabase
       .from("work_orders")
       .select("*")
       .eq("id", id)
       .eq("org_id", org.id)
-      .maybeSingle()
-  );
-
+      .maybeSingle(),
+    fieldOnly
+      ? supabase
+          .from("technicians")
+          .select("id")
+          .eq("org_id", org.id)
+          .eq("user_id", userId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+  const workOrder = row<WorkOrder>(woRow);
   if (!workOrder) notFound();
 
   // A pure field technician may only open jobs assigned to them. The nav is
   // already limited to /my-jobs, but this is the check that actually holds —
   // otherwise a guessed URL would expose someone else's job.
-  const fieldOnly = !isAdmin && isTechnicianOnly(appRoles);
   if (fieldOnly) {
-    const { data: tech } = await supabase
-      .from("technicians")
-      .select("id")
-      .eq("org_id", org.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const tech = row<{ id: string }>(techRow);
     if (!tech || workOrder.technician_id !== tech.id) notFound();
   }
 
@@ -53,6 +58,8 @@ export default async function WorkOrderDetailPage({
     woTechsRes,
     tagsRes,
     codesRes,
+    caseList,
+    contractList,
   ] = await Promise.all([
     supabase
       .from("work_order_photos")
@@ -73,7 +80,12 @@ export default async function WorkOrderDetailPage({
       .order("name")
         .limit(500),
     fetchAllRes(() =>
-      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name")
+      supabase
+        .from("companies")
+        .select("id, name")
+        .eq("org_id", org.id)
+        .order("name")
+        .order("id")
     ),
     supabase
       .from("contacts")
@@ -87,6 +99,7 @@ export default async function WorkOrderDetailPage({
         .select("id, name, company_id, address, map_url")
         .eq("org_id", org.id)
         .order("name")
+        .order("id")
     ),
     fetchAllRes(() =>
       supabase
@@ -94,6 +107,7 @@ export default async function WorkOrderDetailPage({
         .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
         .eq("org_id", org.id)
         .order("code")
+        .order("id")
     ),
     supabase
       .from("work_order_assets")
@@ -105,18 +119,26 @@ export default async function WorkOrderDetailPage({
       .eq("work_order_id", id)
       .order("created_at"),
     // What the pickers suggest: the catalogue carried over from the old system,
-    // most-used first, and whatever has been typed since.
+    // most-used first, and whatever has been typed since. PostgREST caps a
+    // response at 1,000 rows regardless of the limit asked for, so ask for
+    // what can actually arrive.
     supabase
       .from("service_tags")
       .select("kind, value, uses")
       .eq("org_id", org.id)
       .order("uses", { ascending: false })
-      .limit(2000),
+      .limit(1000),
+    // Only jobs that actually carry codes, newest first — not a whole-table
+    // scan whose arbitrary first 1,000 rows change between loads.
     supabase
       .from("work_orders")
       .select("fault_codes, repair_codes, causes")
       .eq("org_id", org.id)
-      .limit(1000),
+      .or("fault_codes.not.is.null,repair_codes.not.is.null,causes.not.is.null")
+      .order("created_at", { ascending: false })
+      .limit(500),
+    loadCaseOptions(supabase, org.id),
+    loadContractOptions(supabase, org.id),
   ]);
 
   const photos = rows(photosRes);
@@ -127,9 +149,6 @@ export default async function WorkOrderDetailPage({
   const sites = rows(sitesRes);
   const assets = rows(assetsRes);
   const woAssets = rows(woAssetsRes);
-
-  const caseList = await loadCaseOptions(supabase, org.id);
-  const contractList = await loadContractOptions(supabase, org.id);
 
   const techList = technicians ?? [];
   const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
