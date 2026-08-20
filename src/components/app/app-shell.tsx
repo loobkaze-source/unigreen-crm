@@ -143,7 +143,7 @@ export function AppShell({
               src="/brand/logo-dark.png"
               alt="Unicloud"
               width={144}
-              height={30}
+              height={45}
               priority
             />
           </Link>
@@ -298,14 +298,14 @@ export function AppShell({
             src="/brand/logo-light.png"
             alt="Unicloud"
             width={120}
-            height={25}
+            height={38}
             className="dark:hidden"
           />
           <Image
             src="/brand/logo-dark.png"
             alt="Unicloud"
             width={120}
-            height={25}
+            height={38}
             className="hidden dark:block"
           />
           <ThemeToggle className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-muted" />

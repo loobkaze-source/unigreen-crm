@@ -161,6 +161,13 @@ Open Supabase → **SQL Editor** and run in order:
     it now scopes the update by `org_id` and refuses a field-only technician touching a job that
     is not theirs (`assertMayWork` in work-orders/actions.ts).
 
+32.–50. Later migrations (service tags, contract numbering, visit↔work-order links, photo
+    ordering, `site_asset_facets`, …) are documented by their own header comments in
+    `supabase/migrations/` — read the file before touching the feature it backs.
+51. `0051_fk_indexes.sql` — covering indexes for all 45 foreign keys the Supabase performance
+    linter flagged as unindexed (embeds and cascading deletes walk these). Purely additive;
+    **applied to the live project 2026-08-21** via MCP `apply_migration`.
+
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.
 
@@ -298,9 +305,10 @@ Nav lives in `src/components/app/app-shell.tsx`.
    literal auto-casts, but a `CASE ... END` returns `text` and must be cast: `(...)::public.member_role`.
 3. **Untyped Supabase client** — do NOT add the `<Database>` generic (caused `never` types). Query
    errors return in `.error` (don't throw).
-4. **Email is rate-limited** (Supabase built-in ~2–4/hr). The `/forgot` email-OTP reset needs a
-   **custom SMTP** (Auth → SMTP Settings) + `{{ .Token }}` in the Magic-Link template to show a
-   numeric code. For the seeded team, prefer login + change password at `/account` (no email).
+4. **Email is rate-limited** (Supabase built-in ~2–4/hr). The `/forgot` email-OTP self-reset was
+   **removed** (see §9 — password reset is admin-only now). If a mail flow ever comes back it
+   needs a **custom SMTP** (Auth → SMTP Settings) + `{{ .Token }}` in the Magic-Link template.
+   For the team, prefer login + change password at `/account` (no email).
 5. **"Unigreen" is still a department name** (a deal board) — that's a business unit, NOT the brand.
    The brand is Unicloud. Don't rename the `unigreen` department value.
 
@@ -323,8 +331,21 @@ Singapore. See §10 for the move and the numbers.
 - Assign a **department** to each member in `/users` (null → they see all boards).
 - (Security) Rotate the GitHub PAT, Netlify token, and Supabase keys used during setup; keep the
   service_role key server-side only.
-- (Perf, optional) `src/lib/supabase/middleware.ts` calls `auth.getUser()` on every request — a
-  full round trip before rendering. Verifying the JWT locally would remove it; see §10.
+- ~~(Perf) middleware calls `auth.getUser()` on every request~~ — **done 2026-08-21**: both
+  `src/lib/supabase/middleware.ts` and `getSessionContext` now use `auth.getClaims()`, which
+  verifies the JWT locally (the project signs with an asymmetric ES256 key; JWKS is cached).
+  No auth-server round trip per request; getClaims still refreshes a near-expiry session.
+- (Deprecation, follow-up) Next 16 renamed the `middleware` file convention to `proxy`
+  (`next dev` warns). The rename is mechanical (`src/middleware.ts` → `src/proxy.ts`, export
+  `proxy`), but do it on a **branch deploy first** — if @netlify/plugin-nextjs looks for
+  "middleware" by name, the auth guard would silently vanish in production (deploys have failed
+  silently before, §4).
+- (DB hardening, optional) The Supabase security linter flags every `SECURITY DEFINER` function
+  as RPC-callable by anon/authenticated. Most are trigger functions (calling them via RPC just
+  errors), but revoking anon EXECUTE is cleaner. **Do NOT blanket-revoke from `authenticated`:**
+  `is_org_member`/`is_org_admin` run inside RLS policies with the caller's rights, and
+  `mark_password_changed` is called by the app. Also consider enabling leaked-password
+  protection (Auth → Passwords) in the dashboard.
 
 ---
 
@@ -372,10 +393,11 @@ Both moved on 2026-08-13. Measured from production afterwards (`/auth/diag` prob
 | `/login` server time (warm, TLS excluded) | ~515–675 ms | **~323–341 ms** |
 
 **The remaining ~320ms is not the database.** With queries at ~20ms, the rest is per-request
-overhead: `src/lib/supabase/middleware.ts` calls `supabase.auth.getUser()` on **every** request,
-which is a full network round trip to Supabase Auth before the page even renders, plus Next.js
-render and Netlify function init. Cutting it further means changing code (e.g. verifying the JWT
-locally instead of calling the auth server), not moving regions again.
+overhead. The biggest single piece — `supabase.auth.getUser()` making a full auth-server round
+trip on **every** request from both the middleware and `getSessionContext` — was removed on
+2026-08-21: both now call `supabase.auth.getClaims()`, which verifies the ES256-signed JWT
+locally against the cached JWKS (network only when the token is near expiry, to refresh).
+What's left is Next.js render + Netlify function init.
 
 > **Measurement trap that cost time here:** latency probes that ignore the HTTP status. A wrong
 > API key returns `401` *fast*, which looks like a great result. Always assert `HTTP 200` before

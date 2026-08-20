@@ -17,7 +17,7 @@ export default function AuthLayout({
           src="/brand/logo-dark.png"
           alt="Unicloud"
           width={168}
-          height={35}
+          height={53}
           priority
         />
         <div className="relative z-10 max-w-md">
@@ -46,7 +46,7 @@ export default function AuthLayout({
                 src="/brand/logo-light.png"
                 alt="Unicloud"
                 width={150}
-                height={31}
+                height={47}
                 priority
                 className="dark:hidden"
               />
@@ -54,7 +54,7 @@ export default function AuthLayout({
                 src="/brand/logo-dark.png"
                 alt="Unicloud"
                 width={150}
-                height={31}
+                height={47}
                 priority
                 className="hidden dark:block"
               />

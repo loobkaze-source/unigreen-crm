@@ -36,7 +36,7 @@ export function SetPasswordForm({ email }: { email: string }) {
           src="/brand/logo-light.png"
           alt="Unicloud"
           width={140}
-          height={29}
+          height={44}
           priority
           className="mb-6"
         />
