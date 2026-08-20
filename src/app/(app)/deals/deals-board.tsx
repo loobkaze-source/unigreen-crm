@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -71,17 +71,22 @@ export function DealsBoard({
     return mine.length ? mine : DEPARTMENTS;
   }, [canSeeAll, userDept]);
 
-  const [deals, setDeals] = useState(initialDeals);
+  // Optimistic board: a dragged card lands under the finger immediately and
+  // React reverts to the server list by itself if the move fails — no
+  // hand-rolled mirror state, no stale-snapshot rollback races.
+  const [deals, moveDealOptimistic] = useOptimistic(
+    initialDeals,
+    (ds, move: { id: string; stageId: string }) =>
+      ds.map((d) => (d.id === move.id ? { ...d, stage_id: move.stageId } : d))
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDept, setActiveDept] = useState<string>(boards[0].value);
   const [, startTransition] = useTransition();
 
-  // Keep local board in sync with server data after refresh / mutations —
-  // adjusted during render (not in an effect) so there is no extra paint.
-  const [prevInitialDeals, setPrevInitialDeals] = useState(initialDeals);
-  if (prevInitialDeals !== initialDeals) {
-    setPrevInitialDeals(initialDeals);
-    setDeals(initialDeals);
+  // If the board list changes under us (role/department change), don't stay
+  // pointed at a board this user can no longer see.
+  if (!boards.some((b) => b.value === activeDept)) {
+    setActiveDept(boards[0].value);
   }
 
   const sensors = useSensors(
@@ -159,8 +164,15 @@ export function DealsBoard({
   const [saving, setSaving] = useState(false);
 
   function openCreate(stageId?: string) {
+    const sid = stageId || firstStage;
+    if (!sid) {
+      // A board with no stages has no column to file the deal under — and an
+      // empty stage <Select> would leave the form unsubmittable with no clue.
+      alert("บอร์ดนี้ยังไม่มีขั้นตอน — เพิ่มขั้นตอนของบอร์ดก่อนจึงจะเพิ่มดีลได้");
+      return;
+    }
     setEditing(null);
-    setForm({ ...EMPTY, stage_id: stageId || firstStage, department: activeDept });
+    setForm({ ...EMPTY, stage_id: sid, department: activeDept });
     setError(null);
     setOpen(true);
   }
@@ -208,7 +220,6 @@ export function DealsBoard({
   }
 
   // ---- Stage management (admin only) ----
-  const [newStageName, setNewStageName] = useState("");
   const [stageBusy, setStageBusy] = useState(false);
   function runStage(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setStageBusy(true);
@@ -217,15 +228,6 @@ export function DealsBoard({
       setStageBusy(false);
       if (!res.ok) alert(res.error);
       else router.refresh();
-    });
-  }
-  function addStage() {
-    const nm = newStageName.trim();
-    if (!nm) return;
-    runStage(async () => {
-      const r = await createStage(activeDept, nm);
-      if (r.ok) setNewStageName("");
-      return r;
     });
   }
   // Open (reorderable) stages of the current board, to know the move edges.
@@ -246,25 +248,26 @@ export function DealsBoard({
     const deal = deals.find((d) => d.id === dealId);
     if (!deal || deal.stage_id === targetStage) return;
 
-    const prev = deals;
-    setDeals((ds) =>
-      ds.map((d) => (d.id === dealId ? { ...d, stage_id: targetStage } : d))
-    );
     startTransition(async () => {
+      moveDealOptimistic({ id: dealId, stageId: targetStage });
       const res = await updateDealStage(dealId, targetStage);
-      if (!res.ok) {
-        setDeals(prev);
-        alert(res.error);
-      } else {
-        router.refresh();
-      }
+      if (!res.ok) alert(res.error); // useOptimistic reverts by itself
+      else router.refresh();
     });
   }
 
   const activeDeal = activeId ? deals.find((d) => d.id === activeId) : null;
   const totalValue = visibleDeals.reduce((s, d) => s + (d.value || 0), 0);
-  const deptCount = (v: string) =>
-    deals.filter((d) => (d.department || "unigreen") === v).length;
+  // One pass over the deals, not one per tab per render.
+  const deptCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const d of deals) {
+      const k = d.department || "unigreen";
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [deals]);
+  const deptCount = (v: string) => deptCounts.get(v) ?? 0;
 
   if (stages.length === 0) {
     return (
@@ -346,35 +349,16 @@ export function DealsBoard({
           })}
 
           {canManageStages ? (
-            <div className="flex w-64 shrink-0 flex-col">
-              <div className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
-                เพิ่มขั้นตอน
-              </div>
-              <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
-                <Input
-                  value={newStageName}
-                  onChange={(e) => setNewStageName(e.target.value)}
-                  placeholder="ชื่อขั้นตอนใหม่…"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addStage();
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={addStage}
-                  disabled={stageBusy || !newStageName.trim()}
-                >
-                  <Plus className="h-4 w-4" /> เพิ่มขั้นตอน
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  ขั้นตอนใหม่จะอยู่ก่อน Won / Missed (ซึ่งเป็นขั้นตอนถาวร)
-                </p>
-              </div>
-            </div>
+            <AddStageBox
+              busy={stageBusy}
+              onAdd={(name, clear) =>
+                runStage(async () => {
+                  const r = await createStage(activeDept, name);
+                  if (r.ok) clear();
+                  return r;
+                })
+              }
+            />
           ) : null}
         </div>
 
@@ -526,6 +510,56 @@ export function DealsBoard({
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+/**
+ * Its own component so typing a stage name re-renders this box alone — as
+ * board state it re-rendered every column and card per keystroke.
+ */
+function AddStageBox({
+  busy,
+  onAdd,
+}: {
+  busy: boolean;
+  onAdd: (name: string, clear: () => void) => void;
+}) {
+  const [name, setName] = useState("");
+  function submit() {
+    const nm = name.trim();
+    if (!nm) return;
+    onAdd(nm, () => setName(""));
+  }
+  return (
+    <div className="flex w-64 shrink-0 flex-col">
+      <div className="mb-2 px-1 text-sm font-semibold text-muted-foreground">
+        เพิ่มขั้นตอน
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="ชื่อขั้นตอนใหม่…"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={submit}
+          disabled={busy || !name.trim()}
+        >
+          <Plus className="h-4 w-4" /> เพิ่มขั้นตอน
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          ขั้นตอนใหม่จะอยู่ก่อน Won / Missed (ซึ่งเป็นขั้นตอนถาวร)
+        </p>
+      </div>
     </div>
   );
 }

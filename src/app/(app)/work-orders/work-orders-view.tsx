@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -92,25 +92,50 @@ export function WorkOrdersView({
   const [query, setQuery] = useState(initialQuery);
 
   // Mirror the search box into ?q= (debounced) so the server can search the
-  // whole table — the list itself is capped to the newest rows.
-  const lastPushedQ = useRef(initialQuery);
+  // whole table — the list itself is capped to the newest rows. State rather
+  // than a ref so the back/forward resync below can read it during render.
+  const [lastPushedQ, setLastPushedQ] = useState(initialQuery);
   useEffect(() => {
     const t = setTimeout(() => {
       const q = query.trim();
-      if (q === lastPushedQ.current) return;
-      lastPushedQ.current = q;
+      if (q === lastPushedQ) return;
+      setLastPushedQ(q);
       router.replace(q ? `/work-orders?q=${encodeURIComponent(q)}` : "/work-orders", {
         scroll: false,
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router]);
+  }, [query, router, lastPushedQ]);
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | "all">("all");
   const [tab, setTab] = useState<"list" | "schedule">("list");
   // Opening straight into the form is the whole point of arriving with a case.
   const [open, setOpen] = useState(!!initialCaseId || !!initialVisit);
   const [editing, setEditing] = useState<WorkOrder | null>(null);
   const [, startTransition] = useTransition();
+
+  // A client-side navigation to ?case= / ?visit= while this view is already
+  // mounted changes the props without a remount — open the form then too.
+  const caseVisitKey = `${initialCaseId ?? ""}|${initialVisit?.id ?? ""}`;
+  const [prevCaseVisit, setPrevCaseVisit] = useState(caseVisitKey);
+  if (prevCaseVisit !== caseVisitKey) {
+    setPrevCaseVisit(caseVisitKey);
+    if (initialCaseId || initialVisit) {
+      setEditing(null);
+      setOpen(true);
+    }
+  }
+
+  // Back/forward restoring a different ?q= re-renders with a new initialQuery
+  // this box never typed — adopt it, but never clobber keystrokes newer than
+  // our own last push.
+  const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
+  if (prevInitialQuery !== initialQuery) {
+    setPrevInitialQuery(initialQuery);
+    if (initialQuery !== lastPushedQ) {
+      setLastPushedQ(initialQuery);
+      setQuery(initialQuery);
+    }
+  }
 
   const techName = useMemo(() => {
     const m = new Map(technicians.map((t) => [t.id, t.name]));
@@ -170,7 +195,12 @@ export function WorkOrdersView({
         filter: {
           kind: "select",
           accessor: (w) => techName(w.technician_id) ?? null,
-          options: technicians.map((t) => ({ value: t.name, label: t.name })),
+          // De-duplicated: two technicians can share a name, and duplicate
+          // option values collide as React keys.
+          options: [...new Set(technicians.map((t) => t.name))].map((n) => ({
+            value: n,
+            label: n,
+          })),
         },
       },
       {
@@ -187,11 +217,13 @@ export function WorkOrdersView({
   });
 
   // Agenda: scheduled grouped by date, then "ยังไม่นัดหมาย".
-  // Uses table.rows so column filters (type/technician) apply to both views.
+  // Uses table.matched — every row that passed the filters, not just the
+  // current page: the schedule tab renders no pager, so building it from one
+  // page silently hid everything past the newest 50 jobs.
   const agenda = useMemo(() => {
     const groups = new Map<string, WorkOrder[]>();
     const noDate: WorkOrder[] = [];
-    [...table.rows]
+    [...table.matched]
       .sort((a, b) =>
         (a.scheduled_start || "").localeCompare(b.scheduled_start || "")
       )
@@ -202,7 +234,7 @@ export function WorkOrdersView({
         groups.get(key)!.push(w);
       });
     return { groups: [...groups.entries()], noDate };
-  }, [table.rows]);
+  }, [table.matched]);
 
   function openCreate() {
     setEditing(null);
@@ -214,7 +246,13 @@ export function WorkOrdersView({
    */
   function closeModal() {
     setOpen(false);
-    if (initialCaseId || initialVisit) router.replace("/work-orders");
+    if (initialCaseId || initialVisit) {
+      // Drop ?case=/?visit= but keep the search the reader had typed.
+      const q = query.trim();
+      router.replace(q ? `/work-orders?q=${encodeURIComponent(q)}` : "/work-orders", {
+        scroll: false,
+      });
+    }
   }
   function openEdit(w: WorkOrder, e: React.MouseEvent) {
     e.preventDefault();
@@ -297,16 +335,26 @@ export function WorkOrdersView({
       ) : tab === "list" ? (
         <>
           {/* Phones get cards — the full table has too many columns to read on
-              a narrow screen, and technicians work from this list on site. */}
-          <div className="space-y-2 md:hidden">
-            {table.rows.map((w) => (
-              <ScheduleCard
-                key={w.id}
-                w={w}
-                techName={techName(w.technician_id)}
-                companyName={companyName(w.company_id)}
-              />
-            ))}
+              a narrow screen, and technicians work from this list on site.
+              The pager renders here too: without it a phone could never reach
+              past the first page, with nothing saying rows were missing. */}
+          <div className="md:hidden">
+            <div className="space-y-2">
+              {table.rows.map((w) => (
+                <ScheduleCard
+                  key={w.id}
+                  w={w}
+                  techName={techName(w.technician_id)}
+                  companyName={companyName(w.company_id)}
+                />
+              ))}
+            </div>
+            {table.rows.length === 0 ? (
+              <p className="rounded-lg border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+                ไม่พบรายการที่ตรงกับตัวกรอง — แก้คำค้นหรือตัวกรองได้เลย
+              </p>
+            ) : null}
+            <DataTablePager table={table} />
           </div>
 
           <div className="hidden overflow-hidden rounded-lg border border-border bg-card shadow-sm md:block">

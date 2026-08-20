@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -99,7 +99,7 @@ export function CasesView({
 }: {
   cases: Case[];
   companies: Option[];
-  contacts: Option[];
+  contacts: (Option & { company_id?: string | null })[];
   sites: SiteOption[];
   assets: AssetOption[];
   caseAssets: CaseAssetLink[];
@@ -117,18 +117,29 @@ export function CasesView({
 
   // Mirror the search box into ?q= (debounced) so the server can search the
   // whole table — the list itself is capped to the newest rows.
-  const lastPushedQ = useRef(initialQuery);
+  const [lastPushedQ, setLastPushedQ] = useState(initialQuery);
   useEffect(() => {
     const t = setTimeout(() => {
       const q = query.trim();
-      if (q === lastPushedQ.current) return;
-      lastPushedQ.current = q;
+      if (q === lastPushedQ) return;
+      setLastPushedQ(q);
       router.replace(q ? `/cases?q=${encodeURIComponent(q)}` : "/cases", {
         scroll: false,
       });
     }, 300);
     return () => clearTimeout(t);
-  }, [query, router]);
+  }, [query, router, lastPushedQ]);
+
+  // Back/forward restoring a different ?q= re-renders with a new initialQuery
+  // this box never typed — adopt it, without clobbering newer keystrokes.
+  const [prevInitialQuery, setPrevInitialQuery] = useState(initialQuery);
+  if (prevInitialQuery !== initialQuery) {
+    setPrevInitialQuery(initialQuery);
+    if (initialQuery !== lastPushedQ) {
+      setLastPushedQ(initialQuery);
+      setQuery(initialQuery);
+    }
+  }
   const [statusFilter, setStatusFilter] = useState<CaseStatus | "all">("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Case | null>(null);
@@ -169,10 +180,18 @@ export function CasesView({
   /** A case just opened, waiting to be told whether it needs a work order. */
   const [justCreated, setJustCreated] = useState<{ id: string; subject: string } | null>(null);
 
+  // Narrowed to the chosen customer's people (the picked one always stays
+  // visible); contacts added from this very form ride along regardless.
   const contactOptions = useMemo(() => {
     const seen = new Set(contacts.map((c) => c.id));
-    return [...contacts, ...extraContacts.filter((c) => !seen.has(c.id))];
-  }, [contacts, extraContacts]);
+    const extras = extraContacts.filter((c) => !seen.has(c.id));
+    const base = form.company_id
+      ? contacts.filter(
+          (c) => c.company_id === form.company_id || c.id === form.contact_id
+        )
+      : contacts;
+    return [...base, ...extras];
+  }, [contacts, extraContacts, form.company_id, form.contact_id]);
 
   function addContact() {
     const name = newContact.name.trim();
@@ -294,6 +313,9 @@ export function CasesView({
     setForm(EMPTY);
     setAssetSel({});
     setNewFiles([]);
+    // The add-contact panel must not reopen with last time's half-typed name.
+    setAddingContact(false);
+    setNewContact({ name: "", phone: "" });
     setError(null);
     setOpen(true);
   }
@@ -329,7 +351,17 @@ export function CasesView({
 
   // Selecting a customer / site narrows what can be ticked — prune stale picks.
   function changeCompany(company_id: string) {
-    setForm((f) => ({ ...f, company_id, site_id: "" }));
+    setForm((f) => {
+      // The old customer's contact must not survive onto the new one's case.
+      const contactOk =
+        contacts.find((c) => c.id === f.contact_id)?.company_id === company_id;
+      return {
+        ...f,
+        company_id,
+        site_id: "",
+        contact_id: contactOk ? f.contact_id : "",
+      };
+    });
     setAssetSel({});
   }
   function changeSite(site_id: string) {
@@ -376,28 +408,37 @@ export function CasesView({
       const caseId = res.id ?? editing?.id;
       if (caseId && newFiles.length > 0) {
         setUploading(true);
-        const supabase = createClient();
-        const errors = (
-          await Promise.all(
-            newFiles.map(async (original) => {
-              // Photos of a fault are the bulk of what gets attached; anything
-              // that is not an image comes back from this untouched.
-              const file = await shrinkImage(original);
-              const ext = file.name.split(".").pop() || "bin";
-              const rand = Math.random().toString(36).slice(2, 8);
-              const path = `${orgId}/${caseId}/${Date.now()}-${rand}.${ext}`;
-              const { error: upErr } = await supabase.storage
-                .from("case-files")
-                .upload(path, file, { cacheControl: "3600", upsert: false });
-              if (upErr) return `${file.name}: ${upErr.message}`;
-              const r = await addCaseAttachment(caseId, path, file.name, file.type);
-              return r.ok ? null : `${file.name}: ${r.error}`;
-            })
-          )
-        ).filter(Boolean);
-        setUploading(false);
-        if (errors.length > 0)
-          alert("แนบไฟล์ไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
+        // try/finally: a thrown network error must not leave the dialog stuck
+        // on "uploading" with the save half-done.
+        try {
+          const supabase = createClient();
+          const errors = (
+            await Promise.all(
+              newFiles.map(async (original) => {
+                try {
+                  // Photos of a fault are the bulk of what gets attached;
+                  // anything that is not an image comes back untouched.
+                  const file = await shrinkImage(original);
+                  const ext = file.name.split(".").pop() || "bin";
+                  const rand = Math.random().toString(36).slice(2, 8);
+                  const path = `${orgId}/${caseId}/${Date.now()}-${rand}.${ext}`;
+                  const { error: upErr } = await supabase.storage
+                    .from("case-files")
+                    .upload(path, file, { cacheControl: "3600", upsert: false });
+                  if (upErr) return `${file.name}: ${upErr.message}`;
+                  const r = await addCaseAttachment(caseId, path, file.name, file.type);
+                  return r.ok ? null : `${file.name}: ${r.error}`;
+                } catch (e) {
+                  return `${original.name}: ${e instanceof Error ? e.message : "อัปโหลดล้มเหลว"}`;
+                }
+              })
+            )
+          ).filter(Boolean);
+          if (errors.length > 0)
+            alert("แนบไฟล์ไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
+        } finally {
+          setUploading(false);
+        }
       }
 
       setNewFiles([]);

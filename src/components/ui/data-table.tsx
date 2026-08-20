@@ -99,6 +99,15 @@ export function useDataTable<T>(
   const [page, setPage] = useState(1);
   const [pageSize, setSize] = useState(pageSizes[0]);
 
+  // When the incoming row set itself changes size (a search narrowed it, the
+  // search was cleared), start from page 1 — otherwise clearing a query would
+  // silently drop the reader back on page 7 of the unfiltered list.
+  const [prevRowCount, setPrevRowCount] = useState(rows.length);
+  if (prevRowCount !== rows.length) {
+    setPrevRowCount(rows.length);
+    setPage(1);
+  }
+
   const colByKey = useMemo(
     () => new Map(columns.map((c) => [c.key, c])),
     [columns]
@@ -409,9 +418,29 @@ function ColumnFilter<T>({
   const base =
     "w-full rounded-md border border-border bg-background px-2 py-1 text-xs font-normal";
 
-  if (!col.filter) return null;
+  // Memoized: deriving distinct values walks every source row (with Thai
+  // collation on the sort), and this used to re-run for every select column
+  // on every keystroke in a neighbouring text filter.
+  const filter = col.filter;
+  const options = useMemo(() => {
+    if (!filter || filter.kind !== "select") return [];
+    if (filter.options) return filter.options;
+    const acc = filter.accessor;
+    const set = new Set<string>();
+    for (const r of sourceRows) {
+      const v = acc(r);
+      if (Array.isArray(v)) v.forEach((x) => x && set.add(x));
+      else if (v) set.add(v);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "th")).map((v) => ({
+      value: v,
+      label: v,
+    }));
+  }, [filter, sourceRows]);
 
-  if (col.filter.kind === "text") {
+  if (!filter) return null;
+
+  if (filter.kind === "text") {
     return (
       <input
         value={value}
@@ -421,23 +450,6 @@ function ColumnFilter<T>({
       />
     );
   }
-
-  // select: use explicit options, else derive distinct values from the data
-  const acc = col.filter.accessor;
-  const options =
-    col.filter.options ??
-    (() => {
-      const set = new Set<string>();
-      for (const r of sourceRows) {
-        const v = acc(r);
-        if (Array.isArray(v)) v.forEach((x) => x && set.add(x));
-        else if (v) set.add(v);
-      }
-      return [...set].sort((a, b) => a.localeCompare(b, "th")).map((v) => ({
-        value: v,
-        label: v,
-      }));
-    })();
 
   // A column like "นิติบุคคล" derives one option per distinct value, which on
   // this data is hundreds — scrolling a native dropdown to find one is the same

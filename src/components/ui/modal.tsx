@@ -39,26 +39,35 @@ export function Modal({
     setConfirming(false);
   }
 
-  const requestClose = React.useCallback(() => {
+  function requestClose() {
     if (touched) setConfirming(true);
     else onClose();
-  }, [touched, onClose]);
+  }
+
+  // An effect event reads the latest touched/confirming without putting them
+  // in the deps — the keydown listener and the body overflow are set up once
+  // per open, not torn down and rebuilt on every keystroke in the form.
+  const onEscape = React.useEffectEvent(() => {
+    // While the question is up, Escape answers it rather than closing behind it.
+    if (confirming) setConfirming(false);
+    else if (touched) setConfirming(true);
+    else onClose();
+  });
 
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      // While the question is up, Escape answers it rather than closing behind it.
-      if (confirming) setConfirming(false);
-      else requestClose();
+      if (e.key === "Escape") onEscape();
     };
     document.addEventListener("keydown", onKey);
+    // Restore whatever was there before — another overlay may own it too.
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
+      document.body.style.overflow = prevOverflow;
     };
-  }, [open, confirming, requestClose]);
+  }, [open]);
 
   React.useEffect(() => {
     const el = panelRef.current;

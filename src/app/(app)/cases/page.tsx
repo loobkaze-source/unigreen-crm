@@ -54,7 +54,7 @@ export default async function CasesPage({
       fetchAllRes(() =>
         supabase
           .from("contacts")
-          .select("id, first_name, last_name")
+          .select("id, first_name, last_name, company_id")
           .eq("org_id", org.id)
           .order("first_name")
           .order("id")
@@ -160,6 +160,7 @@ export default async function CasesPage({
       contacts={(contacts ?? []).map((c) => ({
         id: c.id,
         name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+        company_id: (c.company_id as string) ?? null,
       }))}
       sites={sites}
       assets={assets.map((a) => ({

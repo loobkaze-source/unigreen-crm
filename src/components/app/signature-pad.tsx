@@ -127,13 +127,15 @@ export function SignaturePad({
     const c = canvasRef.current;
     if (!c || saving) return;
     setSaving(true);
-    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
-    if (!blob) {
+    // try/finally: if onSave throws (network drop on site), the button must
+    // not stay stuck on "กำลังบันทึก…" with the pad unusable.
+    try {
+      const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
+      if (!blob) return;
+      await onSave(blob, name);
+    } finally {
       setSaving(false);
-      return;
     }
-    await onSave(blob, name);
-    setSaving(false);
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -80,6 +80,12 @@ function dayBounds() {
   return { start, end };
 }
 
+/** Wakes the day-key store once a minute so a date flip is noticed. */
+function subscribeToDayChange(onChange: () => void) {
+  const t = setInterval(onChange, 60_000);
+  return () => clearInterval(t);
+}
+
 export function MyJobsView({
   jobs,
   technicianName,
@@ -104,16 +110,22 @@ export function MyJobsView({
   async function saveSignature(png: Blob, signedBy: string) {
     const job = signing;
     if (!job) return;
-    const rand = Math.random().toString(36).slice(2, 8);
-    const path = `${orgId}/${job.id}/signature-${Date.now()}-${rand}.png`;
-    const { error } = await createClient()
-      .storage.from("wo-photos")
-      .upload(path, png, { cacheControl: "3600", upsert: false });
-    if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
-    const res = await saveWorkOrderSignature(job.id, path, signedBy);
-    if (!res.ok) return alert(res.error);
-    setSigning(null);
-    router.refresh();
+    try {
+      const rand = Math.random().toString(36).slice(2, 8);
+      const path = `${orgId}/${job.id}/signature-${Date.now()}-${rand}.png`;
+      const { error } = await createClient()
+        .storage.from("wo-photos")
+        .upload(path, png, { cacheControl: "3600", upsert: false });
+      if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
+      const res = await saveWorkOrderSignature(job.id, path, signedBy);
+      if (!res.ok) return alert(res.error);
+      setSigning(null);
+      router.refresh();
+    } catch (e) {
+      // On site data a thrown fetch error is normal life — surface it instead
+      // of leaving the pad's save button stuck.
+      alert("บันทึกลายเซ็นไม่สำเร็จ: " + (e instanceof Error ? e.message : "ลองใหม่อีกครั้ง"));
+    }
   }
 
   // Which buckets are shown. All on by default; tapping a chip filters it out.
@@ -128,6 +140,14 @@ export function MyJobsView({
   }, [jobs]);
 
   const visible = useMemo(() => jobs.filter((j) => shown.includes(catOf(j))), [jobs, shown]);
+
+  // The phone this page lives on stays open overnight: watch for the date
+  // flipping so "วันนี้" stops meaning yesterday. Checked once a minute.
+  const dayKey = useSyncExternalStore(
+    subscribeToDayChange,
+    () => new Date().toDateString(),
+    () => ""
+  );
 
   const groups = useMemo(() => {
     const { start, end } = dayBounds();
@@ -168,16 +188,26 @@ export function MyJobsView({
         tone: "text-muted-foreground",
         items: open.filter((j) => at(j) == null),
       },
-      {
-        key: "done",
-        label: "เสร็จแล้ว",
-        tone: "text-muted-foreground",
-        items: visible.filter((j) => DONE.includes(j.status)).slice(0, 20),
-      },
+      (() => {
+        const done = visible.filter((j) => DONE.includes(j.status));
+        return {
+          key: "done",
+          // Say when the list is a sample, or "20" under a chip saying 57
+          // reads as a bug.
+          label:
+            done.length > 20 ? `เสร็จแล้ว (20 ล่าสุดจาก ${done.length})` : "เสร็จแล้ว",
+          tone: "text-muted-foreground",
+          items: done.slice(0, 20),
+        };
+      })(),
     ].filter((g) => g.items.length > 0);
-  }, [visible]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dayKey re-runs this when the date flips
+  }, [visible, dayKey]);
 
   function run(job: Job, fn: () => Promise<{ ok: boolean; error?: string }>) {
+    // One action in flight at a time — tapping a second card used to clear the
+    // first card's spinner and reopen it to a double submit.
+    if (busyId) return;
     setBusyId(job.id);
     startTransition(async () => {
       const res = await fn();

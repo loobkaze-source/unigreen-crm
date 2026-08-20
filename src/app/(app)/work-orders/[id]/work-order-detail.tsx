@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -167,8 +167,10 @@ export function WorkOrderDetail({
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
-  // Which photo the full-screen viewer is showing (null = closed).
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  // Which photo the full-screen viewer is showing (null = closed). Held as the
+  // photo's id, not its index: a delete or reorder while the viewer is open
+  // must not silently slide it onto a different photo.
+  const [viewerId, setViewerId] = useState<string | null>(null);
 
   const [remark, setRemark] = useState(workOrder.technician_remark ?? "");
   function submitRemark() {
@@ -185,8 +187,13 @@ export function WorkOrderDetail({
   const { run, busy } = useBusyTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /** The assets on this job, in the order the picker lists them. */
-  const linkedAssets = assets.filter((a) => assetIds.includes(a.id));
+  /** The assets on this job, in the order the picker lists them. Memoized:
+   *  `assets` is every asset in the org, and this page re-renders per
+   *  keystroke in the remark box. */
+  const linkedAssets = useMemo(() => {
+    const ids = new Set(assetIds);
+    return assets.filter((a) => ids.has(a.id));
+  }, [assets, assetIds]);
 
   const s = statusMeta(workOrder.status);
   const p = priorityMeta(workOrder.priority);
@@ -228,35 +235,47 @@ export function WorkOrderDetail({
     setUploading(true);
     setUploadNote(chosen.length > 1 ? `กำลังย่อรูป ${chosen.length} รูป…` : "กำลังย่อรูป…");
 
-    // Shrunk before it goes anywhere: a camera photo is several MB and nothing
-    // in the app ever shows one larger than 1,600px.
-    const ready = await Promise.all(chosen.map((f) => shrinkImage(f)));
+    // try/finally: a thrown network error on flaky site data must not leave
+    // the button stuck on "กำลังอัปโหลด…" until a full page reload.
+    try {
+      // Shrunk before it goes anywhere: a camera photo is several MB and
+      // nothing in the app ever shows one larger than 1,600px.
+      const ready = await Promise.all(chosen.map((f) => shrinkImage(f)));
 
-    let done = 0;
-    setUploadNote(`กำลังอัปโหลด 0/${ready.length}`);
-    const supabase = createClient();
-    // Upload all files in parallel; collect failures into one alert.
-    const errors = (
-      await Promise.all(
-        ready.map(async (file, i) => {
-          const ext = file.name.split(".").pop() || "jpg";
-          const rand = Math.random().toString(36).slice(2, 8);
-          const path = `${orgId}/${workOrder.id}/${Date.now()}-${rand}.${ext}`;
-          const { error } = await supabase.storage
-            .from("wo-photos")
-            .upload(path, file, { cacheControl: "3600", upsert: false });
-          done++;
-          setUploadNote(`กำลังอัปโหลด ${done}/${ready.length}`);
-          if (error) return `${chosen[i].name}: ${error.message}`;
-          const res = await addWorkOrderPhoto(workOrder.id, path);
-          return res.ok ? null : `${chosen[i].name}: ${res.error}`;
-        })
-      )
-    ).filter(Boolean);
-    if (errors.length > 0) alert("อัปโหลดไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
-    setUploading(false);
-    setUploadNote("");
-    if (fileRef.current) fileRef.current.value = "";
+      let done = 0;
+      setUploadNote(`กำลังอัปโหลด 0/${ready.length}`);
+      const supabase = createClient();
+      // Upload all files in parallel; collect failures into one alert.
+      const errors = (
+        await Promise.all(
+          ready.map(async (file, i) => {
+            try {
+              const ext = file.name.split(".").pop() || "jpg";
+              const rand = Math.random().toString(36).slice(2, 8);
+              const path = `${orgId}/${workOrder.id}/${Date.now()}-${rand}.${ext}`;
+              const { error } = await supabase.storage
+                .from("wo-photos")
+                .upload(path, file, { cacheControl: "3600", upsert: false });
+              if (error) return `${chosen[i].name}: ${error.message}`;
+              const res = await addWorkOrderPhoto(workOrder.id, path);
+              return res.ok ? null : `${chosen[i].name}: ${res.error}`;
+            } catch (e) {
+              return `${chosen[i].name}: ${e instanceof Error ? e.message : "อัปโหลดล้มเหลว"}`;
+            } finally {
+              done++;
+              setUploadNote(`กำลังอัปโหลด ${done}/${ready.length}`);
+            }
+          })
+        )
+      ).filter(Boolean);
+      if (errors.length > 0) alert("อัปโหลดไม่สำเร็จบางไฟล์:\n" + errors.join("\n"));
+    } catch (e) {
+      alert("อัปโหลดไม่สำเร็จ: " + (e instanceof Error ? e.message : "ลองใหม่อีกครั้ง"));
+    } finally {
+      setUploading(false);
+      setUploadNote("");
+      if (fileRef.current) fileRef.current.value = "";
+    }
     router.refresh();
   }
 
@@ -281,9 +300,20 @@ export function WorkOrderDetail({
   function saveOrder(ids: string[]) {
     setOrder(ids);
     run("photoOrder", async () => {
-      const res = await reorderWorkOrderPhotos(workOrder.id, ids);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
+      try {
+        const res = await reorderWorkOrderPhotos(workOrder.id, ids);
+        if (!res.ok) {
+          alert(res.error);
+          // Roll the optimistic order back — the photo set didn't change, so
+          // the render-phase resync above would never fire on its own and the
+          // grid would keep an order the server rejected forever.
+          setOrder(photos.map((p) => p.id));
+        }
+      } catch {
+        alert("บันทึกลำดับรูปไม่สำเร็จ — ลองใหม่อีกครั้ง");
+        setOrder(photos.map((p) => p.id));
+      }
+      router.refresh();
     });
   }
   /** Drop `dragged` where `targetId` currently sits. */
@@ -308,16 +338,20 @@ export function WorkOrderDetail({
   const [signing, setSigning] = useState(false);
   /** Same route as a photo: the drawing goes straight to storage from here. */
   async function saveSignature(png: Blob, signedBy: string) {
-    const rand = Math.random().toString(36).slice(2, 8);
-    const path = `${orgId}/${workOrder.id}/signature-${Date.now()}-${rand}.png`;
-    const { error } = await createClient()
-      .storage.from("wo-photos")
-      .upload(path, png, { cacheControl: "3600", upsert: false });
-    if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
-    const res = await saveWorkOrderSignature(workOrder.id, path, signedBy);
-    if (!res.ok) return alert(res.error);
-    setSigning(false);
-    router.refresh();
+    try {
+      const rand = Math.random().toString(36).slice(2, 8);
+      const path = `${orgId}/${workOrder.id}/signature-${Date.now()}-${rand}.png`;
+      const { error } = await createClient()
+        .storage.from("wo-photos")
+        .upload(path, png, { cacheControl: "3600", upsert: false });
+      if (error) return alert(`บันทึกลายเซ็นไม่สำเร็จ: ${error.message}`);
+      const res = await saveWorkOrderSignature(workOrder.id, path, signedBy);
+      if (!res.ok) return alert(res.error);
+      setSigning(false);
+      router.refresh();
+    } catch (e) {
+      alert("บันทึกลายเซ็นไม่สำเร็จ: " + (e instanceof Error ? e.message : "ลองใหม่อีกครั้ง"));
+    }
   }
 
   function removePhoto(ph: PhotoWithUrl) {
@@ -509,8 +543,7 @@ export function WorkOrderDetail({
           emptyText="ยังไม่มีวัสดุที่ใช้ในงานนี้"
           source="material"
           parts={parts.filter((p) => p.source !== "store" && p.source !== "labor")}
-          assets={assets}
-          assetIds={assetIds}
+          linkedAssets={linkedAssets}
           workOrderId={workOrder.id}
           onChanged={() => router.refresh()}
         />
@@ -520,8 +553,7 @@ export function WorkOrderDetail({
           emptyText="ยังไม่มีการเบิกของจาก store สำหรับงานนี้"
           source="store"
           parts={parts.filter((p) => p.source === "store")}
-          assets={assets}
-          assetIds={assetIds}
+          linkedAssets={linkedAssets}
           workOrderId={workOrder.id}
           onChanged={() => router.refresh()}
         />
@@ -537,8 +569,7 @@ export function WorkOrderDetail({
           pricePlaceholder="ราคาต่อชั่วโมง (บาท)"
           perUnit="ชม."
           parts={parts.filter((p) => p.source === "labor")}
-          assets={assets}
-          assetIds={assetIds}
+          linkedAssets={linkedAssets}
           workOrderId={workOrder.id}
           onChanged={() => router.refresh()}
         />
@@ -614,7 +645,7 @@ export function WorkOrderDetail({
                   >
                     <button
                       type="button"
-                      onClick={() => setViewerIndex(i)}
+                      onClick={() => setViewerId(ph.id)}
                       className="absolute inset-0"
                       aria-label="เปิดดูรูป"
                     >
@@ -756,9 +787,13 @@ export function WorkOrderDetail({
 
       <PhotoViewer
         photos={shownPhotos}
-        index={viewerIndex}
-        onClose={() => setViewerIndex(null)}
-        onIndexChange={setViewerIndex}
+        index={(() => {
+          if (viewerId === null) return null;
+          const i = shownPhotos.findIndex((p) => p.id === viewerId);
+          return i === -1 ? null : i;
+        })()}
+        onClose={() => setViewerId(null)}
+        onIndexChange={(i) => setViewerId(shownPhotos[i]?.id ?? null)}
       />
 
       {editing ? (
@@ -872,8 +907,7 @@ function PartsCard({
   pricePlaceholder = "ราคาต่อหน่วย (บาท)",
   perUnit = "หน่วย",
   parts,
-  assets,
-  assetIds,
+  linkedAssets,
   workOrderId,
   onChanged,
 }: {
@@ -887,8 +921,8 @@ function PartsCard({
   pricePlaceholder?: string;
   perUnit?: string;
   parts: PartRow[];
-  assets: AssetOption[];
-  assetIds: string[];
+  /** Only the assets on this job — the picker and labels never need more. */
+  linkedAssets: AssetOption[];
   workOrderId: string;
   onChanged: () => void;
 }) {
@@ -947,7 +981,7 @@ function PartsCard({
       <CardContent>
         <div className="space-y-1">
           {parts.map((part) => {
-            const asset = assets.find((a) => a.id === part.equipment_id);
+            const asset = linkedAssets.find((a) => a.id === part.equipment_id);
             return (
               <div
                 key={part.id}
@@ -1051,13 +1085,11 @@ function PartsCard({
               aria-label="Asset ที่เกี่ยวข้อง"
             >
               <option value="">— ไม่ระบุ Asset —</option>
-              {assets
-                .filter((a) => assetIds.includes(a.id))
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
+              {linkedAssets.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
             </Select>
             <Button type="submit" disabled={busy("add")}>
               {busy("add") ? (

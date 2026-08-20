@@ -70,8 +70,14 @@ export function Combobox({
   /** How many matches get rendered; the rest are reachable by typing more. */
   const VISIBLE = 100;
   const typed = query.trim();
+  // Checked against values as well as labels: the synthetic row's value is the
+  // typed text, and a collision with a real option doubles a React key.
   const isNew =
-    allowCustom && typed !== "" && !options.some((o) => o.label.toLowerCase() === typed.toLowerCase());
+    allowCustom &&
+    typed !== "" &&
+    !options.some(
+      (o) => o.label.toLowerCase() === typed.toLowerCase() || o.value === typed
+    );
   const shown = [
     ...(isNew ? [{ value: typed, label: typed, hint: "ใช้ค่าที่พิมพ์" }] : []),
     ...matches.slice(0, VISIBLE),
@@ -88,9 +94,11 @@ export function Combobox({
   }, [open]);
 
   // Keep the highlighted row in view while arrowing through a long list.
+  // Guarded on `open`: firing while closed can scroll the surrounding modal.
   React.useEffect(() => {
+    if (!open) return;
     listRef.current?.children[active]?.scrollIntoView({ block: "nearest" });
-  }, [active]);
+  }, [active, open, shown.length]);
 
   function openList() {
     if (disabled) return;

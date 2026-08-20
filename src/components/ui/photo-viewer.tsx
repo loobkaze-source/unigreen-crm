@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
 
@@ -25,22 +25,23 @@ export function PhotoViewer({
 }) {
   const open = index !== null && index >= 0 && index < photos.length;
 
-  const step = useCallback(
-    (delta: number) => {
-      if (index === null) return;
-      const next = (index + delta + photos.length) % photos.length;
-      onIndexChange(next);
-    },
-    [index, photos.length, onIndexChange]
-  );
+  function step(delta: number) {
+    if (index === null) return;
+    const next = (index + delta + photos.length) % photos.length;
+    onIndexChange(next);
+  }
+
+  // Effect event: the listener reads the latest index/handlers without the
+  // effect re-registering (and re-writing body overflow) on every photo step.
+  const onKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === "Escape") onClose();
+    if (e.key === "ArrowRight") step(1);
+    if (e.key === "ArrowLeft") step(-1);
+  });
 
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowRight") step(1);
-      if (e.key === "ArrowLeft") step(-1);
-    }
+    const onKey = (e: KeyboardEvent) => onKeyDown(e);
     window.addEventListener("keydown", onKey);
     // Stop the page behind from scrolling while the viewer is up.
     const prev = document.body.style.overflow;
@@ -49,7 +50,7 @@ export function PhotoViewer({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose, step]);
+  }, [open]);
 
   if (!open) return null;
   const photo = photos[index];

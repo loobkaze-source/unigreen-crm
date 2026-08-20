@@ -99,9 +99,19 @@ export function AppShell({
     : [];
   const tabBar = tabCandidates.length > 1 ? tabCandidates : [];
 
-  const [settingsOpen, setSettingsOpen] = useState(
-    () => pathname.startsWith("/users") || pathname.startsWith("/settings")
-  );
+  const inSettings = pathname.startsWith("/users") || pathname.startsWith("/settings");
+  const [settingsOpen, setSettingsOpen] = useState(inSettings);
+
+  // On every route change: close the mobile drawer (links in the tab bar and
+  // programmatic redirects don't run the sidebar links' onClick), and unfold
+  // the settings submenu when the destination lives inside it — otherwise the
+  // current page would have no highlighted entry.
+  const [prevPath, setPrevPath] = useState(pathname);
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
+    if (open) setOpen(false);
+    if (inSettings && !settingsOpen) setSettingsOpen(true);
+  }
 
   const blocked = isTechnician && !isTechnicianAllowed(pathname);
 

@@ -341,26 +341,52 @@ export function WorkOrderModal({
     setForm((f) => withCase(f, c, sites, contacts));
   }
 
-  const visibleSites = form.company_id
-    ? sites.filter((s) => s.company_id === form.company_id || s.id === form.site_id)
-    : sites;
-  const visibleContacts = form.company_id
-    ? contacts.filter((c) => c.company_id === form.company_id || c.id === form.contact_id)
-    : contacts;
-  const visibleCases = form.company_id
-    ? cases.filter((c) => c.company_id === form.company_id || c.id === form.case_id)
-    : cases;
-  const visibleContracts = form.company_id
-    ? contracts.filter((c) => c.company_id === form.company_id || c.id === form.contract_id)
-    : contracts;
-  const visibleAssets = assets.filter(
-    (a) => (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
+  // Memoized as Combobox option arrays: these walk org-sized lists (sites
+  // alone is thousands of rows), and without stable identities every
+  // keystroke in the title box re-filtered all five and invalidated the
+  // Combobox's own memos on top.
+  const siteOptions = useMemo(() => {
+    const list = form.company_id
+      ? sites.filter((s) => s.company_id === form.company_id || s.id === form.site_id)
+      : sites;
+    return list.map((s) => ({ value: s.id, label: s.name }));
+  }, [sites, form.company_id, form.site_id]);
+  const contactOptions = useMemo(() => {
+    const list = form.company_id
+      ? contacts.filter((c) => c.company_id === form.company_id || c.id === form.contact_id)
+      : contacts;
+    return list.map((c) => ({ value: c.id, label: c.name }));
+  }, [contacts, form.company_id, form.contact_id]);
+  const caseOptions = useMemo(() => {
+    const list = form.company_id
+      ? cases.filter((c) => c.company_id === form.company_id || c.id === form.case_id)
+      : cases;
+    return list.map((c) => ({ value: c.id, label: c.name }));
+  }, [cases, form.company_id, form.case_id]);
+  const contractOptions = useMemo(() => {
+    const list = form.company_id
+      ? contracts.filter((c) => c.company_id === form.company_id || c.id === form.contract_id)
+      : contracts;
+    return list.map((c) => ({ value: c.id, label: c.name }));
+  }, [contracts, form.company_id, form.contract_id]);
+  const technicianOptions = useMemo(
+    () => technicians.map((t) => ({ value: t.id, label: t.name })),
+    [technicians]
   );
-  const shownAssets = assetQuery.trim()
-    ? visibleAssets.filter((a) =>
-        a.name.toLowerCase().includes(assetQuery.trim().toLowerCase())
-      )
-    : visibleAssets;
+  const visibleAssets = useMemo(
+    () =>
+      assets.filter(
+        (a) =>
+          (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
+      ),
+    [assets, form.site_id, form.asset_ids]
+  );
+  const shownAssets = useMemo(() => {
+    const q = assetQuery.trim().toLowerCase();
+    return q
+      ? visibleAssets.filter((a) => a.name.toLowerCase().includes(q))
+      : visibleAssets;
+  }, [visibleAssets, assetQuery]);
   const allShownSelected =
     shownAssets.length > 0 && shownAssets.every((a) => form.asset_ids.includes(a.id));
 
@@ -459,7 +485,7 @@ export function WorkOrderModal({
               value={form.case_id}
               onChange={selectCase}
               placeholder="— เลือกเคส (ไม่ระบุก็ได้) —"
-              options={visibleCases.map((c) => ({ value: c.id, label: c.name }))}
+              options={caseOptions}
             />
           ) : (
             <Combobox
@@ -467,7 +493,7 @@ export function WorkOrderModal({
               value={form.contract_id}
               onChange={selectContract}
               placeholder="— เลือกสัญญาบริการ (ไม่ระบุก็ได้) —"
-              options={visibleContracts.map((c) => ({ value: c.id, label: c.name }))}
+              options={contractOptions}
             />
           )}
         </div>
@@ -548,7 +574,7 @@ export function WorkOrderModal({
               value={form.site_id}
               onChange={selectSite}
               placeholder={form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
-              options={visibleSites.map((s) => ({ value: s.id, label: s.name }))}
+              options={siteOptions}
             />
           </div>
           <div>
@@ -558,7 +584,7 @@ export function WorkOrderModal({
               value={form.contact_id}
               onChange={(v) => set("contact_id", v)}
               placeholder="— ไม่ระบุ —"
-              options={visibleContacts.map((c) => ({ value: c.id, label: c.name }))}
+              options={contactOptions}
             />
           </div>
         </div>
@@ -607,7 +633,7 @@ export function WorkOrderModal({
               value={form.technician_id}
               onChange={(v) => set("technician_id", v)}
               placeholder="— ยังไม่มอบหมาย —"
-              options={technicians.map((t) => ({ value: t.id, label: t.name }))}
+              options={technicianOptions}
             />
           </div>
         </div>
