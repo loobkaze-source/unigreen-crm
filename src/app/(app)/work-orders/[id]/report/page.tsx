@@ -28,7 +28,8 @@ export default async function ServiceReportPage({
   );
   if (!workOrder) notFound();
 
-  const [companyRes, siteRes, contactRes, techRes, linkRes, partsRes] = await Promise.all([
+  const [companyRes, siteRes, contactRes, techRes, linkRes, crewRes, photoRes, partsRes] =
+    await Promise.all([
     workOrder.company_id
       ? supabase.from("companies").select("name, address").eq("id", workOrder.company_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
@@ -50,12 +51,23 @@ export default async function ServiceReportPage({
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     supabase.from("work_order_assets").select("equipment_id").eq("work_order_id", id),
+    // Everyone who was there, and everything they photographed.
+    supabase
+      .from("work_order_technicians")
+      .select("technician_id")
+      .eq("work_order_id", id)
+      .order("created_at"),
+    supabase
+      .from("work_order_photos")
+      .select("id, path, caption")
+      .eq("work_order_id", id)
+      .order("created_at"),
     supabase
       .from("work_order_parts")
       .select("id, name, qty, unit, unit_price, source")
       .eq("work_order_id", id)
       .order("created_at"),
-  ]);
+    ]);
 
   const equipmentIds = rows(linkRes).map((r) => r.equipment_id as string);
   const assetsRes = equipmentIds.length
@@ -73,6 +85,16 @@ export default async function ServiceReportPage({
     unitPrice: p.unit_price == null ? null : Number(p.unit_price),
     source: (p.source as string) ?? "material",
   }));
+
+  const crewIds = rows(crewRes).map((r) => r.technician_id as string);
+  const crewRows = crewIds.length
+    ? await supabase.from("technicians").select("id, name, nickname").in("id", crewIds)
+    : { data: [], error: null };
+  // In the order they were added, which is the order the report lists them.
+  const crew = crewIds
+    .map((cid) => rows(crewRows).find((t) => t.id === cid))
+    .filter(Boolean)
+    .map((t) => ((t!.name as string) || (t!.nickname as string)) ?? "");
 
   const contact = contactRes.data;
   return (
@@ -95,6 +117,12 @@ export default async function ServiceReportPage({
         serial: ((a.serial_number as string) || (a.project_number as string) || "") as string,
       }))}
       parts={parts}
+      crew={crew}
+      photos={rows(photoRes).map((p) => ({
+        id: p.id as string,
+        url: `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${p.path}`,
+        caption: (p.caption as string) ?? "",
+      }))}
       signatureUrl={
         workOrder.signature_path
           ? `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${workOrder.signature_path}`

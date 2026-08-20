@@ -28,16 +28,37 @@ const TICKS: { no: number; label: string; en: string; group: "billing" | "kind";
 const baht = (n: number) =>
   n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/**
+ * Rendered on the server, where the clock is UTC — so the zone is named rather
+ * than left to the machine. A visit that ran to 23:57 in Bangkok printed as
+ * 16:57 without it, and a late-evening job printed yesterday's date.
+ */
+const TZ = "Asia/Bangkok";
 const dmy = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+  iso
+    ? new Date(iso).toLocaleDateString("th-TH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+        timeZone: TZ,
+      })
+    : "";
 const hm = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+  iso
+    ? new Date(iso).toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: TZ,
+      })
+    : "";
 
+/** h:mm — "0.16" read as a decimal is ten minutes short of what it means. */
 function hoursBetween(a: string | null, b: string | null) {
   if (!a || !b) return "";
   const mins = Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000);
   if (!Number.isFinite(mins) || mins < 0) return "";
-  return `${Math.floor(mins / 60)}.${String(mins % 60).padStart(2, "0")}`;
+  return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
 }
 
 function Tick({ on }: { on: boolean }) {
@@ -67,6 +88,8 @@ export function ServiceReport({
   technicianName,
   assets,
   parts,
+  crew,
+  photos,
   signatureUrl,
 }: {
   company: typeof COMPANY;
@@ -77,6 +100,9 @@ export function ServiceReport({
   technicianName: string;
   assets: { name: string; model: string; serial: string }[];
   parts: Part[];
+  /** Everyone who was on site, in the order they were added. */
+  crew: string[];
+  photos: { id: string; url: string; caption: string }[];
   signatureUrl: string | null;
 }) {
   const materials = parts.filter((p) => p.source !== "labor");
@@ -204,7 +230,15 @@ export function ServiceReport({
             <span className="shrink-0">15. DESCRIPTION OF WORK</span>
             <span className="flex-1 border-b border-dotted border-black" />
           </div>
-          <div className="min-h-[26mm] whitespace-pre-line pt-[1mm]">
+          {/* The codes are what a year of these gets counted by, so they print
+              with the work rather than being left in the system. */}
+          <div className="mt-[1mm] grid grid-cols-2 gap-x-[3mm]">
+            <Field label="รหัสอาการเสีย" value={(w.fault_codes ?? []).join(", ")} />
+            <Field label="รหัสซ่อม" value={(w.repair_codes ?? []).join(", ")} />
+            <Field label="สาเหตุของปัญหา" value={(w.causes ?? []).join(", ")} />
+            <Field label="วิธีการแก้ไข" value={w.remedy ?? ""} />
+          </div>
+          <div className="min-h-[20mm] whitespace-pre-line pt-[1.5mm]">
             {w.technician_remark || w.description || ""}
           </div>
         </div>
@@ -295,7 +329,16 @@ export function ServiceReport({
             <div className="mt-[2mm] flex gap-1">
               <Field label="พนักงานบริการ/CUSTOMER SERVICE" value={technicianName} className="flex-1" />
             </div>
-            <Field label="วันที่/DATE" value={dmy(w.finished_at ?? w.started_at)} className="mt-[1mm] w-[40mm]" />
+            <Field
+              label="วันที่/DATE"
+              value={dmy(w.finished_at ?? w.started_at)}
+              className="mt-[1mm] w-[40mm]"
+            />
+            {crew.length ? (
+              <div className="mt-[1mm]">
+                ช่างที่เข้าหน้างาน: {crew.map((n, i) => `${i + 1}. ${n}`).join("  ")}
+              </div>
+            ) : null}
           </div>
 
           <div className="w-1/2 p-[2mm]">
@@ -322,6 +365,33 @@ export function ServiceReport({
           {company.footnote}
         </div>
       </div>
+
+      {/* Page two: what the visit looked like. Kept off the first sheet because
+          the first sheet is the one that gets signed and filed, and a customer
+          reading it should not have to turn past photographs to reach it. */}
+      {photos.length ? (
+        <div className="mx-auto mt-[6mm] w-[194mm] border border-black bg-white text-[2.9mm] text-black print:mt-0 print:w-full print:break-before-page">
+          <div className="flex items-baseline justify-between border-b border-black p-[2mm]">
+            <div className="font-bold">รูปหน้างาน / SITE PHOTOS</div>
+            <div>
+              {woCode(w)} · {customerName}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-[3mm] p-[3mm]">
+            {photos.map((p) => (
+              <div key={p.id} className="break-inside-avoid">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.url}
+                  alt={p.caption || "รูปหน้างาน"}
+                  className="h-[62mm] w-full border border-black object-contain"
+                />
+                {p.caption ? <div className="pt-[1mm]">{p.caption}</div> : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
