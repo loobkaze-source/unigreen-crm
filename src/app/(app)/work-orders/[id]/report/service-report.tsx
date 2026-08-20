@@ -158,6 +158,12 @@ export function ServiceReport({
         .report-sheet, .report-sheet * { border-color: #000; }
         @media print {
           .report-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /*
+           * Printing backgrounds has to be on for the sheet to keep its own,
+           * and with it on the app's page colour prints too — across every
+           * inch of paper the sheet does not cover. The page is white here.
+           */
+          html, body { background: #fff !important; }
         }
       `}</style>
 
