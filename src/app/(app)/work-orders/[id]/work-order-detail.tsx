@@ -742,6 +742,38 @@ export function WorkOrderDetail({
         </Card>
       </div>
 
+      {/* The last thing that happens on the job, at the end of the page it
+          happens on. Same rule as งานของฉัน: unsigned, it leads to the pad
+          rather than refusing, because that is the step it is waiting on. */}
+      {workOrder.status === "completed" || workOrder.status === "cancelled" ? null : (
+        <button
+          type="button"
+          disabled={busy("status")}
+          onClick={() =>
+            workOrder.signature_path ? changeStatus("completed") : setSigning(true)
+          }
+          className={cn(
+            "mt-6 flex w-full items-center justify-center gap-2 rounded-lg py-4 text-base font-semibold text-white shadow-sm disabled:opacity-50",
+            workOrder.signature_path
+              ? "bg-emerald-600 active:bg-emerald-700 hover:bg-emerald-700"
+              : "bg-slate-500 active:bg-slate-600 hover:bg-slate-600"
+          )}
+        >
+          {busy("status") ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : workOrder.signature_path ? (
+            <CheckCircle2 className="h-5 w-5" />
+          ) : (
+            <PenLine className="h-5 w-5" />
+          )}
+          {busy("status")
+            ? "กำลังบันทึก…"
+            : workOrder.signature_path
+              ? "ปิดงาน"
+              : "ขอลายเซ็นก่อนปิดงาน"}
+        </button>
+      )}
+
       <SignaturePad
         open={signing}
         onClose={() => setSigning(false)}
