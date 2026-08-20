@@ -238,7 +238,13 @@ export function ServiceReport({
             <Field label="สาเหตุของปัญหา" value={(w.causes ?? []).join(", ")} />
             <Field label="วิธีการแก้ไข" value={w.remedy ?? ""} />
           </div>
-          <div className="min-h-[20mm] whitespace-pre-line pt-[1.5mm]">
+          {/* The technician's own words, under their own heading — run straight
+              on under the codes they read as a caption to them. */}
+          <div className="mt-[1.5mm] flex items-baseline gap-1">
+            <span className="shrink-0 font-semibold">หมายเหตุของช่าง/TECHNICIAN REMARK</span>
+            <span className="flex-1 border-b border-dotted border-black" />
+          </div>
+          <div className="min-h-[18mm] whitespace-pre-line pt-[1mm]">
             {w.technician_remark || w.description || ""}
           </div>
         </div>
