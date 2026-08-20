@@ -14,6 +14,7 @@ import {
   ImagePlus,
   Loader2,
   PenLine,
+  Printer,
   MapPin,
   Pencil,
   Plus,
@@ -334,6 +335,12 @@ export function WorkOrderDetail({
               </option>
             ))}
           </Select>
+          <Link
+            href={`/work-orders/${workOrder.id}/report`}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-4 text-sm font-medium shadow-sm hover:bg-muted"
+          >
+            <Printer className="h-4 w-4" /> พิมพ์รายงาน
+          </Link>
           {canEdit ? (
             <>
               <Button variant="secondary" onClick={() => setEditing(true)}>

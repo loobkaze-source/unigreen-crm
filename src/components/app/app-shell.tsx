@@ -110,7 +110,7 @@ export function AppShell({
   }, [blocked, router]);
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[256px_1fr]">
+    <div className="min-h-screen lg:grid lg:grid-cols-[256px_1fr] print:block">
       {/* Mobile backdrop */}
       {open ? (
         <div
@@ -122,7 +122,7 @@ export function AppShell({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform lg:static lg:translate-x-0 print:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -265,7 +265,7 @@ export function AppShell({
           do the scrolling themselves. */}
       <div className="flex min-h-screen min-w-0 flex-col">
         {/* Mobile top bar */}
-        <div className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 lg:hidden">
+        <div className="flex h-16 items-center gap-3 border-b border-border bg-card px-4 lg:hidden print:hidden">
           <button
             onClick={() => setOpen(true)}
             className="rounded-md p-2 text-muted-foreground hover:bg-muted"
@@ -292,7 +292,7 @@ export function AppShell({
 
         <main
           className={cn(
-            "min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8",
+            "min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 print:p-0",
             // Room for the fixed tab bar so the last row is never covered.
             tabBar.length > 0 && "pb-24 lg:pb-6"
           )}
@@ -304,7 +304,7 @@ export function AppShell({
       {/* Field-technician tab bar — phones and tablets only. */}
       {tabBar.length > 0 ? (
         <nav
-          className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden print:hidden"
           style={{ gridTemplateColumns: `repeat(${tabBar.length}, minmax(0, 1fr))` }}
         >
           {tabBar.map((item) => {
