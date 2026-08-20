@@ -139,8 +139,14 @@ export function WorkOrdersView({
       {
         key: "title",
         header: "เลขที่ / งาน",
-        sortAccessor: (w) => w.number,
-        filter: { kind: "text", accessor: (w) => w.title },
+        // Sorted and filtered by what the cell actually prints: the code people
+        // quote, the job's name, and whose it is. Filtering only the title left
+        // the column's own number unsearchable in the box under it.
+        sortAccessor: (w) => woCode(w),
+        filter: {
+          kind: "text",
+          accessor: (w) => `${woCode(w)} ${w.title} ${companyName(w.company_id) ?? ""}`,
+        },
       },
       {
         key: "type",
@@ -174,7 +180,7 @@ export function WorkOrdersView({
       },
       { key: "_actions", header: "" },
     ],
-    [techName, technicians]
+    [techName, technicians, companyName]
   );
   const table = useDataTable(filtered, columns, {
     initialSort: { key: "scheduled_start", dir: "desc" },
