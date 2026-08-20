@@ -74,6 +74,7 @@ export function CasesView({
   assets,
   caseAssets,
   supporters,
+  dispatchers,
   attachments,
   canManage,
   orgId,
@@ -87,6 +88,8 @@ export function CasesView({
   assets: AssetOption[];
   caseAssets: CaseAssetLink[];
   supporters: Option[];
+  /** Members holding the Dispatcher role — who a case can be assigned to. */
+  dispatchers: Option[];
   attachments: Attachment[];
   canManage: boolean;
   orgId: string;
@@ -555,11 +558,26 @@ export function CasesView({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="employee">ผู้รับผิดชอบ</Label>
-              <Input
+              <Combobox
                 id="employee"
                 value={form.employee}
-                onChange={(e) => setForm({ ...form, employee: e.target.value })}
+                onChange={(v) => setForm({ ...form, employee: v })}
+                placeholder="— ไม่ระบุ —"
+                options={[
+                  ...dispatchers.map((d) => ({ value: d.name, label: d.name })),
+                  // The column held free text before this was a list, so a name
+                  // already on the case stays choosable — otherwise editing that
+                  // case for any other reason would quietly clear it.
+                  ...(form.employee && !dispatchers.some((d) => d.name === form.employee)
+                    ? [{ value: form.employee, label: form.employee, hint: "ค่าเดิมในเคสนี้" }]
+                    : []),
+                ]}
               />
+              {dispatchers.length === 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  ยังไม่มีสมาชิก role Dispatcher — กำหนดได้ที่หน้าผู้ใช้
+                </p>
+              ) : null}
             </div>
             <div>
               <Label htmlFor="team">ทีม</Label>

@@ -63,9 +63,7 @@ export default async function CasesPage({
       supabase
         .from("organization_members")
         .select("user_id, app_roles")
-        .eq("org_id", org.id)
-        // A member can hold several roles, so match membership of the set.
-        .contains("app_roles", ["Technical Supporter"]),
+        .eq("org_id", org.id),
     ]);
 
   const cases = rows(casesRes);
@@ -75,13 +73,20 @@ export default async function CasesPage({
   const assets = rows(assetsRes);
   const members = rows(membersRes);
 
-  // Technical Supporter options (user_id -> profile name) + attachments for
-  // the listed cases.
-  const supporterIds = members.map((m) => m.user_id as string);
+  // Who can be named on a case (user_id -> profile name), plus attachments for
+  // the listed cases. A member holds a set of roles, so ask whether the role is
+  // in it rather than whether it is the one.
+  const holding = (role: string) =>
+    members
+      .filter((m) => ((m.app_roles as string[]) ?? []).includes(role))
+      .map((m) => m.user_id as string);
+  const supporterIds = holding("Technical Supporter");
+  const dispatcherIds = holding("Dispatcher");
+  const namedIds = [...new Set([...supporterIds, ...dispatcherIds])];
   const caseIds = cases.map((c) => c.id as string);
   const [profilesRes, attachmentsRes, caseAssetsRes] = await Promise.all([
-    supporterIds.length
-      ? supabase.from("profiles").select("id, full_name, email").in("id", supporterIds)
+    namedIds.length
+      ? supabase.from("profiles").select("id, full_name, email").in("id", namedIds)
       : Promise.resolve({ data: [], error: null }),
     caseIds.length
       ? supabase
@@ -98,10 +103,16 @@ export default async function CasesPage({
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  const supporters = (profilesRes.data ?? []).map((p) => ({
-    id: p.id as string,
-    name: (p.full_name as string) || (p.email as string) || "—",
-  }));
+  const nameOf = new Map(
+    (profilesRes.data ?? []).map((p) => [
+      p.id as string,
+      (p.full_name as string) || (p.email as string) || "—",
+    ])
+  );
+  const asOptions = (ids: string[]) =>
+    ids.map((id) => ({ id, name: nameOf.get(id) ?? "—" })).sort((a, b) => a.name.localeCompare(b.name, "th"));
+  const supporters = asOptions(supporterIds);
+  const dispatchers = asOptions(dispatcherIds);
   const attachments = (attachmentsRes.data ?? []).map((a) => ({
     id: a.id as string,
     case_id: a.case_id as string,
@@ -135,6 +146,7 @@ export default async function CasesPage({
       }))}
       caseAssets={caseAssets}
       supporters={supporters}
+      dispatchers={dispatchers}
       attachments={attachments}
       canManage={canManage}
       orgId={org.id}
