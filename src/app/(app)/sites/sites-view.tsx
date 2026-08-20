@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Cpu, MapPin, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import type { Site } from "@/lib/database.types";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +24,27 @@ import {
 import { saveSite, deleteSite } from "./actions";
 
 type Option = { id: string; name: string };
-type SiteRow = Site & { equipmentCount: number };
+
+/** Every machine kind / brand / model in use, shared by all the site rows. */
+export type AssetVocab = { kinds: string[]; brands: string[]; models: string[] };
+/** The three things a site can be narrowed by what it holds. */
+type Facet = keyof AssetVocab;
+const FACETS: { key: Facet; label: string }[] = [
+  { key: "kinds", label: "ชนิดเครื่อง" },
+  { key: "brands", label: "ยี่ห้อ" },
+  { key: "models", label: "รุ่น" },
+];
+
+/**
+ * `kinds` / `brands` / `models` hold indices into AssetVocab rather than the
+ * names themselves — see the encoder in page.tsx for why.
+ */
+type SiteRow = Site & {
+  equipmentCount: number;
+  kinds: number[];
+  brands: number[];
+  models: number[];
+};
 
 const EMPTY = {
   name: "",
@@ -34,17 +55,23 @@ const EMPTY = {
   notes: "",
 };
 
+/** Chosen facet values, each an index into its vocabulary; "" is no filter. */
+const NO_ASSET_FILTER: Record<Facet, string> = { kinds: "", brands: "", models: "" };
+
 export function SitesView({
   sites,
+  assetVocab,
   companies,
   contacts,
 }: {
   sites: SiteRow[];
+  assetVocab: AssetVocab;
   companies: Option[];
   contacts: Option[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [asset, setAsset] = useState(NO_ASSET_FILTER);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Site | null>(null);
   const [form, setForm] = useState(EMPTY);
@@ -56,15 +83,41 @@ export function SitesView({
     return (id: string | null) => (id ? m.get(id) ?? "—" : "—");
   }, [companies]);
 
+  /** How many sites hold each value, shown beside it in the filter list. */
+  const siteCounts = useMemo(() => {
+    const tally = (facet: Facet) => {
+      const n = new Array<number>(assetVocab[facet].length).fill(0);
+      for (const s of sites) for (const i of s[facet]) n[i]++;
+      return n;
+    };
+    return { kinds: tally("kinds"), brands: tally("brands"), models: tally("models") };
+  }, [sites, assetVocab]);
+
+  const kindsAt = useMemo(
+    () => (s: SiteRow) => s.kinds.map((i) => assetVocab.kinds[i]).join(", "),
+    [assetVocab]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return sites;
-    return sites.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.address || "").toLowerCase().includes(q)
-    );
-  }, [sites, query]);
+    // "" is no filter, and -1 is the one index no site can hold.
+    const want = (f: Facet) => (asset[f] === "" ? -1 : Number(asset[f]));
+    const kind = want("kinds");
+    const brand = want("brands");
+    const model = want("models");
+    return sites.filter((s) => {
+      if (
+        q &&
+        !s.name.toLowerCase().includes(q) &&
+        !(s.address || "").toLowerCase().includes(q)
+      )
+        return false;
+      if (kind >= 0 && !s.kinds.includes(kind)) return false;
+      if (brand >= 0 && !s.brands.includes(brand)) return false;
+      if (model >= 0 && !s.models.includes(model)) return false;
+      return true;
+    });
+  }, [sites, query, asset]);
 
   const columns = useMemo<ColumnDef<SiteRow>[]>(
     () => [
@@ -158,6 +211,25 @@ export function SitesView({
             className="pl-9"
           />
         </div>
+        {FACETS.map(({ key, label }) =>
+          assetVocab[key].length ? (
+            <Combobox
+              key={key}
+              className={cn(
+                "w-44",
+                asset[key] && "[&>button]:border-primary [&>button]:bg-accent"
+              )}
+              value={asset[key]}
+              onChange={(v) => setAsset((a) => ({ ...a, [key]: v }))}
+              placeholder={label}
+              options={assetVocab[key].map((name, i) => ({
+                value: String(i),
+                label: name,
+                hint: `${siteCounts[key][i].toLocaleString("th-TH")} ไซต์`,
+              }))}
+            />
+          ) : null
+        )}
         <DataTableFilterToggle table={table} />
       </div>
 
@@ -166,7 +238,9 @@ export function SitesView({
           icon={MapPin}
           title={sites.length ? "ไม่พบรายการ" : "ยังไม่มีไซต์งาน"}
           description={
-            sites.length ? "ลองค้นด้วยคำอื่น" : "เพิ่มไซต์เพื่อจัดการอุปกรณ์และงานบริการตามสถานที่"
+            sites.length
+              ? "ลองค้นด้วยคำอื่น หรือล้างตัวกรองอุปกรณ์"
+              : "เพิ่มไซต์เพื่อจัดการอุปกรณ์และงานบริการตามสถานที่"
           }
           action={
             sites.length ? null : (
@@ -205,6 +279,11 @@ export function SitesView({
                     <span className="inline-flex items-center gap-1">
                       <Cpu className="h-3.5 w-3.5" /> {s.equipmentCount}
                     </span>
+                    {s.kinds.length ? (
+                      <div className="max-w-[15rem] truncate text-xs" title={kindsAt(s)}>
+                        {kindsAt(s)}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
