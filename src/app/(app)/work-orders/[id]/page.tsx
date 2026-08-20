@@ -58,7 +58,9 @@ export default async function WorkOrderDetailPage({
       .from("work_order_photos")
       .select("*")
       .eq("work_order_id", id)
-      .order("created_at", { ascending: false }),
+      // The order the technician arranged them in, then whatever arrived first.
+      .order("position")
+      .order("created_at"),
     supabase
       .from("work_order_parts")
       .select("id, name, qty, equipment_id, unit, unit_price, source")

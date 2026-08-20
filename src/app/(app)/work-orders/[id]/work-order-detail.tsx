@@ -11,6 +11,8 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ImagePlus,
   LifeBuoy,
   Loader2,
@@ -72,6 +74,7 @@ import {
   saveTechnicianRemark,
   saveWorkOrderSignature,
   saveWorkOrderPhotoCaption,
+  reorderWorkOrderPhotos,
   addWorkOrderPhoto,
   deleteWorkOrderPart,
   deleteWorkOrder,
@@ -255,6 +258,51 @@ export function WorkOrderDetail({
     setUploadNote("");
     if (fileRef.current) fileRef.current.value = "";
     router.refresh();
+  }
+
+  /**
+   * The order the photos are shown in, held here so a drag lands under the
+   * finger and the server catches up. Reset whenever the set of photos changes
+   * — one arrived, one went — but not when only their order does, which is the
+   * refresh that follows a drag of our own.
+   */
+  const [order, setOrder] = useState<string[]>(() => photos.map((p) => p.id));
+  const [orderKey, setOrderKey] = useState(() => photos.map((p) => p.id).join(","));
+  const serverKey = photos.map((p) => p.id).join(",");
+  if (orderKey !== serverKey) {
+    setOrderKey(serverKey);
+    setOrder(photos.map((p) => p.id));
+  }
+  const shownPhotos = order
+    .map((id) => photos.find((p) => p.id === id))
+    .filter((p): p is PhotoWithUrl => !!p);
+  const dragId = useRef<string | null>(null);
+
+  function saveOrder(ids: string[]) {
+    setOrder(ids);
+    run("photoOrder", async () => {
+      const res = await reorderWorkOrderPhotos(workOrder.id, ids);
+      if (!res.ok) alert(res.error);
+      else router.refresh();
+    });
+  }
+  /** Drop `dragged` where `targetId` currently sits. */
+  function dropOn(targetId: string) {
+    const from = dragId.current;
+    dragId.current = null;
+    if (!from || from === targetId) return;
+    const next = order.filter((id) => id !== from);
+    next.splice(next.indexOf(targetId), 0, from);
+    saveOrder(next);
+  }
+  /** The same move for a thumb: dragging works on a mouse, not on a phone. */
+  function nudge(id: string, delta: number) {
+    const i = order.indexOf(id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[i], next[j]] = [next[j], next[i]];
+    saveOrder(next);
   }
 
   const [signing, setSigning] = useState(false);
@@ -552,10 +600,17 @@ export function WorkOrderDetail({
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {photos.map((ph, i) => (
-                  <div key={ph.id}>
+                {shownPhotos.map((ph, i) => (
                   <div
-                    className="group relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
+                    key={ph.id}
+                    draggable
+                    onDragStart={() => (dragId.current = ph.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => dropOn(ph.id)}
+                    onDragEnd={() => (dragId.current = null)}
+                  >
+                  <div
+                    className="group relative aspect-square cursor-move overflow-hidden rounded-md border border-border bg-muted"
                   >
                     <button
                       type="button"
@@ -586,6 +641,28 @@ export function WorkOrderDetail({
                         <Trash2 className="h-3.5 w-3.5" />
                       )}
                     </button>
+                    {/* Dragging is a mouse; these are for the phone the
+                        photographs were taken on. */}
+                    <div className="absolute inset-x-1 bottom-1 flex justify-between opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => nudge(ph.id, -1)}
+                        disabled={i === 0 || busy("photoOrder")}
+                        aria-label="ย้ายไปก่อนหน้า"
+                        className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => nudge(ph.id, 1)}
+                        disabled={i === shownPhotos.length - 1 || busy("photoOrder")}
+                        aria-label="ย้ายไปถัดไป"
+                        className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
+                      >
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <PhotoCaption
                     photo={ph}
@@ -678,7 +755,7 @@ export function WorkOrderDetail({
       />
 
       <PhotoViewer
-        photos={photos}
+        photos={shownPhotos}
         index={viewerIndex}
         onClose={() => setViewerIndex(null)}
         onIndexChange={setViewerIndex}

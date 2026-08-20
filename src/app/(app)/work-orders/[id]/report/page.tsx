@@ -61,6 +61,7 @@ export default async function ServiceReportPage({
       .from("work_order_photos")
       .select("id, path, caption")
       .eq("work_order_id", id)
+      .order("position")
       .order("created_at"),
     supabase
       .from("work_order_parts")

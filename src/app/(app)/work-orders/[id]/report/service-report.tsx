@@ -148,6 +148,13 @@ export function ServiceReport({
 
       <style>{`
         @page { size: A4 portrait; margin: 8mm; }
+        /*
+         * globals.css sets border-color on every element, and an unlayered rule
+         * like that beats Tailwind's border-black — so the rules on this form
+         * were coming out in the app's own border colour, which on a dark
+         * screen is nearly invisible and on paper is a pale grey.
+         */
+        .report-sheet, .report-sheet * { border-color: #000; }
         @media print {
           .report-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }

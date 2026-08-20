@@ -593,6 +593,34 @@ export async function saveWorkOrderPhotoCaption(
   return ok();
 }
 
+/**
+ * The order the site photos are shown and printed in.
+ *
+ * Given the ids as they should read, so the client sends what it drew rather
+ * than a move to be replayed — two drags in quick succession then cannot land
+ * out of sequence and leave the list in an order nobody chose.
+ */
+export async function reorderWorkOrderPhotos(
+  workOrderId: string,
+  ids: string[]
+): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  const denied = await assertMayWork(ctx, workOrderId);
+  if (denied) return fail(denied);
+
+  for (const [position, id] of ids.entries()) {
+    const { error } = await ctx.supabase
+      .from("work_order_photos")
+      .update({ position })
+      .eq("id", id)
+      .eq("work_order_id", workOrderId)
+      .eq("org_id", ctx.org.id);
+    if (error) return fail(error.message);
+  }
+  revalidatePath(`/work-orders/${workOrderId}`);
+  return ok();
+}
+
 export async function deleteWorkOrderPhoto(
   id: string,
   path: string,

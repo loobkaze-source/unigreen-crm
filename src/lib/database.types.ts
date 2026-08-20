@@ -245,6 +245,8 @@ export interface WorkOrderItem extends Timestamps {
 
 export interface WorkOrderPhoto extends Timestamps {
   id: string;
+  /** Where it sits in the story the photos tell; lowest first. */
+  position: number;
   org_id: string;
   work_order_id: string;
   path: string;
