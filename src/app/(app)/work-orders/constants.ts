@@ -14,22 +14,22 @@ type Tone = "default" | "primary" | "success" | "warning" | "danger" | "info" | 
  * stored row; add to the list to offer another machine.
  */
 export const WO_TYPES: { value: WorkOrderType; label: string }[] = [
-  { value: "atg_fafnir", label: "ATG_ FAFNIR -DEll" },
+  { value: "atg", label: "ATG" },
   { value: "vru", label: "VRU" },
   { value: "hanging_part", label: "Hanging Part" },
   { value: "submersible_pump", label: "Submersible Pump" },
   { value: "diaphragm_pump", label: "Diaphragm Pump" },
   { value: "air_compressor", label: "Air Compressor" },
   { value: "double_wall_pipe", label: "Double-Wall Pipe" },
-  { value: "dispenser", label: "Dispensor" },
+  { value: "dispenser", label: "Dispenser" },
   { value: "pos", label: "POS" },
   { value: "ev_charger", label: "EV Charger" },
-  { value: "solar_battery", label: "Solar Cell& Battery" },
+  { value: "electrical", label: "Electrical" },
   { value: "water_pump", label: "Water Pump" },
 ];
 
 /** What a job opened before this list existed still shows. */
-export const DEFAULT_WO_TYPE: WorkOrderType = "atg_fafnir";
+export const DEFAULT_WO_TYPE: WorkOrderType = "atg";
 
 export const WO_STATUSES: { value: WorkOrderStatus; label: string; tone: Tone }[] = [
   { value: "new", label: "ใหม่", tone: "muted" },

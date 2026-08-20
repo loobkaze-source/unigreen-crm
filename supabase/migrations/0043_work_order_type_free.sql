@@ -16,7 +16,7 @@ alter table public.work_orders
   alter column type type text using type::text;
 
 alter table public.work_orders
-  alter column type set default 'atg_fafnir';
+  alter column type set default 'atg';
 
 -- Nothing else referenced it.
 drop type if exists public.work_order_type;
