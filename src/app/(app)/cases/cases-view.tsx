@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Box, FileText, LifeBuoy, Paperclip, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import {
+  Box,
+  FileText,
+  LifeBuoy,
+  Loader2,
+  Paperclip,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { createClient } from "@/lib/supabase/client";
 import { shrinkImage } from "@/lib/image";
@@ -32,6 +43,7 @@ import {
   deleteCase,
   addCaseAttachment,
   deleteCaseAttachment,
+  quickAddContact,
 } from "./actions";
 
 type Option = { id: string; name: string };
@@ -145,6 +157,39 @@ export function CasesView({
   // case has an id to attach to).
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // A contact added from this form, kept locally so the picker offers it the
+  // moment it exists rather than after the page has been round to the server.
+  const [extraContacts, setExtraContacts] = useState<Option[]>([]);
+  const [addingContact, setAddingContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [newContact, setNewContact] = useState({ name: "", phone: "" });
+
+  const contactOptions = useMemo(() => {
+    const seen = new Set(contacts.map((c) => c.id));
+    return [...contacts, ...extraContacts.filter((c) => !seen.has(c.id))];
+  }, [contacts, extraContacts]);
+
+  function addContact() {
+    const name = newContact.name.trim();
+    if (!name || savingContact) return;
+    setSavingContact(true);
+    startTransition(async () => {
+      const res = await quickAddContact({
+        name,
+        phone: newContact.phone,
+        company_id: form.company_id || null,
+      });
+      setSavingContact(false);
+      if (!res.ok) return alert(res.error);
+      const id = res.id;
+      if (!id) return;
+      setExtraContacts((xs) => [...xs, { id, name }]);
+      setForm((f) => ({ ...f, contact_id: id }));
+      setNewContact({ name: "", phone: "" });
+      setAddingContact(false);
+    });
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -663,14 +708,67 @@ export function CasesView({
               />
             </div>
             <div>
-              <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
+                <button
+                  type="button"
+                  onClick={() => setAddingContact((v) => !v)}
+                  className="text-xs font-medium text-primary active:opacity-70"
+                >
+                  {addingContact ? "ยกเลิก" : "+ เพิ่มผู้ติดต่อใหม่"}
+                </button>
+              </div>
               <Combobox
                 id="contact_id"
                 value={form.contact_id}
                 onChange={(v) => setForm({ ...form, contact_id: v })}
                 placeholder="— ไม่ระบุ —"
-                options={contacts.map((c) => ({ value: c.id, label: c.name }))}
+                options={contactOptions.map((c) => ({ value: c.id, label: c.name }))}
               />
+              {addingContact ? (
+                <div className="mt-2 space-y-2 rounded-md border border-dashed border-border p-2">
+                  <Input
+                    value={newContact.name}
+                    onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                    placeholder="ชื่อผู้ติดต่อ"
+                    // Enter here means "add this contact", not "save the case".
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addContact();
+                      }
+                    }}
+                  />
+                  <Input
+                    value={newContact.phone}
+                    onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                    placeholder="เบอร์โทร"
+                    inputMode="tel"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addContact();
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {form.company_id
+                        ? "จะผูกกับลูกค้าที่เลือกไว้"
+                        : "ยังไม่ได้เลือกลูกค้า — ผู้ติดต่อจะยังไม่ผูกกับบริษัทใด"}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={addContact}
+                      disabled={!newContact.name.trim() || savingContact}
+                    >
+                      {savingContact ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {savingContact ? "กำลังเพิ่ม…" : "เพิ่ม"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

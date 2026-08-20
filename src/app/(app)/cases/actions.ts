@@ -168,6 +168,49 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   return ok(created.id);
 }
 
+/**
+ * Creates a contact from a name and a phone number, and hands back its id.
+ *
+ * Whoever opens a case is usually on the phone to the person reporting the
+ * fault, and that person is regularly not in the CRM yet. Leaving a half-written
+ * case to go and add them properly is how the case stops getting written, so
+ * the two things anybody has to hand are enough. The rest of the record can be
+ * filled in from /contacts whenever somebody gets to it.
+ */
+export async function quickAddContact(input: {
+  name: string;
+  phone?: string;
+  company_id?: string | null;
+}): Promise<ActionResult> {
+  const ctx = await getSessionContext();
+  if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  const name = input.name?.trim();
+  if (!name) return fail("กรุณากรอกชื่อผู้ติดต่อ");
+
+  // The table keeps a first name and a last name; someone typing into a case
+  // form types one string, and the first space is the only split they mean.
+  const cut = name.indexOf(" ");
+  const first = cut === -1 ? name : name.slice(0, cut);
+  const last = cut === -1 ? null : name.slice(cut + 1).trim() || null;
+
+  const { data, error } = await ctx.supabase
+    .from("contacts")
+    .insert({
+      org_id: ctx.org.id,
+      first_name: first,
+      last_name: last,
+      phone: input.phone?.trim() || null,
+      company_id: input.company_id || null,
+    })
+    .select("id")
+    .single();
+  if (error) return fail(error.message);
+
+  revalidatePath("/contacts");
+  revalidatePath("/cases");
+  return ok(data.id as string);
+}
+
 export async function updateCaseStatus(
   id: string,
   status: CaseStatus
