@@ -34,6 +34,32 @@ export type ContractOption = {
   board_key: string | null;
 };
 
+/**
+ * The form as the contract would fill it in: whose it is and which site it
+ * covers. Not what the job is — a contract's own title ("สัญญาบำรุงรักษาโซลาร์
+ * 5 ปี — …") is a poor name for a single visit.
+ */
+function withContract(
+  f: typeof blank,
+  c: ContractOption,
+  sites: SiteOption[]
+): typeof blank {
+  const site = sites.find((x) => x.id === c.site_id) ?? null;
+  const site_id = site?.id ?? "";
+  const sameSite = site_id === f.site_id;
+  return {
+    ...f,
+    contract_id: c.id,
+    case_id: "",
+    company_id: c.company_id || site?.company_id || f.company_id,
+    site_id,
+    asset_ids: sameSite ? f.asset_ids : [],
+    site_address: sameSite ? f.site_address : site?.address ?? "",
+    site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
+    board_key: f.board_key || c.board_key || "",
+  };
+}
+
 /** A case, plus everything the work-order form fills in from it. */
 export type CaseOption = {
   id: string;
@@ -75,6 +101,7 @@ const blank = {
   board_key: "",
   case_id: "",
   contract_id: "",
+  visit_id: "",
   asset_ids: [] as string[],
   technician_id: "",
   company_id: "",
@@ -139,6 +166,7 @@ export function WorkOrderModal({
   cases,
   contracts,
   initialCaseId = null,
+  initialVisit = null,
   assetIds = [],
   onSaved,
 }: {
@@ -154,6 +182,8 @@ export function WorkOrderModal({
   contracts: ContractOption[];
   /** Opened from a case: start a new work order already filled in from it. */
   initialCaseId?: string | null;
+  /** Opened from a contract's round: the round this job will serve. */
+  initialVisit?: { id: string; seq: number; due_date: string; contract_id: string } | null;
   /** The editing WO's current linked asset ids (empty when creating). */
   assetIds?: string[];
   onSaved: () => void;
@@ -162,6 +192,25 @@ export function WorkOrderModal({
     () => (initialCaseId ? cases.find((c) => c.id === initialCaseId) ?? null : null),
     [initialCaseId, cases]
   );
+  /**
+   * A round of a contract, raised from the contract page. Preventive and billed
+   * to the contract by definition — the round exists because the contract
+   * schedules it, which is the one thing a link can fairly say for itself.
+   */
+  const visitArrivedFrom = useMemo(() => {
+    if (!initialVisit) return null;
+    const c = contracts.find((x) => x.id === initialVisit.contract_id);
+    if (!c) return null;
+    return {
+      ...withContract(blank, c, sites),
+      visit_id: initialVisit.id,
+      title: `เข้าบริการรอบที่ ${initialVisit.seq}`,
+      job_class: "PM",
+      billing: "contract",
+      scheduled_start: `${initialVisit.due_date}T09:00`,
+    };
+  }, [initialVisit, contracts, sites]);
+
   const [form, setForm] = useState(blank);
   const [source, setSource] = useState<"case" | "contract">("case");
 
@@ -170,7 +219,7 @@ export function WorkOrderModal({
   const [wasOpen, setWasOpen] = useState(open);
   if (wasOpen !== open) {
     setWasOpen(open);
-    setSource(open && editing?.contract_id ? "contract" : "case");
+    setSource(open && (editing?.contract_id || initialVisit) ? "contract" : "case");
   }
   const [error, setError] = useState<string | null>(null);
   const [assetQuery, setAssetQuery] = useState("");
@@ -192,6 +241,9 @@ export function WorkOrderModal({
             board_key: editing.board_key || "",
             case_id: editing.case_id || "",
             contract_id: editing.contract_id || "",
+            // An existing job is not being raised for a round; if it serves
+            // one, that round already points at it.
+            visit_id: "",
             asset_ids: assetIds,
             technician_id: editing.technician_id || "",
             company_id: editing.company_id || "",
@@ -205,9 +257,9 @@ export function WorkOrderModal({
           }
         : caseArrivedFrom
           ? withCase(blank, caseArrivedFrom, sites, contacts)
-          : blank
+          : (visitArrivedFrom ?? blank)
     );
-  }, [open, editing, assetIds, caseArrivedFrom, sites, contacts]);
+  }, [open, editing, assetIds, caseArrivedFrom, visitArrivedFrom, sites, contacts]);
 
   function set<K extends keyof typeof blank>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -270,22 +322,7 @@ export function WorkOrderModal({
   function selectContract(id: string) {
     const c = contracts.find((x) => x.id === id);
     if (!c) return set("contract_id", id);
-    const site = sites.find((x) => x.id === c.site_id) ?? null;
-    setForm((f) => {
-      const site_id = site?.id ?? "";
-      const sameSite = site_id === f.site_id;
-      return {
-        ...f,
-        contract_id: id,
-        case_id: "",
-        company_id: c.company_id || site?.company_id || f.company_id,
-        site_id,
-        asset_ids: sameSite ? f.asset_ids : [],
-        site_address: sameSite ? f.site_address : site?.address ?? "",
-        site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
-        board_key: f.board_key || c.board_key || "",
-      };
-    });
+    setForm((f) => withContract(f, c, sites));
   }
 
   /** Which of the two the job answers. Switching drops the other, because it is
@@ -362,6 +399,7 @@ export function WorkOrderModal({
         site_id: form.site_id || null,
         contact_id: form.contact_id || null,
         contract_id: form.contract_id || null,
+        visit_id: form.visit_id || null,
         scheduled_start: form.scheduled_start || null,
         scheduled_end: form.scheduled_end || null,
         site_address: form.site_address,

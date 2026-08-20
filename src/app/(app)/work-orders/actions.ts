@@ -26,6 +26,8 @@ export type WorkOrderInput = {
   site_id?: string | null;
   case_id?: string | null;
   contract_id?: string | null;
+  /** Raised for one round of a contract: the visit it serves. */
+  visit_id?: string | null;
   company_id?: string | null;
   contact_id?: string | null;
   technician_id?: string | null;
@@ -137,6 +139,17 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     if (error) return fail(error.message);
     const aErr = await syncAssets(supabase, org.id, data.id, assetIds);
     if (aErr) return fail(aErr);
+    // A job raised for a round of a contract is that round's evidence, so the
+    // round points at it from the moment it exists.
+    if (input.visit_id) {
+      await supabase
+        .from("service_visits")
+        .update({ work_order_id: data.id })
+        .eq("id", input.visit_id)
+        .eq("org_id", org.id);
+      revalidatePath(`/service-contracts/${input.contract_id ?? ""}`);
+      revalidatePath("/service-contracts");
+    }
     revalidatePath("/work-orders");
     return ok(data.id);
   }
@@ -281,6 +294,9 @@ export async function updateWorkOrderStatus(
     .eq("org_id", org.id);
   if (error) return fail(error.message);
   if (status === "completed") await restoreAssetsOnComplete(supabase, org.id, id);
+  // A contract's progress is read from its rounds' jobs, so a page showing it
+  // has to be told when one of those jobs moves.
+  revalidatePath("/service-contracts");
   revalidatePath("/my-jobs");
   revalidatePath("/work-orders");
   revalidatePath(`/work-orders/${id}`);

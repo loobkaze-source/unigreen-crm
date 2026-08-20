@@ -9,13 +9,15 @@ const WO_PAGE_LIMIT = 200;
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; case?: string }>;
+  searchParams: Promise<{ q?: string; case?: string; visit?: string }>;
 }) {
   const { supabase, org } = await getSessionContext();
   const sp = await searchParams;
   const search = (sp.q ?? "").trim();
   // Arriving from a case that has just been opened — see cases-view.
   const fromCase = (sp.case ?? "").trim() || null;
+  // Arriving from a contract round that wants a job raising for it.
+  const fromVisit = (sp.visit ?? "").trim() || null;
 
   // Newest WO_PAGE_LIMIT rows; ?q= searches server-side so older rows stay
   // reachable as the table grows.
@@ -95,6 +97,14 @@ export default async function WorkOrdersPage({
 
   const caseList = await loadCaseOptions(supabase, org.id);
   const contractList = await loadContractOptions(supabase, org.id);
+  const visitRes = fromVisit
+    ? await supabase
+        .from("service_visits")
+        .select("id, seq, due_date, contract_id")
+        .eq("id", fromVisit)
+        .eq("org_id", org.id)
+        .maybeSingle()
+    : { data: null };
 
   const assetIdsByWo: Record<string, string[]> = {};
   for (const r of woAssets ?? []) {
@@ -106,6 +116,16 @@ export default async function WorkOrdersPage({
       workOrders={workOrders ?? []}
       initialQuery={search}
       initialCaseId={fromCase}
+      initialVisit={
+        visitRes.data
+          ? {
+              id: visitRes.data.id as string,
+              seq: visitRes.data.seq as number,
+              due_date: visitRes.data.due_date as string,
+              contract_id: visitRes.data.contract_id as string,
+            }
+          : null
+      }
       limitHit={(workOrders ?? []).length === WO_PAGE_LIMIT}
       technicians={technicians ?? []}
       companies={companies ?? []}

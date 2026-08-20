@@ -1,8 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -10,50 +8,63 @@ import {
   CheckCircle2,
   Circle,
   MapPin,
+  Plus,
   Repeat,
   User,
 } from "lucide-react";
-import type { ServiceContract, ServiceVisit } from "@/lib/database.types";
+import type {
+  ServiceContract,
+  ServiceVisit,
+  WorkOrderStatus,
+} from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
-import { serviceTypeLabel, visitStatusMeta } from "../constants";
-import { markVisit } from "../actions";
+import { serviceTypeLabel } from "../constants";
+import { statusMeta, woCode } from "../../work-orders/constants";
+
+/** The job raised for a round, as far as this page needs to know it. */
+type VisitWorkOrder = {
+  id: string;
+  number: number | null;
+  report_no: string | null;
+  status: string;
+  completed_at: string | null;
+};
 
 export function ContractDetail({
   contract,
   visits,
+  workOrders,
   companyName,
   siteName,
   technicianName,
 }: {
   contract: ServiceContract;
   visits: ServiceVisit[];
+  workOrders: VisitWorkOrder[];
   companyName?: string;
   siteName?: string;
   technicianName?: string;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  /**
+   * A round is served when the job raised for it is finished — not when someone
+   * ticked it. The job carries the technician, the parts, the photos and the
+   * customer's signature; a tick carries nobody's word for anything.
+   */
+  const woOf = (v: ServiceVisit) =>
+    v.work_order_id ? workOrders.find((w) => w.id === v.work_order_id) ?? null : null;
+  const served = (v: ServiceVisit) => woOf(v)?.status === "completed";
 
-  const done = visits.filter((v) => v.status === "done").length;
+  const done = visits.filter(served).length;
   const total = visits.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
   const today = new Date().toISOString().slice(0, 10);
   const nextDue = visits
-    .filter((v) => v.status === "pending")
+    .filter((v) => !served(v))
     .sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
-
-  function toggle(v: ServiceVisit) {
-    const next = v.status === "done" ? "pending" : "done";
-    startTransition(async () => {
-      const res = await markVisit(v.id, next, contract.id);
-      if (!res.ok) alert(res.error);
-      else router.refresh();
-    });
-  }
 
   return (
     <div>
@@ -125,53 +136,59 @@ export function ContractDetail({
           <CardContent>
             <div className="space-y-1">
               {visits.map((v) => {
-                const meta = visitStatusMeta(v.status);
-                const overdue = v.status === "pending" && v.due_date < today;
+                const wo = woOf(v);
+                const ok = served(v);
+                const overdue = !ok && v.due_date < today;
                 return (
                   <div
                     key={v.id}
-                    className="flex items-center gap-3 rounded-md px-1 py-2 hover:bg-muted/40"
+                    className="flex items-start gap-3 rounded-md px-1 py-2 hover:bg-muted/40"
                   >
-                    <button
-                      onClick={() => toggle(v)}
-                      disabled={pending}
-                      className="text-muted-foreground hover:text-primary disabled:opacity-50"
-                      aria-label="สลับสถานะ"
-                    >
-                      {v.status === "done" ? (
+                    <span className="mt-0.5 text-muted-foreground">
+                      {ok ? (
                         <CheckCircle2 className="h-5 w-5 text-success" />
                       ) : (
                         <Circle className="h-5 w-5" />
                       )}
-                    </button>
-                    <div className="w-8 text-sm font-semibold text-muted-foreground">
+                    </span>
+                    <div className="mt-0.5 w-8 text-sm font-semibold text-muted-foreground">
                       #{v.seq}
                     </div>
-                    <div className="flex-1">
-                      <div
-                        className={cn(
-                          "text-sm",
-                          v.status === "done" && "text-muted-foreground"
-                        )}
-                      >
+                    <div className="min-w-0 flex-1">
+                      <div className={cn("text-sm", ok && "text-muted-foreground")}>
                         ครบกำหนด{" "}
-                        <span
-                          className={cn(
-                            "font-medium",
-                            overdue && "text-destructive"
-                          )}
-                        >
+                        <span className={cn("font-medium", overdue && "text-destructive")}>
                           {fmtDate(v.due_date)}
                         </span>
                       </div>
-                      {v.completed_at ? (
-                        <div className="text-xs text-muted-foreground">
-                          เข้าบริการ {fmtDate(v.completed_at)}
-                        </div>
-                      ) : null}
+                      {wo ? (
+                        <Link
+                          href={`/work-orders/${wo.id}`}
+                          className="mt-0.5 inline-flex flex-wrap items-center gap-1.5 text-xs hover:underline"
+                        >
+                          <span className="font-mono text-muted-foreground">{woCode(wo)}</span>
+                          <Badge tone={statusMeta(wo.status as WorkOrderStatus).tone}>
+                            {statusMeta(wo.status as WorkOrderStatus).label}
+                          </Badge>
+                          {wo.completed_at ? (
+                            <span className="text-muted-foreground">
+                              เข้าบริการ {fmtDate(wo.completed_at)}
+                            </span>
+                          ) : null}
+                        </Link>
+                      ) : (
+                        // Nothing has been raised for this round yet, and that is
+                        // the only thing that can move it along.
+                        <Link
+                          href={`/work-orders?visit=${v.id}`}
+                          className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> สร้างใบงานสำหรับรอบนี้
+                        </Link>
+                      )}
                     </div>
-                    <Badge tone={overdue ? "danger" : meta.tone}>
-                      {overdue ? "เลยกำหนด" : meta.label}
+                    <Badge tone={ok ? "success" : overdue ? "danger" : "muted"}>
+                      {ok ? "เข้าบริการแล้ว" : overdue ? "เลยกำหนด" : "รอเข้าบริการ"}
                     </Badge>
                   </div>
                 );

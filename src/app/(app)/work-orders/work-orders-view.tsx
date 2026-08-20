@@ -69,6 +69,7 @@ export function WorkOrdersView({
   assetIdsByWo,
   initialQuery = "",
   initialCaseId = null,
+  initialVisit = null,
   limitHit = false,
 }: {
   workOrders: WorkOrder[];
@@ -83,6 +84,8 @@ export function WorkOrdersView({
   initialQuery?: string;
   /** Set by ?case=… — open the form already filled in from that case. */
   initialCaseId?: string | null;
+  /** Set by ?visit=… — raise a job for that round of a contract. */
+  initialVisit?: { id: string; seq: number; due_date: string; contract_id: string } | null;
   limitHit?: boolean;
 }) {
   const router = useRouter();
@@ -105,7 +108,7 @@ export function WorkOrdersView({
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | "all">("all");
   const [tab, setTab] = useState<"list" | "schedule">("list");
   // Opening straight into the form is the whole point of arriving with a case.
-  const [open, setOpen] = useState(!!initialCaseId);
+  const [open, setOpen] = useState(!!initialCaseId || !!initialVisit);
   const [editing, setEditing] = useState<WorkOrder | null>(null);
   const [, startTransition] = useTransition();
 
@@ -205,7 +208,7 @@ export function WorkOrdersView({
    */
   function closeModal() {
     setOpen(false);
-    if (initialCaseId) router.replace("/work-orders");
+    if (initialCaseId || initialVisit) router.replace("/work-orders");
   }
   function openEdit(w: WorkOrder, e: React.MouseEvent) {
     e.preventDefault();
@@ -376,6 +379,7 @@ export function WorkOrdersView({
           cases={cases}
           contracts={contracts}
           initialCaseId={editing ? null : initialCaseId}
+          initialVisit={editing ? null : initialVisit}
           assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
           onSaved={() => {
             closeModal();
