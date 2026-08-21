@@ -89,7 +89,7 @@ export default async function WorkOrderDetailPage({
     ),
     supabase
       .from("contacts")
-      .select("id, first_name, last_name, company_id")
+      .select("id, first_name, last_name, company_id, phone")
       .eq("org_id", org.id)
       .order("first_name")
         .limit(500),
@@ -217,6 +217,7 @@ export default async function WorkOrderDetailPage({
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
       companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}
       contactName={contactList.find((c) => c.id === workOrder.contact_id)?.name}
+      contactPhone={contacts?.find((c) => c.id === workOrder.contact_id)?.phone ?? undefined}
     />
   );
 }

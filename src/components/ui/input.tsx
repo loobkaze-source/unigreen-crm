@@ -14,7 +14,10 @@ export const Input = React.forwardRef<
     type={type}
     lang={lang ?? (DATE_TYPES.includes(type) ? "en-GB" : undefined)}
     className={cn(
-      "flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors",
+      // min-w-0: a text input's automatic minimum size is its `size` attribute
+      // — about 20 characters — so two of them in a flex row cannot shrink
+      // below ~360px and push the whole phone screen sideways.
+      "flex h-9 w-full min-w-0 rounded-md border border-input bg-card px-3 py-1 text-sm shadow-sm transition-colors",
       "placeholder:text-muted-foreground",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring",
       "disabled:cursor-not-allowed disabled:opacity-50",

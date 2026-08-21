@@ -156,6 +156,7 @@ export function WorkOrderDetail({
   technicianName,
   companyName,
   contactName,
+  contactPhone,
 }: {
   workOrder: WorkOrder;
   photos: PhotoWithUrl[];
@@ -185,6 +186,7 @@ export function WorkOrderDetail({
   technicianName?: string;
   companyName?: string;
   contactName?: string;
+  contactPhone?: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -558,7 +560,24 @@ export function WorkOrderDetail({
               value={cases.find((c) => c.id === workOrder.case_id)?.name || "—"}
             />
           ) : null}
-          <Info icon={User} label="ผู้ติดต่อ" value={contactName || "—"} />
+          <Info
+            icon={User}
+            label="ผู้ติดต่อ"
+            value={
+              contactName ? (
+                <>
+                  {contactName}
+                  {/* Dimmer than the name: on site the name is what identifies
+                      the person and the number is what you do about it. */}
+                  {contactPhone ? (
+                    <span className="text-muted-foreground"> · {contactPhone}</span>
+                  ) : null}
+                </>
+              ) : (
+                "—"
+              )
+            }
+          />
           <Info
             icon={CalendarClock}
             label="นัดหมาย"
@@ -601,7 +620,7 @@ export function WorkOrderDetail({
                   <Link
                     key={a.id}
                     href={`/assets/${a.id}`}
-                    className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs text-accent-foreground hover:bg-muted"
+                    className="inline-flex max-w-full items-center gap-1 break-words rounded-full bg-accent px-2.5 py-1 text-xs text-accent-foreground hover:bg-muted"
                   >
                     {a.name}
                   </Link>
@@ -1073,12 +1092,15 @@ function Info({
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  value: string;
+  /** A node, not a string: some rows carry a second, quieter half. */
+  value: React.ReactNode;
 }) {
   return (
     <div className="flex items-start gap-2">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <div>
+      {/* min-w-0 + break-words: a serial number has no spaces to wrap at, and
+          one of them in a grid cell widens the whole phone screen. */}
+      <div className="min-w-0 break-words">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-sm">{value}</div>
       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link, { useLinkStatus } from "next/link";
+import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
-  Loader2,
   LogOut,
   MapPin,
   Menu,
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/app/theme-toggle";
+import { LinkPending } from "@/components/ui/link-pending";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, TECH_HOME, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 import { isTechnicianOnly } from "@/lib/roles";
@@ -340,7 +340,10 @@ export function AppShell({
                   active ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <TabIcon icon={item.icon} />
+                {/* Spins while this tab is still loading. */}
+                <LinkPending className="h-5 w-5">
+                  <item.icon className="h-5 w-5" />
+                </LinkPending>
                 {item.label}
               </Link>
             );
@@ -348,27 +351,5 @@ export function AppShell({
         </nav>
       ) : null}
     </div>
-  );
-}
-
-/**
- * A tab bar icon that spins while its own tab is still loading.
- *
- * On site data a tab can take a second or two to answer, and a bar that shows
- * nothing gets tapped again — so the icon itself reports the wait. It fades in
- * after 120ms, so a tab that was already prefetched never flickers. The fade
- * and the spin sit on separate elements because `animation` is a shorthand
- * that replaces rather than merges.
- *
- * Must be rendered inside the <Link>: that is where useLinkStatus reads from.
- */
-function TabIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
-  const { pending } = useLinkStatus();
-  return pending ? (
-    <span className="tap-wait">
-      <Loader2 className="h-5 w-5 animate-spin" />
-    </span>
-  ) : (
-    <Icon className="h-5 w-5" />
   );
 }

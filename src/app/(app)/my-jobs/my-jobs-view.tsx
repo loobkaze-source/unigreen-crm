@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Image from "next/image";
-import Link, { useLinkStatus } from "next/link";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -22,6 +22,7 @@ import type { WorkOrderPriority, WorkOrderStatus, WorkOrderType } from "@/lib/da
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LinkPending } from "@/components/ui/link-pending";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
 import { statusMeta, priorityMeta, typeLabel, woCode, jobClassLabel } from "../work-orders/constants";
@@ -323,28 +324,6 @@ export function MyJobsView({
   );
 }
 
-/**
- * The chevron at the corner of a job card, which spins while the tap that hit
- * it is still waiting on the network.
- *
- * Out on site the prefetch often has not finished when the thumb lands, and a
- * card that answers a tap with nothing gets tapped again. Must live inside the
- * <Link> — that is where useLinkStatus reads from.
- */
-function TapWait() {
-  const { pending } = useLinkStatus();
-  // The fade and the spin are two animations, and `animation` is a shorthand
-  // rather than a list that merges — so they go on two elements or one of them
-  // is silently dropped.
-  return pending ? (
-    <span className="tap-wait mt-1 shrink-0">
-      <Loader2 className="h-5 w-5 animate-spin text-primary" />
-    </span>
-  ) : (
-    <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
-  );
-}
-
 function JobCard({
   job,
   busy,
@@ -391,7 +370,10 @@ function JobCard({
               {job.job_class ? ` · ${jobClassLabel(job.job_class)}` : ""}
             </div>
           </div>
-          <TapWait />
+          {/* Spins while the tap that hit it is still fetching the job. */}
+          <LinkPending className="mt-1 h-5 w-5 text-primary">
+            <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+          </LinkPending>
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm">

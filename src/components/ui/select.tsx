@@ -6,11 +6,14 @@ export const Select = React.forwardRef<
   HTMLSelectElement,
   React.SelectHTMLAttributes<HTMLSelectElement>
 >(({ className, children, ...props }, ref) => (
-  <div className="relative">
+  // w-full min-w-0: a <select>'s automatic minimum size is its widest option,
+  // so one holding an asset name is a row that cannot shrink — and the phone
+  // scrolls sideways for the length of a serial number.
+  <div className="relative w-full min-w-0">
     <select
       ref={ref}
       className={cn(
-        "flex h-9 w-full appearance-none rounded-md border border-input bg-card pl-3 pr-9 text-sm shadow-sm transition-colors",
+        "flex h-9 w-full min-w-0 appearance-none truncate rounded-md border border-input bg-card pl-3 pr-9 text-sm shadow-sm transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring",
         "disabled:cursor-not-allowed disabled:opacity-50",
         className
