@@ -86,14 +86,22 @@ import {
 type PhotoWithUrl = WorkOrderPhoto & { url: string };
 
 /**
- * What a heading is usually called, in the order a visit produces them: the
- * paperwork that had to be signed before anyone touched anything, the state
- * the site was found in, and the state it was left in.
+ * What a heading is usually called. "เพิ่มหัวข้อ" hands over the first one not
+ * already on the job, so the order is not alphabetical or thematic — it is
+ * how often a heading is wanted. The permit, the before and the after come
+ * first because almost every job has exactly those three; everything after is
+ * reached by tapping again or by opening the list on the box itself.
  */
 const SECTION_IDEAS = [
   "WCF/PTW/JHA and job plans",
   "Picture before Work",
   "Picture of Work Complete",
+  "Picture of Defect",
+  "Picture during Work",
+  "Picture of Parts Replaced",
+  "Equipment Nameplate / Serial No.",
+  "Test / Calibration Result",
+  "Housekeeping / Site Cleared",
 ];
 
 type PartRow = {
