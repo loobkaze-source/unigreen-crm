@@ -145,7 +145,9 @@ export function ServiceReport({
   const padTo = (rows: Part[], n: number) => [...rows, ...Array(Math.max(0, n - rows.length)).fill(null)];
 
   return (
-    <div className="mx-auto w-full max-w-[210mm] print:max-w-none">
+    // An A4 sheet is wider than a phone and this one is meant to be read, not
+    // tapped, so it keeps the pinch that the rest of the app springs back from.
+    <div data-allow-zoom className="mx-auto w-full max-w-[210mm] print:max-w-none">
       <PrintBar backHref={`/work-orders/${w.id}`} />
 
       <style>{`

@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
+import { PinchZoomSnapBack } from "@/components/app/pinch-zoom-snapback";
 
 const notoThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
@@ -8,6 +9,16 @@ const notoThai = Noto_Sans_Thai({
   variable: "--font-noto-thai",
   display: "swap",
 });
+
+/**
+ * Spelled out rather than left to the default, because PinchZoomSnapBack
+ * rewrites this tag to pull a pinched page back to size and has to put back
+ * exactly what was here.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "Unicloud CRM",
@@ -30,7 +41,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <PinchZoomSnapBack />
+        {children}
+      </body>
     </html>
   );
 }
