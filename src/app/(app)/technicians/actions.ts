@@ -23,6 +23,14 @@ export async function saveTechnician(
   input: TechnicianInput
 ): Promise<ActionResult> {
   const { supabase, org } = await getSessionContext();
+  // Edit-only: a technician record always belongs to an admin-created user
+  // account. A free-floating row here would be assignable to jobs but unable
+  // to sign in, accept work, or appear in /my-jobs.
+  if (!input.id) {
+    return fail(
+      "เพิ่มช่างโดยตรงไม่ได้ — สร้างผู้ใช้ role Technician ที่หน้าผู้ใช้ (แอดมิน) แล้วระบบจะเพิ่มเข้าทะเบียนช่างให้"
+    );
+  }
   const name = input.name?.trim();
   if (!name) return fail("กรุณากรอกชื่อช่าง");
 
@@ -37,19 +45,14 @@ export async function saveTechnician(
     active: input.active ?? true,
   };
 
-  if (input.id) {
-    const { data: updated, error } = await supabase
-      .from("technicians")
-      .update(payload)
-      .eq("id", input.id)
-      .eq("org_id", org.id)
-      .select("id");
-    if (error) return fail(error.message);
-    if (!updated?.length) return fail("ไม่พบช่างคนนี้ในองค์กรของคุณ");
-  } else {
-    const { error } = await supabase.from("technicians").insert(payload);
-    if (error) return fail(error.message);
-  }
+  const { data: updated, error } = await supabase
+    .from("technicians")
+    .update(payload)
+    .eq("id", input.id)
+    .eq("org_id", org.id)
+    .select("id");
+  if (error) return fail(error.message);
+  if (!updated?.length) return fail("ไม่พบช่างคนนี้ในองค์กรของคุณ");
 
   revalidatePath("/technicians");
   revalidatePath("/work-orders");

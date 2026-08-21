@@ -125,13 +125,8 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
     initialSort: { key: "name", dir: "asc" },
   });
 
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY);
-    setCustomCert("");
-    setError(null);
-    setOpen(true);
-  }
+  // No openCreate: a technician record only comes from an admin-created user
+  // holding the Technician role (createUser / "ดึงช่างจากผู้ใช้ Technician").
   function openEdit(t: Technician) {
     setEditing(t);
     setForm({
@@ -218,9 +213,6 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         <Button variant="secondary" onClick={importUsers} disabled={pending}>
           <Users className="h-4 w-4" /> ดึงช่างจากผู้ใช้ Technician
         </Button>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> เพิ่มช่าง
-        </Button>
       </PageHeader>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -240,10 +232,10 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
         <EmptyState
           icon={HardHat}
           title="ยังไม่มีช่าง"
-          description="เพิ่มช่างเทคนิคเพื่อมอบหมายงานบริการ"
+          description="สร้างผู้ใช้ role Technician ที่หน้าผู้ใช้ (แอดมิน) แล้วกดดึงช่างจากผู้ใช้ — ทะเบียนช่างผูกกับบัญชีผู้ใช้เสมอ"
           action={
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" /> เพิ่มช่าง
+            <Button onClick={importUsers} disabled={pending}>
+              <Users className="h-4 w-4" /> ดึงช่างจากผู้ใช้ Technician
             </Button>
           }
         />
@@ -347,7 +339,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "แก้ไขช่าง" : "เพิ่มช่าง"}
+        title="แก้ไขช่าง"
       >
         <form onSubmit={submit} className="space-y-4">
           {error ? (
@@ -498,7 +490,7 @@ export function TechniciansView({ technicians }: { technicians: Technician[] }) 
               ยกเลิก
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "กำลังบันทึก…" : editing ? "บันทึกการแก้ไข" : "เพิ่มช่าง"}
+              {pending ? "กำลังบันทึก…" : "บันทึกการแก้ไข"}
             </Button>
           </div>
         </form>
