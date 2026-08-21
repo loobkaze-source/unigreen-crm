@@ -164,7 +164,8 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     if (!updated?.length) return fail("ไม่พบเคสนี้ในองค์กรของคุณ");
     const aErr = await syncCaseAssets(caseId);
     if (aErr) return fail("บันทึกเคสแล้ว แต่จัดการ Asset ไม่สำเร็จ: " + aErr);
-    revalidatePath("/cases");
+    // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
     revalidatePath("/assets");
     return ok(caseId);
   }
@@ -184,7 +185,8 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   const aErr = await syncCaseAssets(created.id);
   if (aErr) return fail("บันทึกเคสแล้ว แต่จัดการ Asset ไม่สำเร็จ: " + aErr);
 
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   revalidatePath("/assets");
   // Return the id so the client can upload queued attachments for a new case.
   return ok(created.id);
@@ -229,7 +231,8 @@ export async function quickAddContact(input: {
   if (error) return fail(error.message);
 
   revalidatePath("/contacts");
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   return ok(data.id as string);
 }
 
@@ -253,7 +256,8 @@ export async function updateCaseStatus(
     .select("id");
   if (error) return fail(error.message);
   if (!updated?.length) return fail("ไม่พบเคสนี้ในองค์กรของคุณ");
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   return ok();
 }
 
@@ -266,7 +270,8 @@ export async function deleteCase(id: string): Promise<ActionResult> {
     .eq("id", id)
     .eq("org_id", ctx.org.id);
   if (error) return fail(error.message);
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   return ok();
 }
 
@@ -297,7 +302,8 @@ export async function addCaseAttachment(
     mime: mime || null,
   });
   if (error) return fail(error.message);
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   return ok();
 }
 
@@ -316,6 +322,7 @@ export async function deleteCaseAttachment(id: string): Promise<ActionResult> {
   if (error) return fail(error.message);
   const path = deleted?.[0]?.path;
   if (path) await ctx.supabase.storage.from("case-files").remove([path]);
-  revalidatePath("/cases");
+  // "layout" also refreshes the per-case pages under /cases/[id].
+  revalidatePath("/cases", "layout");
   return ok();
 }

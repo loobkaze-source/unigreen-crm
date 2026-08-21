@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -39,7 +40,7 @@ import {
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
-import { CASE_DEPTS, DEFAULT_CASE_DEPT } from "./constants";
+import { CASE_DEPTS, CASE_STATUS, DEFAULT_CASE_DEPT, caseStatusMeta } from "./constants";
 import {
   saveCase,
   deleteCase,
@@ -73,14 +74,8 @@ type Attachment = {
   mime: string;
   url: string;
 };
-type Tone = "info" | "warning" | "success" | "muted";
-
-const STATUS: { value: CaseStatus; label: string; tone: Tone }[] = [
-  { value: "open", label: "เปิด", tone: "info" },
-  { value: "in_progress", label: "กำลังดำเนินการ", tone: "warning" },
-  { value: "closed", label: "ปิดแล้ว", tone: "success" },
-];
-const statusMeta = (s: CaseStatus) => STATUS.find((x) => x.value === s)!;
+const STATUS = CASE_STATUS;
+const statusMeta = caseStatusMeta;
 
 export function CasesView({
   cases,
@@ -547,13 +542,14 @@ export function CasesView({
                     className="group border-b border-border last:border-0 hover:bg-muted/30"
                   >
                     <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-muted-foreground">
-                      {c.code ?? "—"}
+                      <Link href={`/cases/${c.id}`} className="hover:text-primary">
+                        {c.code ?? "—"}
+                      </Link>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => canManage && openEdit(c)}
-                        className="block text-left"
-                      >
+                      {/* Opening the case goes to its page; the pencil still
+                          opens the structural edit dialog. */}
+                      <Link href={`/cases/${c.id}`} className="block text-left">
                         <div className="font-medium hover:text-primary">{c.subject}</div>
                         {c.customer_wo_ref ? (
                           <div className="font-mono text-xs text-muted-foreground">
@@ -565,7 +561,7 @@ export function CasesView({
                             {c.note}
                           </div>
                         ) : null}
-                      </button>
+                      </Link>
                       {(() => {
                         const names = assetsByCase.get(c.id) ?? [];
                         if (names.length === 0) return null;
