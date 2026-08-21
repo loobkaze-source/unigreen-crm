@@ -380,6 +380,32 @@ export function WorkOrderDetail({
   }
 
   /**
+   * Put one photo at one place under one heading — every move on this card
+   * goes through here.
+   *
+   * Written against the groups rather than the flat list, because a heading
+   * with nothing under it has no place in the flat list at all, and moving a
+   * photo *into* an empty heading was the one thing that could not be
+   * expressed. Here it is just an index in an empty array.
+   */
+  function moveTo(id: string, groupIndex: number, at: number) {
+    const target = groups[groupIndex];
+    if (!target) return;
+    const from = groups.find((g) => g.ids.includes(id));
+    const next = groups.map((g) => ({ name: g.name, ids: g.ids.filter((x) => x !== id) }));
+    next[groupIndex].ids.splice(at, 0, id);
+    // The heading a photo just left keeps its place on the card rather than
+    // vanishing with its last picture — the technician is mid-sort, and a
+    // heading that disappears while being emptied reads as a bug.
+    if (from && from.ids.length === 1 && from.name && from.name !== target.name) {
+      setDraftSections((d) => (d.includes(from.name) ? d : [...d, from.name]));
+    }
+    saveArrangement(
+      next.flatMap((g) => g.ids.map((photoId) => ({ id: photoId, section: g.name })))
+    );
+  }
+
+  /**
    * Drop `dragged` where `targetId` currently sits — and under the heading
    * that photo lives beneath, because moving a photo into a group is the same
    * gesture as moving it next to the photos already in one.
@@ -388,32 +414,34 @@ export function WorkOrderDetail({
     const from = dragId.current;
     dragId.current = null;
     if (!from || from === targetId) return;
-    const moving = arrangement.find((a) => a.id === from);
-    const target = arrangement.find((a) => a.id === targetId);
-    if (!moving || !target) return;
-    const next = arrangement.filter((a) => a.id !== from);
-    next.splice(
-      next.findIndex((a) => a.id === targetId),
-      0,
-      { ...moving, section: target.section }
-    );
-    saveArrangement(next);
+    const gi = groups.findIndex((g) => g.ids.includes(targetId));
+    if (gi < 0) return;
+    const ids = groups[gi].ids.filter((x) => x !== from);
+    moveTo(from, gi, ids.indexOf(targetId));
+  }
+
+  /** Dropped on the heading itself, or on the space under an empty one. */
+  function dropInSection(groupIndex: number) {
+    const from = dragId.current;
+    dragId.current = null;
+    if (!from) return;
+    moveTo(from, groupIndex, groups[groupIndex].ids.filter((x) => x !== from).length);
   }
 
   /**
    * The same move for a thumb: dragging works on a mouse, not on the phone
-   * these were taken on. A step past the last photo of a heading carries the
-   * photo into the next one, which is how a photo filed under the wrong
-   * heading gets out again without a mouse.
+   * these were taken on. A step off the end of a heading carries the photo
+   * into the next one — empty or not — which is how a photo filed under the
+   * wrong heading gets out again without a mouse.
    */
   function nudge(id: string, delta: number) {
-    const i = arrangement.findIndex((a) => a.id === id);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= arrangement.length) return;
-    const next = [...arrangement];
-    const [moving] = next.splice(i, 1);
-    next.splice(j, 0, { ...moving, section: arrangement[j].section });
-    saveArrangement(next);
+    const gi = groups.findIndex((g) => g.ids.includes(id));
+    if (gi < 0) return;
+    const within = groups[gi].ids.indexOf(id) + delta;
+    if (within >= 0 && within < groups[gi].ids.length) return moveTo(id, gi, within);
+    const gj = gi + delta;
+    if (gj < 0 || gj >= groups.length) return;
+    moveTo(id, gj, delta > 0 ? 0 : groups[gj].ids.filter((x) => x !== id).length);
   }
 
   /**
@@ -754,7 +782,15 @@ export function WorkOrderDetail({
           </CardHeader>
           <CardContent className="space-y-6">
             {groups.map((g, gi) => (
-              <section key={g.name || `--untitled-${gi}`} className="space-y-2">
+              <section
+                key={g.name || `--untitled-${gi}`}
+                className="space-y-2"
+                // The whole heading takes a drop, so a photo can be dragged
+                // into one that has nothing in it yet — there is no thumbnail
+                // to aim at there.
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => dropInSection(gi)}
+              >
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold text-muted-foreground">
                     {gi + 1}.
@@ -793,26 +829,32 @@ export function WorkOrderDetail({
                 </div>
 
                 {g.ids.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">
+                  <p className="rounded-md border border-dashed border-border py-4 text-center text-sm text-muted-foreground">
                     {photos.length === 0
                       ? "ยังไม่มีรูป — กด “เพิ่มรูป” เพื่ออัปโหลดภาพหน้างาน"
-                      : "ยังไม่มีรูปในหัวข้อนี้"}
+                      : "ลากรูปมาวางที่นี่ หรือกด “เพิ่มรูป” · บนมือถือใช้ปุ่ม ▶ ที่รูปสุดท้ายของหัวข้อก่อนหน้า"}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {g.ids.map((id) => {
+                    {g.ids.map((id, idx) => {
                       const ph = byId.get(id);
                       if (!ph) return null;
-                      // Position in the whole list, not in this heading: the
-                      // ◀▶ buttons walk the page, crossing headings as they go.
-                      const i = shownPhotos.findIndex((x) => x.id === id);
+                      // The ◀▶ buttons walk the whole page, crossing headings
+                      // as they go, so they stop only at its two ends.
+                      const atStart = gi === 0 && idx === 0;
+                      const atEnd =
+                        gi === groups.length - 1 && idx === g.ids.length - 1;
                       return (
                         <div
                           key={ph.id}
                           draggable
                           onDragStart={() => (dragId.current = ph.id)}
                           onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => dropOn(ph.id)}
+                          onDrop={(e) => {
+                            // Or the heading behind it would take the drop too.
+                            e.stopPropagation();
+                            dropOn(ph.id);
+                          }}
                           onDragEnd={() => (dragId.current = null)}
                         >
                           <div className="group relative aspect-square cursor-move overflow-hidden rounded-md border border-border bg-muted">
@@ -851,7 +893,7 @@ export function WorkOrderDetail({
                               <button
                                 type="button"
                                 onClick={() => nudge(ph.id, -1)}
-                                disabled={i === 0 || busy("photoOrder")}
+                                disabled={atStart || busy("photoOrder")}
                                 aria-label="ย้ายไปก่อนหน้า"
                                 className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
                               >
@@ -860,7 +902,7 @@ export function WorkOrderDetail({
                               <button
                                 type="button"
                                 onClick={() => nudge(ph.id, 1)}
-                                disabled={i === shownPhotos.length - 1 || busy("photoOrder")}
+                                disabled={atEnd || busy("photoOrder")}
                                 aria-label="ย้ายไปถัดไป"
                                 className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
                               >
