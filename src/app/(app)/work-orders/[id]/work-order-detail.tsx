@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PhotoViewer } from "@/components/ui/photo-viewer";
+import { LinkPending } from "@/components/ui/link-pending";
 import { flattenGroups, groupPhotos } from "../photo-groups";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -500,7 +501,10 @@ export function WorkOrderDetail({
             </p>
           ) : null}
         </div>
-        <div className="flex items-center gap-2">
+        {/* flex-wrap: on a phone this row is a status box and two or three
+            buttons, and squeezing them into one line is what broke the print
+            button's label across two. They drop to the next line instead. */}
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             value={workOrder.status}
             onChange={(e) => changeStatus(e.target.value)}
@@ -513,10 +517,15 @@ export function WorkOrderDetail({
             ))}
           </Select>
           <Link
-            href={`/work-orders/${workOrder.id}/report`}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-input bg-card px-4 text-sm font-medium shadow-sm hover:bg-muted"
+            // ?print=1 opens the browser's save sheet as soon as the sheet has
+            // rendered, so this is one tap from here to a PDF rather than three.
+            href={`/work-orders/${workOrder.id}/report?print=1`}
+            className="inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-input bg-card px-4 text-sm font-medium shadow-sm hover:bg-muted"
           >
-            <Printer className="h-4 w-4" /> พิมพ์รายงาน
+            <LinkPending>
+              <Printer className="h-4 w-4" />
+            </LinkPending>
+            บันทึก PDF
           </Link>
           {canEdit ? (
             <>
