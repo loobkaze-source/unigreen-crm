@@ -147,7 +147,10 @@ export function ServiceReport({
   return (
     // An A4 sheet is wider than a phone and this one is meant to be read, not
     // tapped, so it keeps the pinch that the rest of the app springs back from.
-    <div data-allow-zoom className="mx-auto w-full max-w-[210mm] print:max-w-none">
+    <div
+      data-allow-zoom
+      className="report-frame mx-auto w-full max-w-[210mm] print:max-w-none"
+    >
       <PrintBar backHref={`/work-orders/${w.id}`} />
 
       <style>{`
@@ -159,6 +162,22 @@ export function ServiceReport({
          * screen is nearly invisible and on paper is a pale grey.
          */
         .report-sheet, .report-sheet * { border-color: #000; }
+        /*
+         * On a phone the sheet is 194mm across — twice the screen — and reading
+         * it meant dragging sideways through every line. Scaled to fit the
+         * space it actually has instead: \`zoom\` rather than a transform, so the
+         * page ends where the sheet ends and leaves no empty strip below it.
+         *
+         * The width comes from the container rather than the viewport, so the
+         * sidebar counts on a narrow desktop window too. tan(atan2(a, b)) is
+         * how CSS divides one length by another — calc() will not — and min()
+         * keeps it from ever blowing the sheet up past its true size. Screen
+         * only: on paper 194mm is 194mm.
+         */
+        @media screen {
+          .report-frame { container-type: inline-size; }
+          .report-fit { zoom: min(1, tan(atan2(100cqw - 3mm, 194mm))); }
+        }
         @media print {
           .report-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           /*
@@ -170,6 +189,7 @@ export function ServiceReport({
         }
       `}</style>
 
+      <div className="report-fit">
       <div
       className={cn(
         sarabun.className,
@@ -461,6 +481,7 @@ export function ServiceReport({
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }
