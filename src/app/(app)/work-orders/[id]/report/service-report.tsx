@@ -92,6 +92,64 @@ function Tick({ on }: { on: boolean }) {
   );
 }
 
+type ReportPhoto = { id: string; url: string; caption: string; section: string };
+
+/** One heading's worth of photographs, as much of it as fits on this sheet. */
+type PhotoBlock = {
+  name: string;
+  /** Its number on the card, so the report reads in the same order. */
+  number: number;
+  continued: boolean;
+  photos: ReportPhoto[];
+};
+
+/**
+ * Three rows of pictures to a sheet — six photographs when they are all under
+ * one heading, fewer when they are not.
+ *
+ * A4 leaves 281mm inside its 8mm margins. The sheet header takes about 8.5mm,
+ * the padding 6mm, and a row 71mm once a caption is under it; three rows plus
+ * their headings come to roughly 265mm at the worst, and a fourth row does not
+ * fit at all. Left to the browser the block simply ran on and the frame ran off
+ * the bottom of the paper.
+ *
+ * The budget is in rows rather than in photographs because every heading starts
+ * a new one: six photographs under six headings is six rows, not three. Six per
+ * sheet was the first cut and it printed a page and a half.
+ *
+ * A heading is split across sheets rather than pushed whole onto the next: a
+ * nearly empty page in the middle of a report is worse than a heading that says
+ * it carried over.
+ */
+const ROWS_PER_SHEET = 3;
+const PHOTOS_PER_ROW = 2;
+
+function paginatePhotos(photos: ReportPhoto[]): PhotoBlock[][] {
+  const sheets: PhotoBlock[][] = [];
+  let sheet: PhotoBlock[] = [];
+  let rowsUsed = 0;
+
+  groupPhotos(photos).forEach((group, index) => {
+    let rest = group.photos;
+    let continued = false;
+    while (rest.length) {
+      if (rowsUsed >= ROWS_PER_SHEET) {
+        sheets.push(sheet);
+        sheet = [];
+        rowsUsed = 0;
+      }
+      const take = rest.slice(0, (ROWS_PER_SHEET - rowsUsed) * PHOTOS_PER_ROW);
+      sheet.push({ name: group.name, number: index + 1, continued, photos: take });
+      rowsUsed += Math.ceil(take.length / PHOTOS_PER_ROW);
+      rest = rest.slice(take.length);
+      continued = true;
+    }
+  });
+
+  if (sheet.length) sheets.push(sheet);
+  return sheets;
+}
+
 /** A labelled slot: the caption, then the value on the ruled line beneath it. */
 function Field({ label, value, className = "" }: { label: string; value?: string; className?: string }) {
   return (
@@ -125,7 +183,7 @@ export function ServiceReport({
   parts: Part[];
   /** Everyone who was on site, in the order they were added. */
   crew: string[];
-  photos: { id: string; url: string; caption: string; section: string }[];
+  photos: ReportPhoto[];
   signatureUrl: string | null;
 }) {
   const materials = parts.filter((p) => p.source !== "labor");
@@ -142,6 +200,7 @@ export function ServiceReport({
 
   // Blank rows keep the two tables the same height as the printed ones, so a
   // report with one part does not collapse into a strip nobody can write on.
+  const photoPages = paginatePhotos(photos);
   const padTo = (rows: Part[], n: number) => [...rows, ...Array(Math.max(0, n - rows.length)).fill(null)];
 
   return (
@@ -438,11 +497,13 @@ export function ServiceReport({
         </div>
       </div>
 
-      {/* Page two: what the visit looked like. Kept off the first sheet because
-          the first sheet is the one that gets signed and filed, and a customer
-          reading it should not have to turn past photographs to reach it. */}
-      {photos.length ? (
+      {/* The photographs, cut into A4 sheets rather than left to run on.
+          Kept off the first sheet because that is the one that gets signed and
+          filed, and a customer reading it should not have to turn past
+          photographs to reach it. */}
+      {photoPages.map((page, i) => (
         <div
+          key={i}
           className={cn(
             sarabun.className,
             "report-sheet mx-auto mt-[6mm] w-[194mm] border border-black text-[3.1mm] leading-[1.45] text-black print:mt-0 print:w-full print:break-before-page"
@@ -450,27 +511,40 @@ export function ServiceReport({
           style={{ backgroundColor: PAPER }}
         >
           <div className="flex items-baseline justify-between border-b border-black p-[2mm]">
-            <div className="font-bold">รูปหน้างาน / SITE PHOTOS</div>
+            <div className="font-bold">
+              รูปหน้างาน / SITE PHOTOS
+              {photoPages.length > 1 ? (
+                <span className="font-normal">
+                  {" "}
+                  · แผ่นที่ {i + 1}/{photoPages.length}
+                </span>
+              ) : null}
+            </div>
             <div>
               {woCode(w)} · {customerName}
             </div>
           </div>
           <div className="space-y-[3mm] p-[3mm]">
-            {groupPhotos(photos).map((g, gi) => (
-              <div key={gi}>
-                {g.name ? (
+            {page.map((block, bi) => (
+              <div key={bi}>
+                {block.name ? (
                   <div className="mb-[1.5mm] font-bold">
-                    {gi + 1}. {g.name}
+                    {block.number}. {block.name}
+                    {/* A heading that ran over the fold says so, rather than
+                        looking like a second heading of the same name. */}
+                    {block.continued ? (
+                      <span className="font-normal"> (ต่อ)</span>
+                    ) : null}
                   </div>
                 ) : null}
                 <div className="grid grid-cols-2 gap-[3mm]">
-                  {g.photos.map((p) => (
+                  {block.photos.map((p) => (
                     <div key={p.id} className="break-inside-avoid">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={p.url}
                         alt={p.caption || "รูปหน้างาน"}
-                        className="h-[62mm] w-full border border-black object-contain"
+                        className="h-[66mm] w-full border border-black object-contain"
                       />
                       {p.caption ? <div className="pt-[1mm]">{p.caption}</div> : null}
                     </div>
@@ -480,7 +554,7 @@ export function ServiceReport({
             ))}
           </div>
         </div>
-      ) : null}
+      ))}
       </div>
     </div>
   );
