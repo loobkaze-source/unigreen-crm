@@ -85,13 +85,17 @@ import {
 
 type PhotoWithUrl = WorkOrderPhoto & { url: string };
 
-/** What a heading is usually called, offered in the order they get used. */
+/**
+ * What a heading is usually called, in the order a visit produces them: the
+ * paperwork that had to be signed before anyone touched anything, the state
+ * the site was found in, and the state it was left in.
+ */
 const SECTION_IDEAS = [
-  "รูปก่อนทำงาน",
-  "รูปหลังทำงาน",
-  "รูปอุปกรณ์ที่เสีย",
-  "รูปอะไหล่ที่เปลี่ยน",
+  "WCF/PTW/JHA and job plans",
+  "Picture before Work",
+  "Picture of Work Complete",
 ];
+
 type PartRow = {
   id: string;
   name: string;
@@ -990,7 +994,7 @@ function SectionHeading({
           if (e.key === "Escape") setText(name);
         }}
         list={listId}
-        placeholder="หัวข้อรูป เช่น รูปก่อนทำงาน"
+        placeholder="หัวข้อรูป เช่น Picture before Work"
         className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm font-medium"
       />
       <datalist id={listId}>
