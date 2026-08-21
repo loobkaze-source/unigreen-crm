@@ -3,6 +3,7 @@ import type { WorkOrder } from "@/lib/database.types";
 import type { COMPANY } from "@/lib/company";
 import { cn } from "@/lib/utils";
 import { woCode } from "../../constants";
+import { groupPhotos } from "../../photo-groups";
 import { PrintBar } from "./print-button";
 
 /**
@@ -124,7 +125,7 @@ export function ServiceReport({
   parts: Part[];
   /** Everyone who was on site, in the order they were added. */
   crew: string[];
-  photos: { id: string; url: string; caption: string }[];
+  photos: { id: string; url: string; caption: string; section: string }[];
   signatureUrl: string | null;
 }) {
   const materials = parts.filter((p) => p.source !== "labor");
@@ -432,16 +433,27 @@ export function ServiceReport({
               {woCode(w)} · {customerName}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-[3mm] p-[3mm]">
-            {photos.map((p) => (
-              <div key={p.id} className="break-inside-avoid">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.url}
-                  alt={p.caption || "รูปหน้างาน"}
-                  className="h-[62mm] w-full border border-black object-contain"
-                />
-                {p.caption ? <div className="pt-[1mm]">{p.caption}</div> : null}
+          <div className="space-y-[3mm] p-[3mm]">
+            {groupPhotos(photos).map((g, gi) => (
+              <div key={gi}>
+                {g.name ? (
+                  <div className="mb-[1.5mm] font-bold">
+                    {gi + 1}. {g.name}
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-2 gap-[3mm]">
+                  {g.photos.map((p) => (
+                    <div key={p.id} className="break-inside-avoid">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.url}
+                        alt={p.caption || "รูปหน้างาน"}
+                        className="h-[62mm] w-full border border-black object-contain"
+                      />
+                      {p.caption ? <div className="pt-[1mm]">{p.caption}</div> : null}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

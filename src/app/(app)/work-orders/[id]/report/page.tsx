@@ -85,7 +85,7 @@ export default async function ServiceReportPage({
       .order("created_at"),
     supabase
       .from("work_order_photos")
-      .select("id, path, caption")
+      .select("id, path, caption, section")
       .eq("work_order_id", id)
       .order("position")
       .order("created_at"),
@@ -155,6 +155,7 @@ export default async function ServiceReportPage({
         id: p.id as string,
         url: `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${p.path}`,
         caption: (p.caption as string) ?? "",
+        section: (p.section as string) ?? "",
       }))}
       signatureUrl={
         workOrder.signature_path

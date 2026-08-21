@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useId, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PhotoViewer } from "@/components/ui/photo-viewer";
+import { flattenGroups, groupPhotos } from "../photo-groups";
 import { createClient } from "@/lib/supabase/client";
 import { cn, formatCurrency } from "@/lib/utils";
 import { shrinkImage } from "@/lib/image";
@@ -74,7 +75,7 @@ import {
   saveTechnicianRemark,
   saveWorkOrderSignature,
   saveWorkOrderPhotoCaption,
-  reorderWorkOrderPhotos,
+  arrangeWorkOrderPhotos,
   addWorkOrderPhoto,
   deleteWorkOrderPart,
   deleteWorkOrder,
@@ -83,6 +84,14 @@ import {
 } from "../actions";
 
 type PhotoWithUrl = WorkOrderPhoto & { url: string };
+
+/** What a heading is usually called, offered in the order they get used. */
+const SECTION_IDEAS = [
+  "รูปก่อนทำงาน",
+  "รูปหลังทำงาน",
+  "รูปอุปกรณ์ที่เสีย",
+  "รูปอะไหล่ที่เปลี่ยน",
+];
 type PartRow = {
   id: string;
   name: string;
@@ -186,6 +195,10 @@ export function WorkOrderDetail({
   const [uploadNote, setUploadNote] = useState("");
   const { run, busy } = useBusyTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  /** The heading the file picker was opened from; read when the files land. */
+  const pendingSection = useRef("");
+  /** So only the heading being added to shows the spinner, not all of them. */
+  const [uploadingTo, setUploadingTo] = useState<string | null>(null);
 
   /** The assets on this job, in the order the picker lists them. Memoized:
    *  `assets` is every asset in the org, and this page re-renders per
@@ -229,10 +242,11 @@ export function WorkOrderDetail({
   }
 
 
-  async function uploadFiles(files: FileList | null) {
+  async function uploadFiles(files: FileList | null, section: string) {
     if (!files || files.length === 0) return;
     const chosen = Array.from(files);
     setUploading(true);
+    setUploadingTo(section);
     setUploadNote(chosen.length > 1 ? `กำลังย่อรูป ${chosen.length} รูป…` : "กำลังย่อรูป…");
 
     // try/finally: a thrown network error on flaky site data must not leave
@@ -257,7 +271,7 @@ export function WorkOrderDetail({
                 .from("wo-photos")
                 .upload(path, file, { cacheControl: "3600", upsert: false });
               if (error) return `${chosen[i].name}: ${error.message}`;
-              const res = await addWorkOrderPhoto(workOrder.id, path);
+              const res = await addWorkOrderPhoto(workOrder.id, path, section);
               return res.ok ? null : `${chosen[i].name}: ${res.error}`;
             } catch (e) {
               return `${chosen[i].name}: ${e instanceof Error ? e.message : "อัปโหลดล้มเหลว"}`;
@@ -273,66 +287,143 @@ export function WorkOrderDetail({
       alert("อัปโหลดไม่สำเร็จ: " + (e instanceof Error ? e.message : "ลองใหม่อีกครั้ง"));
     } finally {
       setUploading(false);
+      setUploadingTo(null);
       setUploadNote("");
       if (fileRef.current) fileRef.current.value = "";
     }
+    // The draft heading is not cleared here: it disappears on its own once the
+    // refresh brings back a photo carrying that name, so the heading never
+    // blinks out of the card between the upload landing and the page catching
+    // up — and it stays put if the upload failed.
     router.refresh();
   }
 
   /**
-   * The order the photos are shown in, held here so a drag lands under the
-   * finger and the server catches up. Reset whenever the set of photos changes
-   * — one arrived, one went — but not when only their order does, which is the
-   * refresh that follows a drag of our own.
+   * How the photos are arranged: the order they read in, and the heading each
+   * one falls under. Held here so a drag lands under the finger and the server
+   * catches up. Reset whenever the set of photos changes — one arrived, one
+   * went — but not when only the arrangement does, which is the refresh that
+   * follows a drag of our own.
    */
-  const [order, setOrder] = useState<string[]>(() => photos.map((p) => p.id));
-  const [orderKey, setOrderKey] = useState(() => photos.map((p) => p.id).join(","));
+  const serverArrangement = () =>
+    photos.map((p) => ({ id: p.id, section: p.section ?? "" }));
+  const [arrangement, setArrangement] = useState(serverArrangement);
+  const [arrangeKey, setArrangeKey] = useState(() => photos.map((p) => p.id).join(","));
   const serverKey = photos.map((p) => p.id).join(",");
-  if (orderKey !== serverKey) {
-    setOrderKey(serverKey);
-    setOrder(photos.map((p) => p.id));
+  if (arrangeKey !== serverKey) {
+    setArrangeKey(serverKey);
+    setArrangement(serverArrangement());
   }
-  const shownPhotos = order
-    .map((id) => photos.find((p) => p.id === id))
+
+  const byId = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos]);
+  /** The flat list the viewer and the ◀▶ buttons walk, headings ignored. */
+  const shownPhotos = arrangement
+    .map((a) => byId.get(a.id))
     .filter((p): p is PhotoWithUrl => !!p);
+  /**
+   * Headings a technician has typed but not yet filled. They live only here:
+   * a heading becomes real the moment a photo is uploaded under it, and an
+   * empty one is worth no trip to the server.
+   */
+  const [draftSections, setDraftSections] = useState<string[]>([]);
+  const groups = useMemo(() => {
+    const real = groupPhotos(arrangement).map((g) => ({
+      name: g.name,
+      ids: g.photos.map((p) => p.id),
+    }));
+    const drafts = draftSections
+      .filter((name) => !real.some((g) => g.name === name.trim()))
+      .map((name) => ({ name, ids: [] as string[] }));
+    // Something to hang the first upload on when the job has no photos yet.
+    return real.length + drafts.length ? [...real, ...drafts] : [{ name: "", ids: [] }];
+  }, [arrangement, draftSections]);
+
   const dragId = useRef<string | null>(null);
 
-  function saveOrder(ids: string[]) {
-    setOrder(ids);
+  function saveArrangement(next: { id: string; section: string }[]) {
+    // Pull equal headings together before saving, so a photo dropped under a
+    // heading that already exists elsewhere joins it instead of starting a
+    // second one with the same name.
+    const tidy = flattenGroups(next);
+    setArrangement(tidy);
     run("photoOrder", async () => {
       try {
-        const res = await reorderWorkOrderPhotos(workOrder.id, ids);
+        const res = await arrangeWorkOrderPhotos(workOrder.id, tidy);
         if (!res.ok) {
           alert(res.error);
-          // Roll the optimistic order back — the photo set didn't change, so
-          // the render-phase resync above would never fire on its own and the
-          // grid would keep an order the server rejected forever.
-          setOrder(photos.map((p) => p.id));
+          // Roll back — the photo set didn't change, so the render-phase
+          // resync above would never fire on its own and the grid would keep
+          // an arrangement the server rejected forever.
+          setArrangement(serverArrangement());
         }
       } catch {
         alert("บันทึกลำดับรูปไม่สำเร็จ — ลองใหม่อีกครั้ง");
-        setOrder(photos.map((p) => p.id));
+        setArrangement(serverArrangement());
       }
       router.refresh();
     });
   }
-  /** Drop `dragged` where `targetId` currently sits. */
+
+  /**
+   * Drop `dragged` where `targetId` currently sits — and under the heading
+   * that photo lives beneath, because moving a photo into a group is the same
+   * gesture as moving it next to the photos already in one.
+   */
   function dropOn(targetId: string) {
     const from = dragId.current;
     dragId.current = null;
     if (!from || from === targetId) return;
-    const next = order.filter((id) => id !== from);
-    next.splice(next.indexOf(targetId), 0, from);
-    saveOrder(next);
+    const moving = arrangement.find((a) => a.id === from);
+    const target = arrangement.find((a) => a.id === targetId);
+    if (!moving || !target) return;
+    const next = arrangement.filter((a) => a.id !== from);
+    next.splice(
+      next.findIndex((a) => a.id === targetId),
+      0,
+      { ...moving, section: target.section }
+    );
+    saveArrangement(next);
   }
-  /** The same move for a thumb: dragging works on a mouse, not on a phone. */
+
+  /**
+   * The same move for a thumb: dragging works on a mouse, not on the phone
+   * these were taken on. A step past the last photo of a heading carries the
+   * photo into the next one, which is how a photo filed under the wrong
+   * heading gets out again without a mouse.
+   */
   function nudge(id: string, delta: number) {
-    const i = order.indexOf(id);
+    const i = arrangement.findIndex((a) => a.id === id);
     const j = i + delta;
-    if (i < 0 || j < 0 || j >= order.length) return;
-    const next = [...order];
-    [next[i], next[j]] = [next[j], next[i]];
-    saveOrder(next);
+    if (i < 0 || j < 0 || j >= arrangement.length) return;
+    const next = [...arrangement];
+    const [moving] = next.splice(i, 1);
+    next.splice(j, 0, { ...moving, section: arrangement[j].section });
+    saveArrangement(next);
+  }
+
+  /**
+   * A new heading, named for you. Handing over an empty box would ask a
+   * technician on a roof to think of a word; the first unused suggestion is
+   * almost always the word they wanted, and it is one tap to change.
+   */
+  function addSection() {
+    const used = new Set(groups.map((g) => g.name.trim()));
+    const fresh =
+      SECTION_IDEAS.find((n) => !used.has(n)) ?? `หัวข้อที่ ${groups.length + 1}`;
+    setDraftSections((d) => [...d, fresh]);
+  }
+
+  /** Rename one heading — every photo under it moves with the name. */
+  function renameSection(from: string, to: string) {
+    // Trimmed on the way in, because every comparison downstream — which draft
+    // has become real, which photos belong to this heading — is by name.
+    const name = to.trim();
+    if (from.trim() === name) return;
+    setDraftSections((d) => d.map((n) => (n === from ? name : n)));
+    if (!arrangement.some((a) => a.section === from)) return;
+    saveArrangement(
+      arrangement.map((a) => (a.section === from ? { ...a, section: name } : a))
+    );
   }
 
   const [signing, setSigning] = useState(false);
@@ -603,107 +694,152 @@ export function WorkOrderDetail({
           </CardContent>
         </Card>
 
-        {/* Photos */}
+        {/* Photos, gathered under the headings they print under. */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>รูปหน้างาน</CardTitle>
-            <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ImagePlus className="h-4 w-4" />
-              )}
-              {uploading ? uploadNote || "กำลังอัปโหลด…" : "เพิ่มรูป"}
+            <Button variant="secondary" size="sm" onClick={addSection}>
+              <Plus className="h-4 w-4" /> เพิ่มหัวข้อ
             </Button>
+            {/* One picker for every heading; which one asked is held in a ref
+                because the change event fires long after the click. */}
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
               multiple
               hidden
-              onChange={(e) => uploadFiles(e.target.files)}
+              onChange={(e) => uploadFiles(e.target.files, pendingSection.current)}
             />
           </CardHeader>
-          <CardContent>
-            {photos.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                ยังไม่มีรูป — กด “เพิ่มรูป” เพื่ออัปโหลดภาพหน้างาน
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {shownPhotos.map((ph, i) => (
-                  <div
-                    key={ph.id}
-                    draggable
-                    onDragStart={() => (dragId.current = ph.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => dropOn(ph.id)}
-                    onDragEnd={() => (dragId.current = null)}
+          <CardContent className="space-y-6">
+            {groups.map((g, gi) => (
+              <section key={g.name || `--untitled-${gi}`} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    {gi + 1}.
+                  </span>
+                  <SectionHeading
+                    name={g.name}
+                    onRename={(to) => renameSection(g.name, to)}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={uploading}
+                    onClick={() => {
+                      pendingSection.current = g.name;
+                      fileRef.current?.click();
+                    }}
                   >
-                  <div
-                    className="group relative aspect-square cursor-move overflow-hidden rounded-md border border-border bg-muted"
-                  >
+                    {uploadingTo === g.name ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4" />
+                    )}
+                    {uploadingTo === g.name ? uploadNote || "กำลังอัปโหลด…" : "เพิ่มรูป"}
+                  </Button>
+                  {g.ids.length === 0 && draftSections.includes(g.name) ? (
                     <button
                       type="button"
-                      onClick={() => setViewerId(ph.id)}
-                      className="absolute inset-0"
-                      aria-label="เปิดดูรูป"
+                      onClick={() =>
+                        setDraftSections((d) => d.filter((n) => n !== g.name))
+                      }
+                      aria-label="ลบหัวข้อ"
+                      className="rounded-md p-1.5 text-muted-foreground hover:text-destructive"
                     >
-                      <Image
-                        src={ph.url}
-                        alt={ph.caption || "รูปหน้างาน"}
-                        fill
-                        sizes="(max-width: 640px) 33vw, 200px"
-                        className="object-cover"
-                      />
+                      <Trash2 className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => removePhoto(ph)}
-                      disabled={busy(`photo-${ph.id}`)}
-                      className={cn(
-                        "absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white transition-opacity md:opacity-0 md:group-hover:opacity-100",
-                        busy(`photo-${ph.id}`) && "md:opacity-100"
-                      )}
-                      aria-label="ลบรูป"
-                    >
-                      {busy(`photo-${ph.id}`) ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                    {/* Dragging is a mouse; these are for the phone the
-                        photographs were taken on. */}
-                    <div className="absolute inset-x-1 bottom-1 flex justify-between opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => nudge(ph.id, -1)}
-                        disabled={i === 0 || busy("photoOrder")}
-                        aria-label="ย้ายไปก่อนหน้า"
-                        className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => nudge(ph.id, 1)}
-                        disabled={i === shownPhotos.length - 1 || busy("photoOrder")}
-                        aria-label="ย้ายไปถัดไป"
-                        className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
-                      >
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                  ) : null}
+                </div>
+
+                {g.ids.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    {photos.length === 0
+                      ? "ยังไม่มีรูป — กด “เพิ่มรูป” เพื่ออัปโหลดภาพหน้างาน"
+                      : "ยังไม่มีรูปในหัวข้อนี้"}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {g.ids.map((id) => {
+                      const ph = byId.get(id);
+                      if (!ph) return null;
+                      // Position in the whole list, not in this heading: the
+                      // ◀▶ buttons walk the page, crossing headings as they go.
+                      const i = shownPhotos.findIndex((x) => x.id === id);
+                      return (
+                        <div
+                          key={ph.id}
+                          draggable
+                          onDragStart={() => (dragId.current = ph.id)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => dropOn(ph.id)}
+                          onDragEnd={() => (dragId.current = null)}
+                        >
+                          <div className="group relative aspect-square cursor-move overflow-hidden rounded-md border border-border bg-muted">
+                            <button
+                              type="button"
+                              onClick={() => setViewerId(ph.id)}
+                              className="absolute inset-0"
+                              aria-label="เปิดดูรูป"
+                            >
+                              <Image
+                                src={ph.url}
+                                alt={ph.caption || "รูปหน้างาน"}
+                                fill
+                                sizes="(max-width: 640px) 33vw, 200px"
+                                className="object-cover"
+                              />
+                            </button>
+                            <button
+                              onClick={() => removePhoto(ph)}
+                              disabled={busy(`photo-${ph.id}`)}
+                              className={cn(
+                                "absolute right-1 top-1 rounded-md bg-black/50 p-1 text-white transition-opacity md:opacity-0 md:group-hover:opacity-100",
+                                busy(`photo-${ph.id}`) && "md:opacity-100"
+                              )}
+                              aria-label="ลบรูป"
+                            >
+                              {busy(`photo-${ph.id}`) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            {/* Dragging is a mouse; these are for the phone the
+                                photographs were taken on. */}
+                            <div className="absolute inset-x-1 bottom-1 flex justify-between opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">
+                              <button
+                                type="button"
+                                onClick={() => nudge(ph.id, -1)}
+                                disabled={i === 0 || busy("photoOrder")}
+                                aria-label="ย้ายไปก่อนหน้า"
+                                className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
+                              >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => nudge(ph.id, 1)}
+                                disabled={i === shownPhotos.length - 1 || busy("photoOrder")}
+                                aria-label="ย้ายไปถัดไป"
+                                className="rounded-md bg-black/50 p-1 text-white disabled:opacity-30"
+                              >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <PhotoCaption
+                            photo={ph}
+                            workOrderId={workOrder.id}
+                            onSaved={() => router.refresh()}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                  <PhotoCaption
-                    photo={ph}
-                    workOrderId={workOrder.id}
-                    onSaved={() => router.refresh()}
-                  />
-                  </div>
-                ))}
-              </div>
-            )}
+                )}
+              </section>
+            ))}
           </CardContent>
         </Card>
 
@@ -816,6 +952,53 @@ export function WorkOrderDetail({
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The heading a run of photos prints under — "รูปก่อนทำงาน", then
+ * "รูปหลังทำงาน". Saved when the box is left, like the captions below it, and
+ * offering the usual four so most headings are a tap rather than a sentence
+ * typed with one thumb.
+ *
+ * Emptying it is how a heading is removed: its photos fall back into the
+ * untitled run rather than disappearing with the word.
+ */
+function SectionHeading({
+  name,
+  onRename,
+}: {
+  name: string;
+  onRename: (to: string) => void;
+}) {
+  const [text, setText] = useState(name);
+  const [known, setKnown] = useState(name);
+  if (known !== name) {
+    setKnown(name);
+    setText(name);
+  }
+  const listId = useId();
+
+  return (
+    <>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onRename(text)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setText(name);
+        }}
+        list={listId}
+        placeholder="หัวข้อรูป เช่น รูปก่อนทำงาน"
+        className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-sm font-medium"
+      />
+      <datalist id={listId}>
+        {SECTION_IDEAS.map((n) => (
+          <option key={n} value={n} />
+        ))}
+      </datalist>
+    </>
   );
 }
 

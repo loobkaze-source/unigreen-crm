@@ -624,16 +624,27 @@ export async function deleteWorkOrderPart(
 export async function addWorkOrderPhoto(
   workOrderId: string,
   path: string,
-  caption?: string
+  section?: string
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
+  // Land it at the end of the run rather than at position 0, where a photo
+  // added to the last heading would otherwise drag that whole heading to the
+  // top of the page. Two uploads racing for the same number is harmless —
+  // created_at breaks the tie in the order they arrived.
+  const { data: last } = await ctx.supabase
+    .from("work_order_photos")
+    .select("position")
+    .eq("work_order_id", workOrderId)
+    .order("position", { ascending: false })
+    .limit(1);
   const { error } = await ctx.supabase.from("work_order_photos").insert({
     org_id: ctx.org.id,
     work_order_id: workOrderId,
     path,
-    caption: caption?.trim() || null,
+    position: ((last?.[0]?.position as number) ?? -1) + 1,
+    section: section?.trim() || null,
   });
   if (error) return fail(error.message);
   // "layout" also refreshes the nested /report page these fields print on.
@@ -669,28 +680,30 @@ export async function saveWorkOrderPhotoCaption(
 }
 
 /**
- * The order the site photos are shown and printed in.
+ * The order the site photos are shown and printed in, and the heading each one
+ * falls under.
  *
- * Given the ids as they should read, so the client sends what it drew rather
- * than a move to be replayed — two drags in quick succession then cannot land
- * out of sequence and leave the list in an order nobody chose.
+ * Order and heading travel together because on this card they are one gesture:
+ * a photo dragged under "รูปหลังทำงาน" both moves and joins. Given as the whole
+ * list rather than as a move to be replayed, so two drags in quick succession
+ * cannot land out of sequence and leave the page in an order nobody chose.
  */
-export async function reorderWorkOrderPhotos(
+export async function arrangeWorkOrderPhotos(
   workOrderId: string,
-  ids: string[]
+  items: { id: string; section: string }[]
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
 
   // One round trip per photo, but all in flight together — a 30-photo job
-  // reorders in one network beat instead of thirty.
+  // rearranges in one network beat instead of thirty.
   const results = await Promise.all(
-    ids.map((id, position) =>
+    items.map((item, position) =>
       ctx.supabase
         .from("work_order_photos")
-        .update({ position })
-        .eq("id", id)
+        .update({ position, section: item.section.trim() || null })
+        .eq("id", item.id)
         .eq("work_order_id", workOrderId)
         .eq("org_id", ctx.org.id)
     )

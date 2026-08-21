@@ -167,6 +167,11 @@ Open Supabase → **SQL Editor** and run in order:
 51. `0051_fk_indexes.sql` — covering indexes for all 45 foreign keys the Supabase performance
     linter flagged as unindexed (embeds and cascading deletes walk these). Purely additive;
     **applied to the live project 2026-08-21** via MCP `apply_migration`.
+52. `0052_photo_section.sql` — `work_order_photos.section`: the heading a photo prints under
+    ("รูปก่อนทำงาน", "รูปหลังทำงาน"). Grouping is derived, not stored — `groupPhotos` in
+    `work-orders/photo-groups.ts` is the one definition, used by both the card and the report,
+    so the page prints in the order the card shows. Also backfills `position`, which had sat
+    at 0 for everything uploaded since 0050. **Applied to the live project 2026-08-21.**
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.

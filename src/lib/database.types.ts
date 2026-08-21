@@ -251,6 +251,8 @@ export interface WorkOrderPhoto extends Timestamps {
   work_order_id: string;
   path: string;
   caption: string | null;
+  /** The heading it prints under, e.g. รูปก่อนทำงาน. Null when it has none. */
+  section: string | null;
 }
 
 /**
