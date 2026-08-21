@@ -5,6 +5,13 @@ import { Eraser, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
+ * Ink colour. Blue, because that is what a signature is signed in and what
+ * tells a signed original from a photocopy of one — deep enough that it still
+ * reads as a signature when the report comes off a black-and-white printer.
+ */
+const INK = "#1e40af";
+
+/**
  * A full-screen pad for the customer to sign a job off on the technician's
  * phone.
  *
@@ -73,7 +80,7 @@ export function SignaturePad({
     ctx.lineWidth = 2.5;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#0f172a";
+    ctx.strokeStyle = INK;
   }, [open, portrait]);
 
   if (!open) return null;
@@ -119,7 +126,7 @@ export function SignaturePad({
     if (!c || !ctx) return;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, c.clientWidth, c.clientHeight);
-    ctx.strokeStyle = "#0f172a";
+    ctx.strokeStyle = INK;
     setInked(false);
   }
 
