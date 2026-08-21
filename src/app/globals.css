@@ -216,3 +216,22 @@ body {
 .dark .text-red-700 {
   color: #fca5a5;
 }
+
+/*
+ * Feedback for a tap that is waiting on the network — the job card on a phone,
+ * where a prefetch has often not finished before the thumb lands and nothing
+ * on screen answers the tap.
+ *
+ * It starts invisible and fades in after 120ms, so a navigation that was
+ * already prefetched never flickers a spinner on its way out. Only a wait long
+ * enough to be doubted is shown.
+ */
+@keyframes tap-wait-in {
+  to {
+    opacity: 1;
+  }
+}
+.tap-wait {
+  opacity: 0;
+  animation: tap-wait-in 120ms linear 120ms forwards;
+}

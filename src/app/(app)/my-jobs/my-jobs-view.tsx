@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Loader2,
   MapPin,
   Navigation,
   Phone,
@@ -322,6 +323,28 @@ export function MyJobsView({
   );
 }
 
+/**
+ * The chevron at the corner of a job card, which spins while the tap that hit
+ * it is still waiting on the network.
+ *
+ * Out on site the prefetch often has not finished when the thumb lands, and a
+ * card that answers a tap with nothing gets tapped again. Must live inside the
+ * <Link> — that is where useLinkStatus reads from.
+ */
+function TapWait() {
+  const { pending } = useLinkStatus();
+  // The fade and the spin are two animations, and `animation` is a shorthand
+  // rather than a list that merges — so they go on two elements or one of them
+  // is silently dropped.
+  return pending ? (
+    <span className="tap-wait mt-1 shrink-0">
+      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+    </span>
+  ) : (
+    <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+  );
+}
+
 function JobCard({
   job,
   busy,
@@ -368,7 +391,7 @@ function JobCard({
               {job.job_class ? ` · ${jobClassLabel(job.job_class)}` : ""}
             </div>
           </div>
-          <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+          <TapWait />
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm">
@@ -486,7 +509,11 @@ function JobCard({
             onClick={onAccept}
             className="flex flex-[2] items-center justify-center gap-1.5 bg-primary py-3 text-sm font-semibold text-white active:opacity-90 disabled:opacity-50"
           >
-            <ThumbsUp className="h-4 w-4" />
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ThumbsUp className="h-4 w-4" />
+            )}
             {busy ? "กำลังบันทึก…" : "รับงาน"}
           </button>
         ) : !done && job.status !== "in_progress" ? (
@@ -496,7 +523,11 @@ function JobCard({
             onClick={() => onStatus("in_progress")}
             className="flex flex-1 items-center justify-center gap-1.5 bg-card py-3 text-sm font-medium text-primary active:bg-muted disabled:opacity-50"
           >
-            <PlayCircle className="h-4 w-4" />
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <PlayCircle className="h-4 w-4" />
+            )}
             {busy ? "กำลังบันทึก…" : "เริ่มงาน"}
           </button>
         ) : null}
@@ -518,7 +549,13 @@ function JobCard({
               : "bg-slate-500 active:bg-slate-600"
           )}
         >
-          {signed ? <CheckCircle2 className="h-5 w-5" /> : <PenLine className="h-5 w-5" />}
+          {busy ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : signed ? (
+            <CheckCircle2 className="h-5 w-5" />
+          ) : (
+            <PenLine className="h-5 w-5" />
+          )}
           {busy ? "กำลังบันทึก…" : signed ? "ปิดงาน" : "ขอลายเซ็นก่อนปิดงาน"}
         </button>
       )}

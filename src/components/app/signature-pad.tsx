@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Eraser, X } from "lucide-react";
+import { Eraser, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -203,7 +203,10 @@ export function SignaturePad({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium active:bg-muted"
+            // Shut while the drawing is going up and it lands in storage with
+            // nothing pointing at it, and the customer is asked to sign twice.
+            disabled={saving}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium active:bg-muted disabled:opacity-40"
           >
             ยกเลิก
           </button>
@@ -212,10 +215,11 @@ export function SignaturePad({
             onClick={save}
             disabled={!inked || saving}
             className={cn(
-              "rounded-md bg-primary px-5 py-2 text-sm font-semibold text-white active:opacity-90",
+              "inline-flex items-center gap-1.5 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-white active:opacity-90",
               (!inked || saving) && "opacity-40"
             )}
           >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {saving ? "กำลังบันทึก…" : "บันทึกลายเซ็น"}
           </button>
         </div>
