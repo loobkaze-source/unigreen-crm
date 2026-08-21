@@ -235,3 +235,29 @@ body {
   opacity: 0;
   animation: tap-wait-in 120ms linear 120ms forwards;
 }
+
+/*
+ * No pinch-zooming the app itself.
+ *
+ * A phone left zoomed in is a phone with half the card off the side of the
+ * screen, and on site nobody notices they are zoomed — they notice the button
+ * has gone missing. Springing back on release was tried first and cannot be
+ * done: there is no way to ask a browser to return to scale 1, and Chrome
+ * accepts a late `maximum-scale=1` for future gestures without pulling back
+ * the zoom already on screen.
+ *
+ * `touch-action` is not a hint like `user-scalable=no` — it tells the compositor
+ * what it may do with the gesture, and leaving `pinch-zoom` off the list means
+ * two fingers pan instead of zooming. One finger still scrolls; a canvas that
+ * wants the raw touches (the signature pad) sets `touch-action: none` of its
+ * own and wins over this.
+ *
+ * The app is laid out to fit a phone, so there is nothing here to zoom into.
+ * The service report is not — it is an A4 sheet — so it opts back in.
+ */
+html {
+  touch-action: pan-x pan-y;
+}
+html:has([data-allow-zoom]) {
+  touch-action: auto;
+}

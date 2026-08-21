@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
-import { PinchZoomSnapBack } from "@/components/app/pinch-zoom-snapback";
 
 const notoThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
@@ -11,9 +10,10 @@ const notoThai = Noto_Sans_Thai({
 });
 
 /**
- * Spelled out rather than left to the default, because PinchZoomSnapBack
- * rewrites this tag to pull a pinched page back to size and has to put back
- * exactly what was here.
+ * Deliberately without `user-scalable=no`: Chrome treats that as a hint it may
+ * override, and it would take zoom away from the service report too. Pinching
+ * is turned off where it is unwanted with `touch-action` in globals.css, which
+ * is a rule rather than a request and can be lifted per page.
  */
 export const viewport: Viewport = {
   width: "device-width",
@@ -41,10 +41,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full">
-        <PinchZoomSnapBack />
-        {children}
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }
