@@ -1,9 +1,39 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getSessionContext, row, rows } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import type { WorkOrder } from "@/lib/database.types";
 import { COMPANY } from "@/lib/company";
+import { woCode } from "../../constants";
 import { ServiceReport } from "./service-report";
+
+/** One fetch per request, shared by generateMetadata and the page. */
+const loadWorkOrder = cache(async (id: string) => {
+  const { supabase, org } = await getSessionContext();
+  return row<WorkOrder>(
+    (await supabase
+      .from("work_orders")
+      .select("*")
+      .eq("id", id)
+      .eq("org_id", org.id)
+      .maybeSingle()) as never
+  );
+});
+
+/**
+ * The tab title IS the default filename the browser offers for "Save as PDF" —
+ * so it carries the service report code (MRD-0826-00001-01), not the app name.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const workOrder = await loadWorkOrder(id);
+  return { title: workOrder ? woCode(workOrder) : "Service Report" };
+}
 
 /**
  * รายงานการซ่อม / SERVICE REPORT — the job on one sheet of A4, laid out as the
@@ -16,16 +46,9 @@ export default async function ServiceReportPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org } = await getSessionContext();
+  const { supabase } = await getSessionContext();
 
-  const workOrder = row<WorkOrder>(
-    (await supabase
-      .from("work_orders")
-      .select("*")
-      .eq("id", id)
-      .eq("org_id", org.id)
-      .maybeSingle()) as never
-  );
+  const workOrder = await loadWorkOrder(id);
   if (!workOrder) notFound();
 
   const [companyRes, siteRes, contactRes, techRes, linkRes, crewRes, photoRes, partsRes] =
