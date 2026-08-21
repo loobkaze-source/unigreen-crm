@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 import { RandomLoadingArt } from "@/components/ui/loading-art";
 
 /**
- * Centred loading screen — shows one of the random energy-themed animations
- * (cloud / fuel nozzle / wind turbine / solar PV) with a label.
+ * Centred loading screen — the sweeping ring with one of the company's four
+ * faces at its centre, picked at random, and a label under it.
  */
 export function LoadingScreen({
   label = "กำลังโหลด…",

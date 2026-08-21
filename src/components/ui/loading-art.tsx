@@ -1,162 +1,87 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
+import { Cloud, Fuel, Sun, Zap } from "lucide-react";
 
 /**
- * Random loading art — each load shows one of four animated energy-themed
- * graphics: the Unicloud cloud, a dripping fuel nozzle, a wind turbine, or a
- * solar panel. Chosen client-side after mount so SSR/hydration always match.
+ * The loading mark: a sweeping ring with one of the company's four faces at
+ * its centre — the Unicloud cloud, a pump, the sun, a bolt.
+ *
+ * The ring is what says "working": one continuous, unambiguous motion that
+ * reads at any size. The glyph inside is what says whose app this is, and
+ * changes each time so the wait has something to look at. They are drawn as
+ * one system — same weight, same brand blue, same centre — rather than as four
+ * unrelated pictures, which is what the four hand-drawn ones were.
  */
 
-function CloudArt() {
+/** Circumference of the r=40 ring, so the dash lengths can be read as angles. */
+const R = 40;
+const C = 2 * Math.PI * R;
+
+const FACES = [
+  { Icon: Cloud, label: "Unicloud" },
+  { Icon: Fuel, label: "fuel" },
+  { Icon: Sun, label: "solar" },
+  { Icon: Zap, label: "electrical" },
+];
+
+function LoadingMark({ face }: { face: number }) {
+  // Unique per instance: two of these on one page must not share a gradient.
+  const sweep = useId().replace(/:/g, "");
+  const { Icon } = FACES[face];
+
   return (
-    <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden>
-      {/* Small background cloud, drifting slower */}
-      <g
-        className="text-sky-300/60 dark:text-sky-700/60"
-        style={{ animation: "uc-float 3.2s ease-in-out 0.6s infinite" }}
-        fill="currentColor"
-      >
-        <circle cx="70" cy="34" r="7" />
-        <circle cx="79" cy="36" r="6" />
-        <rect x="66" y="34" width="18" height="8" rx="4" />
-      </g>
-      {/* Main Unicloud cloud, floating */}
-      <g
-        className="text-primary"
-        style={{ animation: "uc-float 2.4s ease-in-out infinite" }}
-        fill="currentColor"
-      >
-        <circle cx="34" cy="56" r="12" />
-        <circle cx="58" cy="56" r="15" />
-        <circle cx="46" cy="44" r="15" />
-        <rect x="34" y="50" width="24" height="20" rx="7" />
-      </g>
-      {/* Rain-of-data dots */}
-      {[38, 48, 58].map((x, i) => (
+    <span className="relative inline-flex h-24 w-24 items-center justify-center">
+      {/* text-primary lives on the <svg>, not on the swept circle: the
+          gradient stops resolve currentColor against their own inherited
+          colour, so a class on the element that merely *references* the
+          gradient leaves the sweep the page's foreground — near black. */}
+      <svg viewBox="0 0 96 96" className="h-24 w-24 text-primary" aria-hidden>
+        <defs>
+          <linearGradient id={sweep} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.15" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+
+        {/* The track the sweep runs on — faint, so the ring reads as a path
+            rather than as a border that happens to be moving. */}
         <circle
-          key={x}
-          cx={x}
-          cy="76"
-          r="2.2"
-          className="fill-sky-400"
-          style={{ animation: `uc-drip 1.6s ease-in ${i * 0.35}s infinite` }}
+          cx="48"
+          cy="48"
+          r={R}
+          fill="none"
+          strokeWidth="4"
+          className="stroke-primary/10"
         />
-      ))}
-    </svg>
-  );
-}
+        {/* A third of the ring, going round. Round caps so the head of the
+            sweep is a nib rather than a cut edge. */}
+        <circle
+          cx="48"
+          cy="48"
+          r={R}
+          fill="none"
+          strokeWidth="4"
+          strokeLinecap="round"
+          stroke={`url(#${sweep})`}
+          strokeDasharray={`${C * 0.34} ${C * 0.66}`}
+          style={{ animation: "uc-rotor 1.15s linear infinite", transformOrigin: "48px 48px" }}
+        />
+      </svg>
 
-function FuelArt() {
-  return (
-    <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden>
-      {/* Pump body */}
-      <g className="text-primary" fill="currentColor">
-        {/* Handle grip */}
-        <rect x="30" y="16" width="26" height="9" rx="3" />
-        {/* Trigger guard */}
-        <path d="M34 25 h8 v8 h-8 z" opacity="0.7" />
-        {/* Body */}
-        <rect x="28" y="30" width="30" height="28" rx="6" />
-        {/* Spout: out to the right, hooking down */}
-        <path d="M58 34 h12 a6 6 0 0 1 6 6 v12 h-7 v-10 a2 2 0 0 0-2-2 h-9 z" />
-      </g>
-      {/* Window on the body */}
-      <rect x="34" y="36" width="12" height="9" rx="2" className="fill-card" opacity="0.9" />
-      {/* Falling drop from the spout */}
-      <path
-        d="M72.5 56 c-2.6 3.4 -3.9 5.5 -3.9 7.4 a3.9 3.9 0 0 0 7.8 0 c0-1.9 -1.3-4 -3.9-7.4 z"
-        className="fill-amber-500"
-        style={{ animation: "uc-drip 1.5s ease-in infinite" }}
+      {/* The glyph sits above the ring rather than inside the same <svg> so it
+          can breathe on its own clock — the ring's speed says "working", the
+          glyph's slow pulse says "and it is alive". */}
+      <Icon
+        className="absolute h-10 w-10 text-primary"
+        strokeWidth={1.75}
+        style={{ animation: "uc-breathe 2.6s ease-in-out infinite" }}
+        aria-hidden
       />
-      {/* Base */}
-      <rect x="26" y="58" width="34" height="6" rx="3" className="fill-muted-foreground/40" />
-    </svg>
+    </span>
   );
 }
-
-function TurbineArt() {
-  return (
-    <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden>
-      {/* Ground */}
-      <path
-        d="M20 86 h56"
-        className="stroke-muted-foreground/40"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      {/* Tower */}
-      <path d="M45.5 84 L47 38 h2 L50.5 84 z" className="fill-primary/80" />
-      {/* Rotor blades — spin around the hub */}
-      <g
-        className="text-primary"
-        style={{
-          animation: "uc-rotor 2.2s linear infinite",
-          transformOrigin: "48px 36px",
-        }}
-        fill="currentColor"
-      >
-        {[0, 120, 240].map((deg) => (
-          <path
-            key={deg}
-            d="M48 36 C45.5 26 45.8 16 48 8 C50.2 16 50.5 26 48 36 z"
-            transform={`rotate(${deg} 48 36)`}
-          />
-        ))}
-      </g>
-      {/* Hub */}
-      <circle cx="48" cy="36" r="4" className="fill-primary" />
-      <circle cx="48" cy="36" r="1.6" className="fill-card" />
-    </svg>
-  );
-}
-
-function SolarArt() {
-  return (
-    <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden>
-      {/* Sun with rotating rays */}
-      <g
-        className="text-amber-400"
-        style={{ animation: "uc-rotor 9s linear infinite", transformOrigin: "30px 26px" }}
-        stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-      >
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
-          <line
-            key={deg}
-            x1="30"
-            y1="10"
-            x2="30"
-            y2="14.5"
-            transform={`rotate(${deg} 30 26)`}
-          />
-        ))}
-      </g>
-      <circle
-        cx="30"
-        cy="26"
-        r="7.5"
-        className="fill-amber-400"
-        style={{ animation: "uc-pulse 2s ease-in-out infinite" }}
-      />
-      {/* Tilted PV panel */}
-      <g>
-        <polygon points="30,74 52,52 88,52 66,74" className="fill-primary" />
-        {/* Grid lines */}
-        <g className="stroke-card" strokeWidth="1.6" opacity="0.85">
-          <line x1="41" y1="63" x2="77" y2="63" />
-          <line x1="59" y1="52" x2="45" y2="74" />
-          <line x1="71" y1="52" x2="57" y2="74" />
-        </g>
-        {/* Stand */}
-        <path d="M56 74 v8 M64 74 v8" className="stroke-muted-foreground/50" strokeWidth="3" strokeLinecap="round" />
-      </g>
-    </svg>
-  );
-}
-
-const VARIANTS = [CloudArt, FuelArt, TurbineArt, SolarArt];
 
 /**
  * A per-mount external store whose value is picked at random when the client
@@ -169,7 +94,7 @@ function createVariantStore() {
   return {
     subscribe(onChange: () => void) {
       if (variant === null) {
-        variant = Math.floor(Math.random() * VARIANTS.length);
+        variant = Math.floor(Math.random() * FACES.length);
         queueMicrotask(onChange);
       }
       return () => {};
@@ -190,10 +115,9 @@ export function RandomLoadingArt() {
   if (variant === null) {
     return <span aria-hidden className="block h-24 w-24" />;
   }
-  const Art = VARIANTS[variant];
   return (
     <span role="status" aria-label="กำลังโหลด">
-      <Art />
+      <LoadingMark face={variant} />
     </span>
   );
 }
