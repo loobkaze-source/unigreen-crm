@@ -22,6 +22,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  Images,
   Trash2,
   User,
   Wrench,
@@ -555,6 +556,10 @@ export function WorkOrderDetail({
             </LinkPending>
             บันทึก PDF
           </Link>
+          <PhotoFileButton
+            workOrderId={workOrder.id}
+            groups={groups.filter((g) => g.ids.length > 0)}
+          />
           {canEdit ? (
             <>
               <Button variant="secondary" onClick={() => setEditing(true)}>
@@ -1032,6 +1037,85 @@ export function WorkOrderDetail({
             router.refresh();
           }}
         />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * "บันทึกไฟล์รูปหน้างาน" — the site photos as their own document, one heading
+ * to a file.
+ *
+ * A browser saves one PDF per print, so one file per heading means one print
+ * per heading, which means asking which. With a single heading there is
+ * nothing to ask and the button just goes.
+ */
+function PhotoFileButton({
+  workOrderId,
+  groups,
+}: {
+  workOrderId: string;
+  groups: { name: string; ids: string[] }[];
+}) {
+  const [open, setOpen] = useState(false);
+  if (groups.length === 0) return null;
+
+  const href = (name: string) =>
+    `/work-orders/${workOrderId}/photos?section=${encodeURIComponent(name)}&print=1`;
+  const label = (name: string) => name || "รูปหน้างาน (ไม่มีหัวข้อ)";
+
+  const face = (
+    <>
+      <Images className="h-4 w-4" /> บันทึกไฟล์รูปหน้างาน
+    </>
+  );
+  const shell =
+    "inline-flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md border border-input bg-card px-4 text-sm font-medium shadow-sm hover:bg-muted";
+
+  if (groups.length === 1) {
+    return (
+      <Link href={href(groups[0].name)} className={shell}>
+        <LinkPending>
+          <Images className="h-4 w-4" />
+        </LinkPending>
+        บันทึกไฟล์รูปหน้างาน
+      </Link>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)} className={shell}>
+        {face}
+      </button>
+      {open ? (
+        <>
+          {/* Anywhere else closes it. */}
+          <button
+            type="button"
+            aria-label="ปิดเมนู"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-30 cursor-default"
+          />
+          <div className="absolute right-0 z-40 mt-1 w-72 max-w-[calc(100vw-3rem)] rounded-md border border-border bg-card p-1 shadow-lg">
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              เลือกหัวข้อ — ได้ 1 ไฟล์ต่อ 1 หัวข้อ
+            </div>
+            {groups.map((g) => (
+              <Link
+                key={g.name || "--untitled"}
+                href={href(g.name)}
+                onClick={() => setOpen(false)}
+                className="flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
+              >
+                <span className="min-w-0 truncate">{label(g.name)}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {g.ids.length} รูป
+                </span>
+              </Link>
+            ))}
+          </div>
+        </>
       ) : null}
     </div>
   );

@@ -11,7 +11,10 @@ export function PrintBar({ backHref }: { backHref: string }) {
   const [preparing, setPreparing] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const autoPrint = useSearchParams().get("print") === "1";
+  // As a string, so it can be an effect dependency — useSearchParams hands
+  // back a new object every render.
+  const query = useSearchParams().toString();
+  const autoPrint = new URLSearchParams(query).get("print") === "1";
   const fired = useRef(false);
 
   /**
@@ -20,8 +23,9 @@ export function PrintBar({ backHref }: { backHref: string }) {
    *
    * It waits for the fonts and every photograph first: print() snapshots the
    * page as it stands, and a second page of empty frames is worse than a
-   * second tap. The query is then dropped from the URL so a back-navigation
-   * or a refresh does not open the sheet all over again.
+   * second tap. Only `print` is then dropped from the URL, so a back or a
+   * refresh does not open the sheet all over again — the rest of the query
+   * stays, because on the photo pages it says which heading this file is.
    */
   useEffect(() => {
     if (!autoPrint || fired.current) return;
@@ -45,13 +49,15 @@ export function PrintBar({ backHref }: { backHref: string }) {
           )
       );
       if (!live) return;
-      router.replace(pathname);
+      const keep = new URLSearchParams(query);
+      keep.delete("print");
+      router.replace(keep.toString() ? `${pathname}?${keep}` : pathname);
       window.print();
     })();
     return () => {
       live = false;
     };
-  }, [autoPrint, pathname, router]);
+  }, [autoPrint, pathname, query, router]);
 
   /**
    * `window.print()` blocks the main thread until the dialog is up, and on a
