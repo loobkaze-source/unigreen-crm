@@ -7,6 +7,7 @@ import {
   Calendar,
   CheckCircle2,
   Circle,
+  GraduationCap,
   ListChecks,
   Mail,
   Pencil,
@@ -15,6 +16,7 @@ import {
   StickyNote,
   Trash2,
   Users2,
+  X,
 } from "lucide-react";
 import type { Activity, ActivityType } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
@@ -38,6 +40,7 @@ const TYPES: { value: ActivityType; label: string; icon: typeof Phone }[] = [
   { value: "meeting", label: "ประชุม", icon: Calendar },
   { value: "email", label: "อีเมล", icon: Mail },
   { value: "note", label: "โน้ต", icon: StickyNote },
+  { value: "training", label: "อบรม", icon: GraduationCap },
 ];
 const typeMeta = (t: ActivityType) => TYPES.find((x) => x.value === t)!;
 
@@ -49,11 +52,16 @@ const FILTERS: { value: "open" | "done" | "all"; label: string }[] = [
 
 export function ActivitiesView({
   activities,
+  technicians,
+  crew,
   companies,
   contacts,
   deals,
 }: {
   activities: Activity[];
+  technicians: Option[];
+  /** Activity id → the technicians booked on it. */
+  crew: Record<string, string[]>;
   companies: Option[];
   contacts: Option[];
   deals: Option[];
@@ -73,8 +81,18 @@ export function ActivitiesView({
     contact_id: "",
     company_id: "",
     deal_id: "",
+    technician_ids: [] as string[],
   };
   const [form, setForm] = useState(EMPTY);
+  /**
+   * A course is about the people on it, not about a customer — so the training
+   * form swaps the contact, company and deal pickers for a roll call.
+   */
+  const isTraining = form.type === "training";
+  const techName = useMemo(() => {
+    const m = new Map(technicians.map((t) => [t.id, t.name]));
+    return (id: string) => m.get(id) ?? "—";
+  }, [technicians]);
 
   const nameOf = useMemo(() => {
     const c = new Map(contacts.map((x) => [x.id, x.name]));
@@ -105,6 +123,7 @@ export function ActivitiesView({
       contact_id: a.contact_id || "",
       company_id: a.company_id || "",
       deal_id: a.deal_id || "",
+      technician_ids: crew[a.id] ?? [],
     });
     setError(null);
     setOpen(true);
@@ -117,9 +136,13 @@ export function ActivitiesView({
         id: editing?.id,
         ...form,
         due_date: form.due_date || null,
-        contact_id: form.contact_id || null,
-        company_id: form.company_id || null,
-        deal_id: form.deal_id || null,
+        // A course has no customer behind it; a call has no roll call. Sending
+        // the other kind's fields as empty is what lets a type be changed on an
+        // activity that already exists.
+        contact_id: isTraining ? null : form.contact_id || null,
+        company_id: isTraining ? null : form.company_id || null,
+        deal_id: isTraining ? null : form.deal_id || null,
+        technician_ids: isTraining ? form.technician_ids : [],
       });
       if (!res.ok) return setError(res.error);
       setOpen(false);
@@ -143,6 +166,11 @@ export function ActivitiesView({
   }
 
   function related(a: Activity) {
+    // A training session's "related to" is the people on it.
+    if (a.type === "training") {
+      const on = crew[a.id] ?? [];
+      return on.length ? [`ช่าง ${on.length} คน · ${on.map(techName).join(", ")}`] : [];
+    }
     const parts = [
       a.contact_id && nameOf.c.get(a.contact_id),
       a.company_id && nameOf.co.get(a.company_id),
@@ -322,6 +350,53 @@ export function ActivitiesView({
               onChange={(e) => setForm({ ...form, body: e.target.value })}
             />
           </div>
+          {isTraining ? (
+            <div>
+              <Label htmlFor="crew">ช่างที่เข้าอบรม</Label>
+              {form.technician_ids.length ? (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {form.technician_ids.map((id, i) => (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-sm text-accent-foreground"
+                    >
+                      {i + 1}. {techName(id)}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            technician_ids: f.technician_ids.filter((x) => x !== id),
+                          }))
+                        }
+                        aria-label={`เอา ${techName(id)} ออก`}
+                        className="rounded-full p-0.5 hover:bg-muted"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <Combobox
+                id="crew"
+                value=""
+                onChange={(id) =>
+                  id &&
+                  setForm((f) => ({
+                    ...f,
+                    technician_ids: f.technician_ids.includes(id)
+                      ? f.technician_ids
+                      : [...f.technician_ids, id],
+                  }))
+                }
+                placeholder="+ เพิ่มช่างเข้าคิวอบรม"
+                options={technicians
+                  .filter((t) => !form.technician_ids.includes(t.id))
+                  .map((t) => ({ value: t.id, label: t.name }))}
+              />
+            </div>
+          ) : (
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label htmlFor="contact_id">ผู้ติดต่อ</Label>
@@ -359,6 +434,7 @@ export function ActivitiesView({
               </Select>
             </div>
           </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               ยกเลิก

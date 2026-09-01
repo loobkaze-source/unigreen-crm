@@ -4,7 +4,7 @@ import { ActivitiesView } from "./activities-view";
 export default async function ActivitiesPage() {
   const { supabase, org } = await getSessionContext();
 
-  const [activitiesRes, companiesRes, contactsRes, dealsRes] =
+  const [activitiesRes, companiesRes, contactsRes, dealsRes, techRes, crewRes] =
     await Promise.all([
       supabase
         .from("activities")
@@ -38,16 +38,39 @@ export default async function ActivitiesPage() {
           .order("title")
           .order("id")
       ),
+      supabase
+        .from("technicians")
+        .select("id, name, nickname")
+        .eq("org_id", org.id)
+        .eq("active", true)
+        .order("name")
+        .limit(500),
+      // Who is on which course. Small enough to fetch whole — one row per
+      // person per session, and a session is a dozen people at most.
+      fetchAllRes(() =>
+        supabase.from("activity_technicians").select("activity_id, technician_id").eq("org_id", org.id)
+      ),
     ]);
 
   const activities = rows(activitiesRes);
   const companies = rows(companiesRes);
   const contacts = rows(contactsRes);
   const deals = rows(dealsRes);
+  const technicians = (rows(techRes) ?? []).map((t) => ({
+    id: t.id as string,
+    name: (t.nickname as string) ? `${t.name} (${t.nickname})` : (t.name as string),
+  }));
+  const crew: Record<string, string[]> = {};
+  for (const r of rows(crewRes) ?? []) {
+    const key = r.activity_id as string;
+    (crew[key] ??= []).push(r.technician_id as string);
+  }
 
   return (
     <ActivitiesView
       activities={activities}
+      technicians={technicians}
+      crew={crew}
       companies={companies ?? []}
       contacts={(contacts ?? []).map((c) => ({
         id: c.id,

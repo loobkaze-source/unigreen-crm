@@ -11,7 +11,8 @@ export type LeadStatus =
   | "qualified"
   | "unqualified"
   | "converted";
-export type ActivityType = "note" | "call" | "meeting" | "email" | "task";
+/** "training" is the field side of this table: a course, and who is on it. */
+export type ActivityType = "note" | "call" | "meeting" | "email" | "task" | "training";
 
 type Timestamps = {
   created_at: string;
