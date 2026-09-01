@@ -50,7 +50,9 @@ export default async function ServiceBoardPage() {
     supabase.from("technicians").select("id, name, nickname").eq("org_id", org.id),
     supabase
       .from("service_visits")
-      .select("id, contract_id, seq, due_date, status, service_contracts!inner(board_key, status)")
+      .select(
+        "id, contract_id, seq, due_date, status, work_orders(status), service_contracts!inner(board_key, status)"
+      )
       .eq("org_id", org.id)
       .eq("status", "pending")
       .in("service_contracts.board_key", boardKeys)
@@ -64,15 +66,24 @@ export default async function ServiceBoardPage() {
     seq: number;
     due_date: string;
     status: string;
+    work_orders: { status: string } | null;
     service_contracts: unknown;
   };
-  const visits = rows<VisitRow>(visitsRes as never).map((v) => ({
-    id: v.id,
-    contract_id: v.contract_id,
-    seq: v.seq,
-    due_date: v.due_date,
-    status: v.status,
-  }));
+  /**
+   * A round whose job is finished is served, and 0048 made the job the only
+   * evidence of that — but this board went on reading the visit's own status,
+   * so ninety-four rounds with a completed job on them still sat here as owed
+   * while the contract page counted them done.
+   */
+  const visits = rows<VisitRow>(visitsRes as never)
+    .filter((v) => v.work_orders?.status !== "completed")
+    .map((v) => ({
+      id: v.id,
+      contract_id: v.contract_id,
+      seq: v.seq,
+      due_date: v.due_date,
+      status: v.status,
+    }));
 
   return (
     <ServiceBoardView
