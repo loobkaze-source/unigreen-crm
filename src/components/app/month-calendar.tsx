@@ -36,18 +36,19 @@ const WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const ymd = (d: Date) => format(d, "yyyy-MM-dd");
 
 /**
- * The service board as a month.
+ * A month of whatever you give it.
  *
- * The list answers "what is next"; this answers "what does the week of the
- * 14th look like", which is the question a dispatcher is actually holding a
- * pen over. Same rounds, same jobs, arranged by the thing they have in common
- * — a date.
+ * A list answers "what is next"; this answers "what does the week of the 14th
+ * look like", which is the question someone holding a pen over a rota is
+ * actually asking. Rounds, jobs and training courses are different records
+ * with different pages behind them, and here they are all one thing: something
+ * that has to happen on a day.
  *
  * A cell shows three and counts the rest, because a day with eleven cleanings
  * on it should not be eleven rows tall and neither should the other thirty
  * days. Tapping a day opens the whole of it underneath.
  */
-export function ServiceCalendar({ items }: { items: CalendarItem[] }) {
+export function MonthCalendar({ items }: { items: CalendarItem[] }) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [picked, setPicked] = useState<string | null>(null);
 

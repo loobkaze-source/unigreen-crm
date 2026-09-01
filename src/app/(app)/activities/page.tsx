@@ -1,4 +1,5 @@
 import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { loadConflicts } from "@/lib/schedule-conflicts";
 import { ActivitiesView } from "./activities-view";
 
 export default async function ActivitiesPage() {
@@ -65,12 +66,15 @@ export default async function ActivitiesPage() {
     const key = r.activity_id as string;
     (crew[key] ??= []).push(r.technician_id as string);
   }
+  // Who is down for two things on one day, jobs and courses together.
+  const conflicts = await loadConflicts(supabase, org.id);
 
   return (
     <ActivitiesView
       activities={activities}
       technicians={technicians}
       crew={crew}
+      conflicts={conflicts}
       companies={companies ?? []}
       contacts={(contacts ?? []).map((c) => ({
         id: c.id,

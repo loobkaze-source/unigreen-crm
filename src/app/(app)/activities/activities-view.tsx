@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { isPast } from "date-fns";
 import {
   Calendar,
+  CalendarDays,
   CheckCircle2,
   Circle,
   GraduationCap,
+  List,
   ListChecks,
   Mail,
   Pencil,
@@ -15,6 +17,7 @@ import {
   Plus,
   StickyNote,
   Trash2,
+  TriangleAlert,
   Users2,
   X,
 } from "lucide-react";
@@ -31,6 +34,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/format";
 import { saveActivity, toggleActivity, deleteActivity } from "./actions";
+import { MonthCalendar, type CalendarItem } from "@/components/app/month-calendar";
+import type { Conflicts } from "@/lib/schedule-conflicts";
 
 type Option = { id: string; name: string };
 
@@ -54,6 +59,7 @@ export function ActivitiesView({
   activities,
   technicians,
   crew,
+  conflicts,
   companies,
   contacts,
   deals,
@@ -62,12 +68,15 @@ export function ActivitiesView({
   technicians: Option[];
   /** Activity id → the technicians booked on it. */
   crew: Record<string, string[]>;
+  /** Who is down for two things on one day, across jobs and courses. */
+  conflicts: Conflicts;
   companies: Option[];
   contacts: Option[];
   deals: Option[];
 }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"open" | "done" | "all">("open");
+  const [asCalendar, setAsCalendar] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Activity | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,18 +188,41 @@ export function ActivitiesView({
     return parts as string[];
   }
 
+  /** The clashes this activity is part of, if any. */
+  const clashes = (a: Activity) => conflicts.byRecord[a.id] ?? [];
+
+  const calendarItems = useMemo<CalendarItem[]>(
+    () =>
+      filtered
+        .filter((a) => a.due_date)
+        .map((a) => ({
+          id: a.id,
+          date: a.due_date!.slice(0, 10),
+          href: "/activities",
+          label: `${typeMeta(a.type).label} · ${a.subject}`,
+          sub: related(a).join(" · ") || undefined,
+          tone: (conflicts.byRecord[a.id]
+            ? "danger"
+            : a.done
+              ? "success"
+              : "info") as CalendarItem["tone"],
+        })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- related() reads the same props these do
+    [filtered, conflicts]
+  );
+
   return (
     <div>
       <PageHeader
         title="กิจกรรม"
-        subtitle="งาน, การโทร, การประชุม และโน้ต"
+        subtitle="งาน, การโทร, การประชุม, โน้ต และคิวอบรมของช่าง"
       >
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> เพิ่มกิจกรรม
         </Button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-1">
+      <div className="mb-4 flex flex-wrap items-center gap-1">
         {FILTERS.map((f) => (
           <button
             key={f.value}
@@ -205,9 +237,47 @@ export function ActivitiesView({
             {f.label}
           </button>
         ))}
+        <div className="ml-auto inline-flex rounded-md border border-border p-0.5">
+          {[
+            { on: false, icon: List, label: "รายการ" },
+            { on: true, icon: CalendarDays, label: "ปฏิทิน" },
+          ].map((v) => (
+            <button
+              key={v.label}
+              type="button"
+              onClick={() => setAsCalendar(v.on)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-colors",
+                asCalendar === v.on
+                  ? "bg-primary text-white"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <v.icon className="h-3.5 w-3.5" /> {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Said once at the top, because a clash is about a person and the rows
+          are about activities — you would otherwise have to spot it twice. */}
+      {Object.keys(conflicts.byPerson).length ? (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <div className="font-medium">
+              มีช่างถูกจองซ้อนกัน {Object.keys(conflicts.byPerson).length} รายการ
+            </div>
+            <div className="text-xs opacity-90">
+              ช่างคนเดียวถูกลงทั้งใบงานและ/หรืออบรมในวันเดียวกัน — รายการที่ชนกันมีเครื่องหมายเตือนกำกับไว้
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {asCalendar ? <MonthCalendar items={calendarItems} /> : null}
+
+      {asCalendar ? null : filtered.length === 0 ? (
         <EmptyState
           icon={ListChecks}
           title={filter === "done" ? "ยังไม่มีงานที่เสร็จ" : "ยังไม่มีกิจกรรม"}
@@ -264,6 +334,12 @@ export function ActivitiesView({
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                       <Users2 className="h-3 w-3" />
                       {related(a).join(" · ")}
+                    </div>
+                  ) : null}
+                  {clashes(a).length ? (
+                    <div className="mt-1 flex items-start gap-1 text-xs font-medium text-destructive">
+                      <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+                      <span>ชนกับ {clashes(a).map((c) => c.label).join(" · ")}</span>
                     </div>
                   ) : null}
                 </div>

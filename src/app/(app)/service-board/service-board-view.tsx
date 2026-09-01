@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { statusMeta, woCode, jobClassLabel, billingMeta } from "../work-orders/constants";
-import { ServiceCalendar, type CalendarItem } from "./service-calendar";
+import { MonthCalendar, type CalendarItem } from "@/components/app/month-calendar";
 
 type Board = { value: string; label: string };
 type WO = {
@@ -190,7 +190,7 @@ export function ServiceBoardView({
         ))}
       </div>
 
-      {asCalendar ? <ServiceCalendar items={calendarItems} /> : null}
+      {asCalendar ? <MonthCalendar items={calendarItems} /> : null}
 
       <div className={cn("grid gap-6 lg:grid-cols-2", asCalendar && "hidden")}>
         {/* Upcoming service visits */}

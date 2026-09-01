@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { loadConflicts } from "@/lib/schedule-conflicts";
 import { isTechnicianOnly } from "@/lib/roles";
 import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
@@ -211,6 +212,7 @@ export default async function WorkOrderDetailPage({
       repairCodes={repairCodes}
       causeTags={causeTags}
       orgId={org.id}
+      clashes={(await loadConflicts(supabase, org.id)).byRecord[id] ?? []}
       canEdit={!fieldOnly}
       backHref={fieldOnly ? "/my-jobs" : "/work-orders"}
       backLabel={fieldOnly ? "กลับไปงานของฉัน" : "กลับไปใบงาน"}

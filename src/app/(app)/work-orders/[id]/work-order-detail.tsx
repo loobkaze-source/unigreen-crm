@@ -24,6 +24,7 @@ import {
   Plus,
   Images,
   Trash2,
+  TriangleAlert,
   User,
   Wrench,
 } from "lucide-react";
@@ -157,6 +158,7 @@ export function WorkOrderDetail({
   backLabel = "กลับไปใบงาน",
   technicianName,
   companyName,
+  clashes,
   contactName,
   contactPhone,
 }: {
@@ -187,6 +189,8 @@ export function WorkOrderDetail({
   backLabel?: string;
   technicianName?: string;
   companyName?: string;
+  /** Anything this job's people are also down for that day. */
+  clashes: { label: string; href: string }[];
   contactName?: string;
   contactPhone?: string;
 }) {
@@ -680,6 +684,24 @@ export function WorkOrderDetail({
           ) : null}
         </CardContent>
       </Card>
+
+      {clashes.length ? (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/40 bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0">
+            <div className="font-medium">ช่างถูกจองซ้อนกันในวันเดียวกัน</div>
+            <ul className="mt-0.5 space-y-0.5 text-xs">
+              {clashes.map((c) => (
+                <li key={c.href + c.label} className="truncate">
+                  <Link href={c.href} className="hover:underline">
+                    {c.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* The paper report's own head: its number, the customer's, and the
