@@ -24,9 +24,19 @@ import {
 import { cn } from "@/lib/utils";
 import { saveTechnician, deleteTechnician, importTechniciansFromUsers } from "./actions";
 
+/**
+ * The skills the import form asks about, in its order, then the three this app
+ * had that the form does not. "Dispensor" was a misspelling — the form and the
+ * work-order types both say Dispenser, so this does too.
+ *
+ * A skill that is not on this list is still stored and still saved, but has no
+ * chip to turn off, so the list has to keep up with the form.
+ */
 const SKILLS = [
-  "ATG", "Solar", "EV", "POS", "Tire Inflator", "Pump",
-  "Loading Arm", "Tank Truck", "Civil", "Elec", "Tank Test", "Dispensor",
+  "Solar", "EV", "ATG", "POS", "Pump", "Dispenser",
+  "Tire Inflator", "Loading Arm", "Tank Truck", "Repair Nozzle ZVA",
+  "3D Calibex", "EZY 3 Locator Plus", "Test VRI", "VIMS SGB", "V L Ratio",
+  "ibank", "Civil", "Elec", "Tank Test",
 ];
 
 /** Safety certifications ("ใบเซอร์"). The list is a starting set — any custom
