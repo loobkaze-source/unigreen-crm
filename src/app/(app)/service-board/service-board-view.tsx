@@ -27,6 +27,17 @@ type Contract = { id: string; title: string; board_key: string | null; site_id: 
 type Visit = { id: string; contract_id: string; seq: number; due_date: string };
 type Tech = { id: string; name: string; nickname: string | null };
 
+/**
+ * How much of each list is shown at once.
+ *
+ * A board can carry hundreds of rounds — every one of them a row with a link
+ * in it — and nobody scrolls to the four-hundredth. Twenty is a screenful;
+ * a hundred is as far as this page is worth taking, and past that the
+ * contracts and work-order pages are the ones with the filters.
+ */
+const PAGE = 20;
+const MAX = 100;
+
 const isOverdue = (d: string) => {
   const dt = new Date(d + (d.length <= 10 ? "T00:00:00" : ""));
   return !Number.isNaN(dt.getTime()) && dt.getTime() < Date.now();
@@ -46,6 +57,16 @@ export function ServiceBoardView({
   technicians: Tech[];
 }) {
   const [active, setActive] = useState<string>(boards[0]?.value ?? "");
+  const [visitLimit, setVisitLimit] = useState(PAGE);
+  const [woLimit, setWoLimit] = useState(PAGE);
+  // Switching department starts both lists over — carrying a "showing 100"
+  // into a board with six rows on it just looks broken.
+  const [shownFor, setShownFor] = useState(active);
+  if (shownFor !== active) {
+    setShownFor(active);
+    setVisitLimit(PAGE);
+    setWoLimit(PAGE);
+  }
 
   const contractMap = useMemo(
     () => new Map(contracts.map((c) => [c.id, c])),
@@ -123,7 +144,7 @@ export function ServiceBoardView({
             <p className="py-4 text-center text-sm text-muted-foreground">ไม่มีรอบบริการค้าง</p>
           ) : (
             <ul className="space-y-2">
-              {boardVisits.map((v) => {
+              {boardVisits.slice(0, visitLimit).map((v) => {
                 const c = contractMap.get(v.contract_id);
                 const overdue = isOverdue(v.due_date);
                 return (
@@ -152,6 +173,13 @@ export function ServiceBoardView({
               })}
             </ul>
           )}
+          <ShowMore
+            shown={Math.min(visitLimit, boardVisits.length)}
+            total={boardVisits.length}
+            onMore={() => setVisitLimit((n) => Math.min(n + PAGE, MAX))}
+            restHref="/service-contracts"
+            restLabel="ดูทั้งหมดที่สัญญาบริการ"
+          />
         </section>
 
         {/* Open work orders */}
@@ -163,7 +191,7 @@ export function ServiceBoardView({
             <p className="py-4 text-center text-sm text-muted-foreground">ไม่มีงานที่เปิดอยู่</p>
           ) : (
             <ul className="space-y-2">
-              {boardWOs.map((w) => {
+              {boardWOs.slice(0, woLimit).map((w) => {
                 const s = statusMeta(w.status as never);
                 const bm = w.billing ? billingMeta(w.billing) : undefined;
                 return (
@@ -194,8 +222,60 @@ export function ServiceBoardView({
               })}
             </ul>
           )}
+          <ShowMore
+            shown={Math.min(woLimit, boardWOs.length)}
+            total={boardWOs.length}
+            onMore={() => setWoLimit((n) => Math.min(n + PAGE, MAX))}
+            restHref="/work-orders"
+            restLabel="ดูทั้งหมดที่ใบงาน"
+          />
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The foot of a board list: how much of it is on screen, and the way to see
+ * more of it.
+ *
+ * Silent when the whole list already fits, because a button that does nothing
+ * is worse than no button. At the hundred-row ceiling it stops offering and
+ * points at the page that can actually search the rest.
+ */
+function ShowMore({
+  shown,
+  total,
+  onMore,
+  restHref,
+  restLabel,
+}: {
+  shown: number;
+  total: number;
+  onMore: () => void;
+  restHref: string;
+  restLabel: string;
+}) {
+  if (total <= shown) return null;
+  const capped = shown >= MAX;
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3 text-xs">
+      <span className="text-muted-foreground">
+        แสดง {shown} จาก {total}
+      </span>
+      {capped ? (
+        <Link href={restHref} className="font-medium text-primary hover:underline">
+          {restLabel}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={onMore}
+          className="rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
+        >
+          แสดงเพิ่ม (+{Math.min(PAGE, Math.min(total, MAX) - shown)})
+        </button>
+      )}
     </div>
   );
 }
