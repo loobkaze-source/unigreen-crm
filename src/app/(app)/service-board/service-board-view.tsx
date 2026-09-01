@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarClock, ClipboardList, Repeat, Wrench } from "lucide-react";
+import { CalendarClock, CalendarDays, ClipboardList, List, Repeat, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { statusMeta, woCode, jobClassLabel, billingMeta } from "../work-orders/constants";
+import { ServiceCalendar, type CalendarItem } from "./service-calendar";
 
 type Board = { value: string; label: string };
 type WO = {
@@ -57,6 +58,7 @@ export function ServiceBoardView({
   technicians: Tech[];
 }) {
   const [active, setActive] = useState<string>(boards[0]?.value ?? "");
+  const [asCalendar, setAsCalendar] = useState(false);
   const [visitLimit, setVisitLimit] = useState(PAGE);
   const [woLimit, setWoLimit] = useState(PAGE);
   // Switching department starts both lists over — carrying a "showing 100"
@@ -86,6 +88,37 @@ export function ServiceBoardView({
     () => workOrders.filter((w) => w.board_key === active),
     [workOrders, active]
   );
+
+  /**
+   * Both lists as one, keyed by the day they fall on. A round and a job are
+   * different records with different pages behind them, but on a calendar they
+   * are the same thing: something that has to happen on a date.
+   */
+  const calendarItems = useMemo<CalendarItem[]>(() => {
+    const rounds = boardVisits.map((v) => ({
+      id: `v-${v.id}`,
+      date: v.due_date.slice(0, 10),
+      href: `/service-contracts/${v.contract_id}`,
+      label: `รอบที่ ${v.seq} · ${contractMap.get(v.contract_id)?.title ?? "สัญญาบริการ"}`,
+      sub: isOverdue(v.due_date) ? "เลยกำหนด" : "รอบบริการตามสัญญา",
+      tone: (isOverdue(v.due_date) ? "danger" : "info") as CalendarItem["tone"],
+    }));
+    const jobs = boardWOs
+      // A job nobody has scheduled has no day to be drawn on; it stays on the
+      // list, where "ยังไม่นัดหมาย" is a thing you can act on.
+      .filter((w) => w.scheduled_start)
+      .map((w) => ({
+        id: `w-${w.id}`,
+        date: w.scheduled_start!.slice(0, 10),
+        href: `/work-orders/${w.id}`,
+        label: `${woCode(w)} · ${w.title}`,
+        sub: [statusMeta(w.status as never).label, techName(w.technician_id)]
+          .filter(Boolean)
+          .join(" · "),
+        tone: statusMeta(w.status as never).tone as CalendarItem["tone"],
+      }));
+    return [...rounds, ...jobs].sort((a, b) => a.date.localeCompare(b.date));
+  }, [boardVisits, boardWOs, contractMap, techName]);
 
   const countFor = (key: string) => {
     const v = visits.filter((x) => contractMap.get(x.contract_id)?.board_key === key).length;
@@ -134,7 +167,32 @@ export function ServiceBoardView({
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Same board, two ways of asking: what is next, and what does the week
+          of the 14th look like. */}
+      <div className="mb-4 inline-flex rounded-md border border-border p-0.5">
+        {[
+          { on: false, icon: List, label: "รายการ" },
+          { on: true, icon: CalendarDays, label: "ปฏิทิน" },
+        ].map((v) => (
+          <button
+            key={v.label}
+            type="button"
+            onClick={() => setAsCalendar(v.on)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition-colors",
+              asCalendar === v.on
+                ? "bg-primary text-white"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <v.icon className="h-4 w-4" /> {v.label}
+          </button>
+        ))}
+      </div>
+
+      {asCalendar ? <ServiceCalendar items={calendarItems} /> : null}
+
+      <div className={cn("grid gap-6 lg:grid-cols-2", asCalendar && "hidden")}>
         {/* Upcoming service visits */}
         <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium">
