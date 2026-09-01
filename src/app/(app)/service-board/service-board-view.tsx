@@ -153,18 +153,24 @@ export function ServiceBoardView({
                     className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
                   >
                     <CalendarClock
-                      className={cn("h-4 w-4", overdue ? "text-destructive" : "text-muted-foreground")}
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        overdue ? "text-destructive" : "text-muted-foreground"
+                      )}
                     />
                     <div className="min-w-0 flex-1">
+                      {/* block: `truncate` is overflow:hidden, which an inline
+                          <a> ignores — the title ran on under the date badge
+                          instead of ending in an ellipsis. */}
                       <Link
                         href={`/service-contracts/${v.contract_id}`}
-                        className="truncate text-sm font-medium hover:text-primary"
+                        className="block truncate text-sm font-medium hover:text-primary"
                       >
                         {c?.title || "สัญญาบริการ"}
                       </Link>
                       <div className="text-xs text-muted-foreground">รอบที่ {v.seq}</div>
                     </div>
-                    <Badge tone={overdue ? "danger" : "info"}>
+                    <Badge className="shrink-0 whitespace-nowrap" tone={overdue ? "danger" : "info"}>
                       {overdue ? "เลยกำหนด " : "ครบกำหนด "}
                       {fmtDate(v.due_date)}
                     </Badge>
