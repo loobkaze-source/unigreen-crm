@@ -38,11 +38,15 @@ const NOT_A_CUSTOMER = new Set(["(ยังไม่ระบุ)", "ลูก�
  * of flats. The prefix puts them together and says what they are at a glance.
  *
  * The shop and the café on the forecourt count: they are at a PTT station,
- * which is what a technician needs to know before driving there.
+ * which is what a technician needs to know before driving there. Café Amazon
+ * counts on its own name too — it is PTT's brand, and every one in this fleet
+ * is on a forecourt. Shell is not PTT and keeps the name it came with.
  */
 const PTT_PREFIX = "PTT Station ";
 const siteName = (name) =>
-  /ปตท|ptt/i.test(name) && !name.startsWith(PTT_PREFIX) ? PTT_PREFIX + name : name;
+  /ปตท|ptt|amazon|อเมซอน/i.test(name) && !name.startsWith(PTT_PREFIX)
+    ? PTT_PREFIX + name
+    : name;
 
 /** ออนไลน์ / ออฟไลน์ as the asset pages spell it. */
 const STATUS = new Map([

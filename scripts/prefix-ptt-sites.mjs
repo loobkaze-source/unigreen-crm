@@ -10,10 +10,10 @@
  * a block of flats. The prefix puts them together and says what they are at a
  * glance.
  *
- * A site is one if its own name says ปตท. or PTT. That is the same test the
- * plant list itself uses, and it is right for the shop and the café on the
- * forecourt too — they are at a PTT station, which is what a technician needs
- * to know before driving there.
+ * A site is one if its own name says ปตท./PTT, or Café Amazon — PTT's own
+ * brand, and in this fleet always on a forecourt. That takes the shop and the
+ * café with it, which is right: they are at a PTT station, and that is what a
+ * technician needs to know before driving there.
  *
  * The contract and warranty titles carry the site name inside them, so they are
  * rewritten with it. Dry by default; --apply writes. Re-runnable: a name that
@@ -24,8 +24,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const APPLY = process.argv.includes("--apply");
 const PREFIX = "PTT Station ";
-/** Its own name has to say so. */
-const isStation = (name) => /ปตท|ptt/i.test(name);
+/**
+ * Its own name has to say so — ปตท./PTT, or Café Amazon, which is PTT's own
+ * brand and in this fleet is always on a forecourt. Shell is not: กรีนออยล์
+ * Shell GOP Chaiya is a petrol station and keeps its own name.
+ */
+const isStation = (name) => /ปตท|ptt|amazon|อเมซอน/i.test(name);
 
 const env = Object.fromEntries(
   readFileSync("c:/CRM/.env.local", "utf8")
