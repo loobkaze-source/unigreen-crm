@@ -31,6 +31,19 @@ const DIR = "c:/CRM/import-data";
  */
 const NOT_A_CUSTOMER = new Set(["(ยังไม่ระบุ)", "ลูกค้าบุคคล", "-", ""]);
 
+/**
+ * A plant at a PTT station is named after whatever building it stands on —
+ * "บจ.ปทุมพฤกษรักษ์ ปิโตรเลี่ยม (7-11) ปตท.พลูตาหลวง" — which scatters eleven
+ * petrol stations down an alphabetical list between a bicycle shop and a block
+ * of flats. The prefix puts them together and says what they are at a glance.
+ *
+ * The shop and the café on the forecourt count: they are at a PTT station,
+ * which is what a technician needs to know before driving there.
+ */
+const PTT_PREFIX = "PTT Station ";
+const siteName = (name) =>
+  /ปตท|ptt/i.test(name) && !name.startsWith(PTT_PREFIX) ? PTT_PREFIX + name : name;
+
 /** ออนไลน์ / ออฟไลน์ as the asset pages spell it. */
 const STATUS = new Map([
   ["ออนไลน์", "operational"],
@@ -102,7 +115,7 @@ const units = devRows.map((r) => {
   const company = o.company ?? "";
   return {
     serial,
-    site: o.site || clean(r[1]),
+    site: siteName(o.site || clean(r[1])),
     company: NOT_A_CUSTOMER.has(company) ? "" : company,
     taxId: o.taxId ?? "",
     note: o.note ?? "",
