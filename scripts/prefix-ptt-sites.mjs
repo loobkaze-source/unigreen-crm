@@ -1,35 +1,60 @@
 /**
- * Puts "PTT Station" in front of the sites that are one.
+ * Puts "PTT Station" in front of named sites.
  *
  *   node scripts/prefix-ptt-sites.mjs
  *   node scripts/prefix-ptt-sites.mjs --apply
  *
- * The Hoymiles export names a plant after whatever building it stands on —
- * "บจ.ปทุมพฤกษรักษ์ ปิโตรเลี่ยม (7-11) ปตท.พลูตาหลวง" — so eleven petrol
- * stations sit scattered down an alphabetical list between a bicycle shop and
- * a block of flats. The prefix puts them together and says what they are at a
- * glance.
- *
- * A site is one if its own name says ปตท./PTT, or Café Amazon — PTT's own
- * brand, and in this fleet always on a forecourt. That takes the shop and the
- * café with it, which is right: they are at a PTT station, and that is what a
- * technician needs to know before driving there.
+ * A list, not a pattern. Matching on "ปตท" across the whole table caught 126
+ * sites, most of them already called "สน.ปตท.…" and none of them asked for, so
+ * this only ever touches the names written below. Adding a site to the list is
+ * how it gets the prefix.
  *
  * The contract and warranty titles carry the site name inside them, so they are
  * rewritten with it. Dry by default; --apply writes. Re-runnable: a name that
- * already starts with the prefix is left alone.
+ * already leads with the prefix is left alone.
  */
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
 const APPLY = process.argv.includes("--apply");
 const PREFIX = "PTT Station ";
+
 /**
- * Its own name has to say so — ปตท./PTT, or Café Amazon, which is PTT's own
- * brand and in this fleet is always on a forecourt. Shell is not: กรีนออยล์
- * Shell GOP Chaiya is a petrol station and keeps its own name.
+ * The sites to prefix, exactly as they are spelt in the database.
+ *
+ * The Hoymiles solar plants came first; the eleven below are the fuel-side
+ * stations the user pointed at afterwards. Every one is a shop, a café or a
+ * forecourt at a PTT station — which is what a technician needs to know before
+ * driving there.
  */
-const isStation = (name) => /ปตท|ptt|amazon|อเมซอน/i.test(name);
+const SITES = [
+  // Hoymiles solar plants.
+  "Amazon โคกศรี",
+  "Amazon ปตท.แยกกาฬสินธุ์",
+  "บจ.ดี เอนเนอร์จี แอนด์ รีเทล ปตท. U-Park",
+  "บจ.ปทุมพฤกษรักษ์ ปิโตรเลี่ยม (7-11) ปตท.พลูตาหลวง",
+  "บจ.ปทุมพฤกษรักษ์ ปิโตรเลี่ยม (PTT) ปตท.พลูตาหลวง",
+  "บจ.พี.เอส.วาย. ปิโตรเลียม (Office) ปตท.ท่าพระ",
+  "บจ.พี.เอส.วาย. ปิโตรเลียม (ธุรกิจเสริม) ปตท.ท่าพระ",
+  "บจ.ลำพูนแฮปปี้ออยล์ ปตท.เหมืองง่า จ.ลำพูน",
+  "หจก. นภาออยล์ (Café Amazon โพนทอง)",
+  "หจก.พนาพนธ์เชียงใหม่ (7-11) ปตท.หางดง",
+  "หจก.พนาพนธ์เชียงใหม่ (PTT Station) ปตท.หางดง",
+  "หจก.พนาพนธ์เชียงใหม่ (ร้านพิซซ่า) ปตท.หางดง",
+  "หจก.เอ แอนด์ เอส ออยล์ (PTT) ปตท.ดงสันเงิน ลำปาง",
+  // The fuel side.
+  "7-11 ปตท.เกษตรวิสัย",
+  "7-Eleven สาขา PTTOR น้ำชุน (หล่มสัก) (10169)",
+  "บจ. ธนโชติชัยการปิโตรเลียม (7-Eleven วังมะนาว)",
+  "บจ. ธนโชติชัยการปิโตรเลียม (PTT Station วังมะนาว)",
+  "บจ. ธนโชติชัยการปิโตรเลียม (บ้านคุณจรรยา) ปตท. วังมะนาว ขาเข้า",
+  "บจ. พรรณ์วิภา เทรดดิ้ง (7-11) ปตท. จันทร์ศรีพร้าว",
+  "บจ.ธนวิน 24 (7-11) ปตท. ธนวิน24",
+  "บจ.ธนวิน 24 (PTT Station) ปตท. ธนวิน24",
+  "บจ.ปทุมพฤกษรักษ์ ออยล์ (บ้านคุณเล็ก) ปตท. แยกเกษมพล",
+  "บจ.มิลเลี่ยน รีเทล (7-Eleven) ปตท.ร่มเกล้า-สุวรรณภูมิ",
+  "บริษัท อัครปิโตเลียม จำกัด(ปตท.สะพานพระราม 5)",
+];
 
 const env = Object.fromEntries(
   readFileSync("c:/CRM/.env.local", "utf8")
@@ -54,22 +79,27 @@ async function all(query) {
   }
 }
 
-// Only the solar sites. The fuel side named its own stations years ago and is
-// not this script's business.
-const hoymiles = await all(() =>
-  sb.from("equipment").select("site_id").eq("brand", "HOYMILES")
-);
-const siteIds = [...new Set(hoymiles.map((e) => e.site_id).filter(Boolean))];
-const sites = await all(() => sb.from("sites").select("id, name").in("id", siteIds));
+const wanted = new Set(SITES);
+const prefixed = new Set(SITES.map((n) => PREFIX + n));
+const sites = await all(() => sb.from("sites").select("id, name"));
 
 const renames = sites
-  .filter((s) => isStation(s.name) && !s.name.startsWith(PREFIX))
+  .filter((s) => wanted.has(s.name))
   .map((s) => ({ id: s.id, from: s.name, to: PREFIX + s.name }));
+const done = sites.filter((s) => prefixed.has(s.name)).length;
+// A name on the list that matches nothing is a typo, and saying so is the
+// whole point of writing the list out by hand.
+const missing = SITES.filter(
+  (n) => !sites.some((s) => s.name === n || s.name === PREFIX + n)
+);
 
-const [contracts, warranties] = await Promise.all([
-  all(() => sb.from("service_contracts").select("id, title, site_id").in("site_id", siteIds)),
-  all(() => sb.from("warranties").select("id, title, site_id").in("site_id", siteIds)),
-]);
+const ids = renames.map((r) => r.id);
+const [contracts, warranties] = ids.length
+  ? await Promise.all([
+      all(() => sb.from("service_contracts").select("id, title, site_id").in("site_id", ids)),
+      all(() => sb.from("warranties").select("id, title, site_id").in("site_id", ids)),
+    ])
+  : [[], []];
 const byId = new Map(renames.map((r) => [r.id, r]));
 const retitle = (rows) =>
   rows
@@ -82,9 +112,13 @@ const retitle = (rows) =>
 const contractTitles = retitle(contracts);
 const warrantyTitles = retitle(warranties);
 
-console.log(`\nไซต์โซลาร์ ${sites.length} แห่ง · เป็นปั๊ม ปตท. ที่ยังไม่มีคำนำหน้า ${renames.length}`);
-for (const r of renames) console.log(`  ${r.from}\n   → ${r.to}`);
-console.log(`\nชื่อสัญญาที่ต้องแก้ตาม ${contractTitles.length} · ชื่อการรับประกัน ${warrantyTitles.length}`);
+console.log(`\nในรายการ ${SITES.length} · มีคำนำหน้าแล้ว ${done} · จะเปลี่ยนชื่อ ${renames.length}`);
+for (const r of renames) console.log(`  + ${r.to}`);
+if (missing.length) {
+  console.log("\nหาไม่เจอในระบบ (ชื่อสะกดไม่ตรง?):");
+  for (const m of missing) console.log(`  ! ${m}`);
+}
+console.log(`\nชื่อสัญญาที่แก้ตาม ${contractTitles.length} · ชื่อการรับประกัน ${warrantyTitles.length}`);
 
 if (!APPLY) {
   console.log("\n(ทดลองรัน — ใส่ --apply เพื่อบันทึกจริง)");
@@ -104,7 +138,7 @@ if (!APPLY) {
     let m = 0;
     for (const t of list) {
       const { error } = await sb.from(table).update({ title: t.to }).eq("id", t.id);
-      if (error) console.error(`  x ${table} ${t.from}: ${error.message}`);
+      if (error) console.error(`  x ${table}: ${error.message}`);
       else m++;
     }
     console.log(`แก้ชื่อใน ${table} ${m} รายการ`);
