@@ -604,7 +604,12 @@ export function SiteDetail({
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-primary" /> การรับประกัน
               </CardTitle>
-              <Link href="/warranties" className="text-xs font-medium text-primary hover:underline">
+              {/* Opens the list already narrowed to this site — the question
+                  being asked here is about this site, not about the sixty. */}
+              <Link
+                href={`/warranties?site=${site.id}`}
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 จัดการ
               </Link>
             </CardHeader>
@@ -631,7 +636,10 @@ export function SiteDetail({
               <CardTitle className="flex items-center gap-2">
                 <Repeat className="h-4 w-4 text-primary" /> สัญญาบริการ
               </CardTitle>
-              <Link href="/service-contracts" className="text-xs font-medium text-primary hover:underline">
+              <Link
+                href={`/service-contracts?site=${site.id}`}
+                className="text-xs font-medium text-primary hover:underline"
+              >
                 จัดการ
               </Link>
             </CardHeader>

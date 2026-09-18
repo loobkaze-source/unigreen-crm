@@ -1,8 +1,14 @@
 import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { ContractsView } from "./contracts-view";
 
-export default async function ServiceContractsPage() {
+export default async function ServiceContractsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ site?: string }>;
+}) {
   const { supabase, org } = await getSessionContext();
+  // ?site=<id> — arrived from a site's own page, asking about that site only.
+  const { site: scopeSiteId } = await searchParams;
 
   const [contractsRes, visitStatsRes, companiesRes, sitesRes, techRes] =
     await Promise.all([
@@ -71,6 +77,7 @@ export default async function ServiceContractsPage() {
       companies={companies ?? []}
       sites={sites ?? []}
       technicians={technicians ?? []}
+      scopeSite={(sites ?? []).find((s) => s.id === scopeSiteId) ?? null}
     />
   );
 }

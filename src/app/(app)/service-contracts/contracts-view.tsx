@@ -28,6 +28,7 @@ import { fmtDate } from "@/lib/format";
 import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
 import { saveContract, deleteContract } from "./actions";
 import { sitesOf, withCompany, withSite } from "@/lib/linked-pickers";
+import { ScopeBanner } from "@/components/app/scope-banner";
 
 type Option = { id: string; name: string };
 type SiteOption = Option & { company_id: string | null };
@@ -50,11 +51,14 @@ export function ContractsView({
   companies,
   sites,
   technicians,
+  scopeSite = null,
 }: {
   contracts: ContractRow[];
   companies: Option[];
   sites: SiteOption[];
   technicians: Option[];
+  /** Set when opened from a site's page: show only that site's contracts. */
+  scopeSite?: SiteOption | null;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -98,14 +102,16 @@ export function ContractsView({
   const [form, setForm] = useState(EMPTY);
 
   const filtered = useMemo(() => {
+    // Opened from a site's page, the list is that site's — before any search.
+    const pool = scopeSite ? contracts.filter((c) => c.site_id === scopeSite.id) : contracts;
     const q = query.trim().toLowerCase();
-    if (!q) return contracts;
-    return contracts.filter(
+    if (!q) return pool;
+    return pool.filter(
       (c) =>
         c.title.toLowerCase().includes(q) ||
         (c.contract_no || "").toLowerCase().includes(q)
     );
-  }, [contracts, query]);
+  }, [contracts, query, scopeSite]);
 
   const columns = useMemo<ColumnDef<ContractRow>[]>(
     () => [
@@ -155,7 +161,13 @@ export function ContractsView({
 
   function openCreate() {
     setEditing(null);
-    setForm(EMPTY);
+    // Opened from a site's page, the new contract is for that site — the
+    // whole point of coming in from there was not having to find it again.
+    setForm(
+      scopeSite
+        ? { ...EMPTY, site_id: scopeSite.id, company_id: scopeSite.company_id ?? "" }
+        : EMPTY
+    );
     setError(null);
     setOpen(true);
   }
@@ -223,6 +235,7 @@ export function ContractsView({
           <Plus className="h-4 w-4" /> สร้างสัญญา
         </Button>
       </PageHeader>
+      {scopeSite ? <ScopeBanner siteName={scopeSite.name} allHref="/service-contracts" /> : null}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">

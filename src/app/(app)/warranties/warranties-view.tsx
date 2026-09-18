@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { saveWarranty, deleteWarranty } from "./actions";
 import { sitesOf, withCompany, withSite } from "@/lib/linked-pickers";
+import { ScopeBanner } from "@/components/app/scope-banner";
 
 type Option = { id: string; name: string };
 type SiteOption = Option & { company_id: string | null };
@@ -40,10 +41,13 @@ export function WarrantiesView({
   warranties,
   companies,
   sites,
+  scopeSite = null,
 }: {
   warranties: Warranty[];
   companies: Option[];
   sites: SiteOption[];
+  /** Set when opened from a site's page: show only that site's warranties. */
+  scopeSite?: SiteOption | null;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -75,6 +79,8 @@ export function WarrantiesView({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return warranties.filter((w) => {
+      // Opened from a site's page, the list is that site's — before anything.
+      if (scopeSite && w.site_id !== scopeSite.id) return false;
       if (kindFilter !== "all" && w.kind !== kindFilter) return false;
       if (!q) return true;
       return (
@@ -83,7 +89,7 @@ export function WarrantiesView({
         (w.provider || "").toLowerCase().includes(q)
       );
     });
-  }, [warranties, query, kindFilter]);
+  }, [warranties, query, kindFilter, scopeSite]);
 
   const columns = useMemo<ColumnDef<Warranty>[]>(
     () => [
@@ -119,7 +125,12 @@ export function WarrantiesView({
 
   function openCreate() {
     setEditing(null);
-    setForm(EMPTY);
+    // Opened from a site's page, the new warranty is for that site.
+    setForm(
+      scopeSite
+        ? { ...EMPTY, site_id: scopeSite.id, company_id: scopeSite.company_id ?? "" }
+        : EMPTY
+    );
     setError(null);
     setOpen(true);
   }
@@ -194,6 +205,7 @@ export function WarrantiesView({
           <Plus className="h-4 w-4" /> เพิ่มการรับประกัน
         </Button>
       </PageHeader>
+      {scopeSite ? <ScopeBanner siteName={scopeSite.name} allHref="/warranties" /> : null}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">
