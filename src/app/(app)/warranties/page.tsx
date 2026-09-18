@@ -24,7 +24,7 @@ export default async function WarrantiesPage() {
     fetchAllRes(() =>
       supabase
         .from("sites")
-        .select("id, name")
+        .select("id, name, company_id")
         .eq("org_id", org.id)
         .order("name")
         .order("id")

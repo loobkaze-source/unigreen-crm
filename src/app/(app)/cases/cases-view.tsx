@@ -48,6 +48,7 @@ import {
   deleteCaseAttachment,
   quickAddContact,
 } from "./actions";
+import { sitesOf } from "@/lib/linked-pickers";
 
 type Option = { id: string; name: string };
 type SiteOption = { id: string; name: string; company_id: string | null };
@@ -360,7 +361,12 @@ export function CasesView({
     setAssetSel({});
   }
   function changeSite(site_id: string) {
-    setForm((f) => ({ ...f, site_id }));
+    // A site brings its customer with it, so the box need not wait for one.
+    setForm((f) => ({
+      ...f,
+      site_id,
+      company_id: sites.find((s) => s.id === site_id)?.company_id ?? f.company_id,
+    }));
     // Keep only ticks that belong to the newly-selected site.
     setAssetSel((sel) => {
       const allowed = new Set(assets.filter((a) => a.site_id === site_id).map((a) => a.id));
@@ -847,11 +853,11 @@ export function CasesView({
                 id="site_id"
                 value={form.site_id}
                 onChange={changeSite}
-                disabled={!form.company_id}
-                placeholder={form.company_id ? "— เลือกไซต์ —" : "— เลือกลูกค้าก่อน —"}
-                options={sites
-                  .filter((s) => s.company_id === form.company_id)
-                  .map((s) => ({ value: s.id, label: s.name }))}
+                placeholder={form.company_id ? "— เลือกไซต์ของลูกค้านี้ —" : "— เลือกไซต์ —"}
+                options={sitesOf(sites, form.company_id, form.site_id).map((s) => ({
+                  value: s.id,
+                  label: s.name,
+                }))}
               />
             </div>
             <div>

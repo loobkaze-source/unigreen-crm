@@ -25,8 +25,10 @@ import {
 import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { saveWarranty, deleteWarranty } from "./actions";
+import { sitesOf, withCompany, withSite } from "@/lib/linked-pickers";
 
 type Option = { id: string; name: string };
+type SiteOption = Option & { company_id: string | null };
 
 const KINDS: { value: WarrantyKind; label: string }[] = [
   { value: "project", label: "ประกันโครงการ (งานติดตั้ง)" },
@@ -41,7 +43,7 @@ export function WarrantiesView({
 }: {
   warranties: Warranty[];
   companies: Option[];
-  sites: Option[];
+  sites: SiteOption[];
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -345,19 +347,24 @@ export function WarrantiesView({
               <Combobox
                 id="company_id"
                 value={form.company_id}
-                onChange={(company_id) => setForm({ ...form, company_id: company_id })}
+                onChange={(company_id) => setForm(withCompany(form, company_id, sites))}
                 placeholder="— ไม่ระบุ —"
                 options={companies.map((c) => ({ value: c.id, label: c.name }))}
               />
             </div>
             <div>
               <Label htmlFor="site_id">ไซต์งาน</Label>
+              {/* Either order: a customer narrows this to their sites, a site
+                  fills the customer in. */}
               <Combobox
                 id="site_id"
                 value={form.site_id}
-                onChange={(site_id) => setForm({ ...form, site_id })}
-                placeholder="— ไม่ระบุ —"
-                options={sites.map((s) => ({ value: s.id, label: s.name }))}
+                onChange={(site_id) => setForm(withSite(form, site_id, sites))}
+                placeholder={form.company_id ? "— เลือกไซต์ของลูกค้านี้ —" : "— ไม่ระบุ —"}
+                options={sitesOf(sites, form.company_id, form.site_id).map((s) => ({
+                  value: s.id,
+                  label: s.name,
+                }))}
               />
             </div>
           </div>
