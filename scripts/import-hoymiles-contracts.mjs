@@ -192,7 +192,7 @@ if (!APPLY) {
           org_id: ORG,
           company_id: p.site.company_id,
           site_id: p.site.id,
-          title: `Solar PM ${p.years}Y — ${p.name}`,
+          title: `Solar PM ${p.years}Y`,
           service_type: "panel_cleaning",
           start_date: p.on,
           // The plant went live and the first clean is counted from that day.

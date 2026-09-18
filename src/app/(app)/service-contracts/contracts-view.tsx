@@ -333,7 +333,7 @@ export function ContractsView({
               id="title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="เช่น Solar PM 5Y — ชื่อลูกค้า · ไซต์"
+              placeholder="เช่น Solar PM 5Y"
               required
               autoFocus
             />

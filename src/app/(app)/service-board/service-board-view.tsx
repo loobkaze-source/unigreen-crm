@@ -24,7 +24,16 @@ type WO = {
   billing: string | null;
   technician_id: string | null;
 };
-type Contract = { id: string; title: string; board_key: string | null; site_id: string | null };
+type Contract = {
+  id: string;
+  title: string;
+  board_key: string | null;
+  site_id: string | null;
+  site: string | null;
+};
+/** "Solar PM 5Y · PTT Station …" — the title says what, the site says where. */
+const contractLabel = (c?: Contract) =>
+  c ? [c.title, c.site].filter(Boolean).join(" · ") : "สัญญาบริการ";
 type Visit = { id: string; contract_id: string; seq: number; due_date: string };
 type Tech = { id: string; name: string; nickname: string | null };
 
@@ -99,7 +108,7 @@ export function ServiceBoardView({
       id: `v-${v.id}`,
       date: v.due_date.slice(0, 10),
       href: `/service-contracts/${v.contract_id}`,
-      label: `รอบที่ ${v.seq} · ${contractMap.get(v.contract_id)?.title ?? "สัญญาบริการ"}`,
+      label: `รอบที่ ${v.seq} · ${contractLabel(contractMap.get(v.contract_id))}`,
       sub: isOverdue(v.due_date) ? "เลยกำหนด" : "รอบบริการตามสัญญา",
       tone: (isOverdue(v.due_date) ? "danger" : "info") as CalendarItem["tone"],
     }));
@@ -224,7 +233,7 @@ export function ServiceBoardView({
                         href={`/service-contracts/${v.contract_id}`}
                         className="block truncate text-sm font-medium hover:text-primary"
                       >
-                        {c?.title || "สัญญาบริการ"}
+                        {contractLabel(c)}
                       </Link>
                       <div className="text-xs text-muted-foreground">รอบที่ {v.seq}</div>
                     </div>

@@ -4,6 +4,12 @@ import { ServiceBoardView } from "./service-board-view";
 
 const OPEN_STATUSES = ["new", "scheduled", "in_progress", "on_hold"];
 
+/** A to-one embed comes back as an object; the generated types say array. */
+const embeddedName = (v: unknown): string | null => {
+  const row = Array.isArray(v) ? v[0] : v;
+  return (row as { name?: string } | null)?.name ?? null;
+};
+
 export default async function ServiceBoardPage() {
   const { supabase, org, userId, isAdmin } = await getSessionContext();
 
@@ -43,7 +49,7 @@ export default async function ServiceBoardPage() {
       .order("scheduled_start", { ascending: true }),
     supabase
       .from("service_contracts")
-      .select("id, title, board_key, site_id, status")
+      .select("id, title, board_key, site_id, status, sites(name)")
       .eq("org_id", org.id)
       .in("board_key", boardKeys)
       .eq("status", "active"),
@@ -89,7 +95,15 @@ export default async function ServiceBoardPage() {
     <ServiceBoardView
       boards={SERVICE_BOARDS.filter((d) => boardKeys.includes(d.value))}
       workOrders={rows(woRes)}
-      contracts={rows(contractsRes)}
+      // The title alone is "Solar PM 5Y" 57 times over; the site is what
+      // tells one row from the next.
+      contracts={rows(contractsRes).map((c) => ({
+        id: c.id as string,
+        title: c.title as string,
+        board_key: (c.board_key as string) ?? null,
+        site_id: (c.site_id as string) ?? null,
+        site: embeddedName(c.sites),
+      }))}
       visits={visits}
       technicians={rows(techRes)}
     />

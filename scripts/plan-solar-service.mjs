@@ -76,7 +76,7 @@ const siteRows = newSites.map((p) => ({
 // A station is filed under a name as plain as "PTT Station" more than once, so
 // the customer goes in the title — five contracts of the same name help nobody.
 const contractRows = [...bySite.values()].map(({ site, plants: ps }) => ({
-  title: `Solar PM ${YEARS}Y — ${site.co.name} · ${site.siteName}`,
+  title: `Solar PM ${YEARS}Y`,
   company_name: site.co.name,
   site_name: site.siteName,
   service_type: SERVICE_TYPE,
