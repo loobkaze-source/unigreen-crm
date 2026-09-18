@@ -31,6 +31,7 @@ import {
 import { cn, initials } from "@/lib/utils";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { LinkPending } from "@/components/ui/link-pending";
+import { OpenRecordsInTabs } from "@/components/app/open-records-in-tabs";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, TECH_HOME, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
 import { isTechnicianOnly } from "@/lib/roles";
@@ -312,6 +313,7 @@ export function AppShell({
           <ThemeToggle className="ml-auto rounded-md p-2 text-muted-foreground hover:bg-muted" />
         </div>
 
+        <OpenRecordsInTabs />
         <main
           className={cn(
             "min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 print:p-0",
