@@ -380,6 +380,8 @@ export interface Warranty extends Mutable {
   end_date: string | null;
   terms: string | null;
   status: WarrantyStatus;
+  /** Kept in step with the asset's own warranty fields by trigger; edit it there. */
+  mirrored: boolean;
 }
 
 export type CaseStatus = "open" | "in_progress" | "closed";

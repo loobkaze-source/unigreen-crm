@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import type { Warranty, WarrantyKind } from "@/lib/database.types";
@@ -310,9 +311,15 @@ export function WarrantiesView({
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge tone={w.kind === "project" ? "info" : "primary"}>
-                      {w.kind === "project" ? "โครงการ" : "อุปกรณ์"}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge tone={w.kind === "project" ? "info" : "primary"}>
+                        {w.kind === "project" ? "โครงการ" : "อุปกรณ์"}
+                      </Badge>
+                      {/* A copy of the asset's own warranty fields. It says so,
+                          because editing it here would be undone the next time
+                          the asset is saved. */}
+                      {w.mirrored ? <Badge tone="muted">จาก Asset</Badge> : null}
+                    </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                     {w.serial_number || "—"}
@@ -320,12 +327,26 @@ export function WarrantiesView({
                   <td className="px-4 py-3">{expiryBadge(w)}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(w)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => remove(w)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {w.mirrored && w.equipment_id ? (
+                        // The asset is where this is written; the pencil goes there.
+                        <Link
+                          href={`/assets/${w.equipment_id}`}
+                          aria-label="แก้ที่ Asset"
+                          title="แก้ไขได้ที่หน้า Asset"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-muted"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Link>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(w)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => remove(w)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
