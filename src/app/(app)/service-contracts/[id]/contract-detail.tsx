@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -35,7 +35,13 @@ import { fmtDate, fmtDateTime } from "@/lib/format";
 import { serviceTypeLabel } from "../constants";
 import { statusMeta, woCode } from "../../work-orders/constants";
 import { rescheduleContract, setVisitDueDate } from "../actions";
-import { ContractFormModal, type Option, type SiteOption } from "../contract-form-modal";
+import {
+  ContractFormModal,
+  type Option,
+  type SiteOption,
+} from "../contract-form-modal";
+import { AuditEntryRow } from "@/components/app/change-log";
+import type { AuditEntry } from "@/lib/audit";
 
 /** A plan as the history records it — or, for a single move, one round. */
 export type ScheduleSnapshot = {
@@ -66,7 +72,7 @@ type VisitWorkOrder = {
 };
 
 export function ContractDetail({
-  changeLog,
+  history,
   contract,
   visits,
   workOrders,
@@ -78,8 +84,8 @@ export function ContractDetail({
   siteName,
   technicianName,
 }: {
-  /** The record's own history, rendered on the server and handed in. */
-  changeLog?: React.ReactNode;
+  /** Every change to the contract row itself, from the audit log. */
+  history: AuditEntry[];
   contract: ServiceContract;
   visits: ServiceVisit[];
   workOrders: VisitWorkOrder[];
@@ -97,7 +103,9 @@ export function ContractDetail({
    * customer's signature; a tick carries nobody's word for anything.
    */
   const woOf = (v: ServiceVisit) =>
-    v.work_order_id ? workOrders.find((w) => w.id === v.work_order_id) ?? null : null;
+    v.work_order_id
+      ? (workOrders.find((w) => w.id === v.work_order_id) ?? null)
+      : null;
   const served = (v: ServiceVisit) => woOf(v)?.status === "completed";
 
   const done = visits.filter(served).length;
@@ -107,6 +115,37 @@ export function ContractDetail({
   const nextDue = visits
     .filter((v) => !served(v))
     .sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+
+  /**
+   * Both logs as one list, newest first. The audit log's lines lose the
+   * schedule columns — the schedule log tells that story with the round
+   * counts and the reason — and a line with nothing left to say is dropped.
+   */
+  const timeline = useMemo(() => {
+    const SCHEDULE_FIELDS = new Set([
+      "first_visit_date",
+      "frequency_per_year",
+      "duration_years",
+      "end_date",
+    ]);
+    const audit = history
+      .map((e) =>
+        e.action === "update"
+          ? {
+              ...e,
+              changes: e.changes.filter((c) => !SCHEDULE_FIELDS.has(c.field)),
+            }
+          : e,
+      )
+      .filter((e) => e.action !== "update" || e.changes.length > 0)
+      .map((entry) => ({ kind: "audit" as const, at: entry.changedAt, entry }));
+    const schedule = log.map((entry) => ({
+      kind: "schedule" as const,
+      at: entry.changed_at,
+      entry,
+    }));
+    return [...audit, ...schedule].sort((a, b) => b.at.localeCompare(a.at));
+  }, [history, log]);
 
   const router = useRouter();
   const [planning, setPlanning] = useState(false);
@@ -129,7 +168,9 @@ export function ContractDetail({
     let n = 0;
     let last = plan.from;
     for (let i = 0; ; i++) {
-      const dt = new Date(Date.UTC(y, m - 1 + i * interval, d)).toISOString().slice(0, 10);
+      const dt = new Date(Date.UTC(y, m - 1 + i * interval, d))
+        .toISOString()
+        .slice(0, 10);
       if (dt > end) break;
       n++;
       last = dt;
@@ -164,7 +205,9 @@ export function ContractDetail({
 
       <div className="mb-5 flex items-center gap-2">
         {contract.contract_no ? (
-          <div className="font-mono text-xs text-muted-foreground">{contract.contract_no}</div>
+          <div className="font-mono text-xs text-muted-foreground">
+            {contract.contract_no}
+          </div>
         ) : null}
         <h1 className="text-xl font-bold tracking-tight">{contract.title}</h1>
         <Badge tone={contract.status === "active" ? "success" : "muted"}>
@@ -177,12 +220,20 @@ export function ContractDetail({
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>สรุปสัญญา</CardTitle>
-            <Button variant="secondary" size="sm" onClick={() => setEditingContract(true)}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setEditingContract(true)}
+            >
               <Pencil className="h-4 w-4" /> แก้ไข
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Info icon={Repeat} label="ประเภท" value={serviceTypeLabel(contract.service_type)} />
+            <Info
+              icon={Repeat}
+              label="ประเภท"
+              value={serviceTypeLabel(contract.service_type)}
+            />
             <Info
               icon={CalendarCheck}
               label="ความถี่"
@@ -207,7 +258,10 @@ export function ContractDetail({
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${pct}%` }}
+                />
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 {nextDue
@@ -223,7 +277,11 @@ export function ContractDetail({
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>รอบเข้าบริการ</CardTitle>
             {owedCount > 0 && contract.status === "active" ? (
-              <Button variant="secondary" size="sm" onClick={() => setPlanning(true)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPlanning(true)}
+              >
                 <CalendarRange className="h-4 w-4" /> จัดตารางใหม่
               </Button>
             ) : null}
@@ -250,10 +308,14 @@ export function ContractDetail({
                       #{v.seq}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className={cn("text-sm", ok && "text-muted-foreground")}>
+                      <div
+                        className={cn("text-sm", ok && "text-muted-foreground")}
+                      >
                         ครบกำหนด{" "}
                         {ok ? (
-                          <span className="font-medium">{fmtDate(v.due_date)}</span>
+                          <span className="font-medium">
+                            {fmtDate(v.due_date)}
+                          </span>
                         ) : (
                           <DueDate
                             visit={v}
@@ -267,8 +329,12 @@ export function ContractDetail({
                           href={`/work-orders/${wo.id}`}
                           className="mt-0.5 inline-flex flex-wrap items-center gap-1.5 text-xs hover:underline"
                         >
-                          <span className="font-mono text-muted-foreground">{woCode(wo)}</span>
-                          <Badge tone={statusMeta(wo.status as WorkOrderStatus).tone}>
+                          <span className="font-mono text-muted-foreground">
+                            {woCode(wo)}
+                          </span>
+                          <Badge
+                            tone={statusMeta(wo.status as WorkOrderStatus).tone}
+                          >
                             {statusMeta(wo.status as WorkOrderStatus).label}
                           </Badge>
                           {wo.completed_at ? (
@@ -284,12 +350,17 @@ export function ContractDetail({
                           href={`/work-orders?visit=${v.id}`}
                           className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                         >
-                          <Plus className="h-3.5 w-3.5" /> สร้างใบงานสำหรับรอบนี้
+                          <Plus className="h-3.5 w-3.5" />{" "}
+                          สร้างใบงานสำหรับรอบนี้
                         </Link>
                       )}
                     </div>
                     <Badge tone={ok ? "success" : overdue ? "danger" : "muted"}>
-                      {ok ? "เข้าบริการแล้ว" : overdue ? "เลยกำหนด" : "รอเข้าบริการ"}
+                      {ok
+                        ? "เข้าบริการแล้ว"
+                        : overdue
+                          ? "เลยกำหนด"
+                          : "รอเข้าบริการ"}
                     </Badge>
                   </div>
                 );
@@ -303,33 +374,56 @@ export function ContractDetail({
           </CardContent>
         </Card>
 
-        {/* How the plan got to be what it is. */}
+        {/* Everything that happened to this contract, in one place: the
+            schedule entries (a reschedule with its counts and reason) and the
+            audit entries (a title change, a new technician). An edit that
+            moved the schedule wrote to both, and would have shown twice —
+            once as "จัดตารางใหม่ 2 → 3 รอบ" and again as "ระยะเวลา: 1 → 1.5"
+            — so the audit line drops the fields the schedule line already
+            explains, and disappears if that was all it said. */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <History className="h-4 w-4" /> ประวัติการเปลี่ยนแปลงตาราง
+              <History className="h-4 w-4" /> ประวัติการเปลี่ยนแปลง
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {log.length === 0 ? (
+            {timeline.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">
-                ยังไม่มีการเปลี่ยนแปลง — สัญญานี้สร้างก่อนจะเริ่มบันทึกประวัติ
+                ยังไม่มีการเปลี่ยนแปลงที่บันทึกไว้
               </p>
             ) : (
               <ul className="space-y-2">
-                {log.map((entry) => (
-                  <li key={entry.id} className="rounded-md border border-border px-3 py-2 text-sm">
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                      <span className="font-medium">{describeLog(entry)}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {fmtDateTime(entry.changed_at)} · {entry.by}
-                      </span>
-                    </div>
-                    {entry.note ? (
-                      <div className="mt-0.5 text-xs text-muted-foreground">{entry.note}</div>
-                    ) : null}
-                  </li>
-                ))}
+                {timeline.map((item) =>
+                  item.kind === "audit" ? (
+                    <AuditEntryRow
+                      key={`a-${item.entry.id}`}
+                      entry={item.entry}
+                    />
+                  ) : (
+                    <li
+                      key={`s-${item.entry.id}`}
+                      className="rounded-md border border-border px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <span className="inline-flex flex-wrap items-baseline gap-x-2">
+                          <Badge tone="warning">ตาราง</Badge>
+                          <span className="font-medium">
+                            {describeLog(item.entry)}
+                          </span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {fmtDateTime(item.entry.changed_at)} · {item.entry.by}
+                        </span>
+                      </div>
+                      {item.entry.note ? (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          {item.entry.note}
+                        </div>
+                      ) : null}
+                    </li>
+                  ),
+                )}
               </ul>
             )}
           </CardContent>
@@ -353,7 +447,9 @@ export function ContractDetail({
       >
         <form onSubmit={submitPlan} className="space-y-4">
           {planError ? (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{planError}</p>
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              {planError}
+            </p>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -376,7 +472,9 @@ export function ContractDetail({
                 max="12"
                 required
                 value={plan.frequency_per_year}
-                onChange={(e) => setPlan({ ...plan, frequency_per_year: e.target.value })}
+                onChange={(e) =>
+                  setPlan({ ...plan, frequency_per_year: e.target.value })
+                }
               />
             </div>
           </div>
@@ -397,7 +495,11 @@ export function ContractDetail({
               : "เลือกวันและความถี่ที่ใช้ได้ก่อน"}
           </p>
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={() => setPlanning(false)}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPlanning(false)}
+            >
               ยกเลิก
             </Button>
             <Button type="submit" disabled={pending || !preview}>
@@ -407,7 +509,6 @@ export function ContractDetail({
           </div>
         </form>
       </Modal>
-      {changeLog ? <div className="mt-6">{changeLog}</div> : null}
     </div>
   );
 }
@@ -480,7 +581,9 @@ function DueDate({
 
   return (
     <span className="relative inline-flex items-center gap-1">
-      <span className={cn("font-medium", overdue && "text-destructive")}>{fmtDate(value)}</span>
+      <span className={cn("font-medium", overdue && "text-destructive")}>
+        {fmtDate(value)}
+      </span>
       {pending ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
       ) : (

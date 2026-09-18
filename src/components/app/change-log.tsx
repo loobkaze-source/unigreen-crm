@@ -40,56 +40,71 @@ export function ChangeLog({
       </CardHeader>
       <CardContent>
         {entries.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">{empty}</p>
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            {empty}
+          </p>
         ) : (
           <ul className="space-y-2">
             {entries.map((e) => (
-              <li key={e.id} className="rounded-md border border-border px-3 py-2 text-sm">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <Badge tone={ACTION[e.action].tone}>{ACTION[e.action].label}</Badge>
-                  {showRecord ? (
-                    <span className="font-medium">
-                      {TABLE_LABELS[e.table] ?? e.table}
-                      {e.summary ? (
-                        <>
-                          {" · "}
-                          <RecordLink table={e.table} rowId={e.rowId} action={e.action}>
-                            {e.summary}
-                          </RecordLink>
-                        </>
-                      ) : null}
-                    </span>
-                  ) : e.action !== "update" && e.summary ? (
-                    <span className="font-medium">{e.summary}</span>
-                  ) : null}
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {fmtDateTime(e.changedAt)} · {e.by}
-                  </span>
-                </div>
-                {e.action === "update" ? (
-                  <ul className="mt-1 space-y-0.5 text-xs">
-                    {e.changes.map((c) => (
-                      <li key={c.field} className="flex flex-wrap gap-x-1">
-                        <span className="text-muted-foreground">{c.label}:</span>
-                        <span className="line-through decoration-muted-foreground/60 text-muted-foreground">
-                          {c.from ?? "—"}
-                        </span>
-                        <span>→</span>
-                        <span className="font-medium">{c.to ?? "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {e.changes.length} ฟิลด์
-                  </div>
-                )}
-              </li>
+              <AuditEntryRow key={e.id} entry={e} showRecord={showRecord} />
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** One line of the log: who did what, and what moved. */
+export function AuditEntryRow({
+  entry: e,
+  showRecord = false,
+}: {
+  entry: AuditEntry;
+  showRecord?: boolean;
+}) {
+  return (
+    <li className="rounded-md border border-border px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <Badge tone={ACTION[e.action].tone}>{ACTION[e.action].label}</Badge>
+        {showRecord ? (
+          <span className="font-medium">
+            {TABLE_LABELS[e.table] ?? e.table}
+            {e.summary ? (
+              <>
+                {" · "}
+                <RecordLink table={e.table} rowId={e.rowId} action={e.action}>
+                  {e.summary}
+                </RecordLink>
+              </>
+            ) : null}
+          </span>
+        ) : e.action !== "update" && e.summary ? (
+          <span className="font-medium">{e.summary}</span>
+        ) : null}
+        <span className="ml-auto text-xs text-muted-foreground">
+          {fmtDateTime(e.changedAt)} · {e.by}
+        </span>
+      </div>
+      {e.action === "update" ? (
+        <ul className="mt-1 space-y-0.5 text-xs">
+          {e.changes.map((c) => (
+            <li key={c.field} className="flex flex-wrap gap-x-1">
+              <span className="text-muted-foreground">{c.label}:</span>
+              <span className="line-through decoration-muted-foreground/60 text-muted-foreground">
+                {c.from ?? "—"}
+              </span>
+              <span>→</span>
+              <span className="font-medium">{c.to ?? "—"}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {e.changes.length} ฟิลด์
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -117,7 +132,10 @@ function RecordLink({
   // A deleted record has no page to go to.
   if (!base || action === "delete") return <>{children}</>;
   return (
-    <Link href={`${base}/${rowId}`} className="hover:text-primary hover:underline">
+    <Link
+      href={`${base}/${rowId}`}
+      className="hover:text-primary hover:underline"
+    >
       {children}
     </Link>
   );

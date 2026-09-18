@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
-import { ChangeLog } from "@/components/app/change-log";
 import type { ServiceContract, ServiceVisit } from "@/lib/database.types";
 import { ContractDetail, type ScheduleSnapshot } from "./contract-detail";
 
@@ -122,7 +121,7 @@ export default async function ContractDetailPage({
       companyName={contract.companies?.name}
       siteName={contract.sites?.name}
       technicianName={contract.technicians?.name}
-      changeLog={<ChangeLog entries={history} />}
+      history={history}
     />
   );
 }
