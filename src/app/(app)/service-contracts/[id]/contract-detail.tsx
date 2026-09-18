@@ -35,6 +35,7 @@ import { fmtDate, fmtDateTime } from "@/lib/format";
 import { serviceTypeLabel } from "../constants";
 import { statusMeta, woCode } from "../../work-orders/constants";
 import { rescheduleContract, setVisitDueDate } from "../actions";
+import { ContractFormModal, type Option, type SiteOption } from "../contract-form-modal";
 
 /** A plan as the history records it — or, for a single move, one round. */
 export type ScheduleSnapshot = {
@@ -68,6 +69,9 @@ export function ContractDetail({
   contract,
   visits,
   workOrders,
+  companies,
+  sites,
+  technicians,
   log,
   companyName,
   siteName,
@@ -76,6 +80,9 @@ export function ContractDetail({
   contract: ServiceContract;
   visits: ServiceVisit[];
   workOrders: VisitWorkOrder[];
+  companies: Option[];
+  sites: SiteOption[];
+  technicians: Option[];
   log: ScheduleLogEntry[];
   companyName?: string;
   siteName?: string;
@@ -100,6 +107,7 @@ export function ContractDetail({
 
   const router = useRouter();
   const [planning, setPlanning] = useState(false);
+  const [editingContract, setEditingContract] = useState(false);
   const [pending, startTransition] = useTransition();
   const [planError, setPlanError] = useState<string | null>(null);
   const [plan, setPlan] = useState({
@@ -164,8 +172,11 @@ export function ContractDetail({
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Summary */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between">
             <CardTitle>สรุปสัญญา</CardTitle>
+            <Button variant="secondary" size="sm" onClick={() => setEditingContract(true)}>
+              <Pencil className="h-4 w-4" /> แก้ไข
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             <Info icon={Repeat} label="ประเภท" value={serviceTypeLabel(contract.service_type)} />
@@ -321,6 +332,15 @@ export function ContractDetail({
           </CardContent>
         </Card>
       </div>
+
+      <ContractFormModal
+        open={editingContract}
+        onClose={() => setEditingContract(false)}
+        editing={contract}
+        companies={companies}
+        sites={sites}
+        technicians={technicians}
+      />
 
       <Modal
         open={planning}

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, row, rows } from "@/lib/data";
+import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
 import type { ServiceContract, ServiceVisit } from "@/lib/database.types";
 import { ContractDetail, type ScheduleSnapshot } from "./contract-detail";
 
@@ -71,6 +71,18 @@ export default async function ContractDetailPage({
     (changers ?? []).map((c) => [c.id as string, (c.full_name as string | null) ?? "—"])
   );
 
+  // What the edit form offers to pick from. Fetched here rather than kept
+  // on the client, because the form is one click away on this page too.
+  const [companiesRes, sitesRes, techRes] = await Promise.all([
+    fetchAllRes(() =>
+      supabase.from("companies").select("id, name").eq("org_id", org.id).order("name").order("id")
+    ),
+    fetchAllRes(() =>
+      supabase.from("sites").select("id, name, company_id").eq("org_id", org.id).order("name").order("id")
+    ),
+    supabase.from("technicians").select("id, name").eq("org_id", org.id).eq("active", true).order("name").limit(500),
+  ]);
+
   const workOrders = visits
     .map((v) => v.work_orders)
     .filter((w): w is NonNullable<VisitRow["work_orders"]> => Boolean(w))
@@ -91,6 +103,9 @@ export default async function ContractDetailPage({
         return copy;
       })}
       workOrders={workOrders}
+      companies={rows(companiesRes) ?? []}
+      sites={rows(sitesRes) ?? []}
+      technicians={rows(techRes) ?? []}
       log={(log ?? []).map((l) => ({
         id: l.id as string,
         changed_at: l.changed_at as string,

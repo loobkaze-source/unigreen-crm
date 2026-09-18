@@ -4,16 +4,11 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Repeat, Search, Trash2 } from "lucide-react";
-import type { ServiceContract, ServiceType } from "@/lib/database.types";
+import type { ServiceContract } from "@/lib/database.types";
 import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
-import { Combobox } from "@/components/ui/combobox";
-import { Textarea } from "@/components/ui/textarea";
-import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
@@ -23,15 +18,12 @@ import {
   DataTableFilterToggle,
   type ColumnDef,
 } from "@/components/ui/data-table";
-import { SERVICE_BOARDS } from "@/lib/departments";
 import { fmtDate } from "@/lib/format";
-import { SERVICE_TYPES, serviceTypeLabel } from "./constants";
-import { saveContract, deleteContract } from "./actions";
-import { sitesOf, withCompany, withSite } from "@/lib/linked-pickers";
+import { serviceTypeLabel } from "./constants";
+import { ContractFormModal, type Option, type SiteOption } from "./contract-form-modal";
+import { deleteContract } from "./actions";
 import { ScopeBanner } from "@/components/app/scope-banner";
 
-type Option = { id: string; name: string };
-type SiteOption = Option & { company_id: string | null };
 type ContractRow = ServiceContract & {
   total: number;
   done: number;
@@ -64,8 +56,8 @@ export function ContractsView({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceContract | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const today = new Date().toISOString().slice(0, 10);
 
   const companyName = useMemo(() => {
     const m = new Map(companies.map((c) => [c.id, c.name]));
@@ -84,22 +76,6 @@ export function ContractsView({
     [companyName, siteName]
   );
 
-  const today = new Date().toISOString().slice(0, 10);
-  const EMPTY = {
-    title: "",
-    company_id: "",
-    site_id: "",
-    service_type: "panel_cleaning" as ServiceType,
-    start_date: today,
-    // Blank on purpose: it is a question, not a default. See the field.
-    first_visit_date: "",
-    frequency_per_year: "2",
-    duration_years: "5",
-    technician_id: "",
-    board_key: "",
-    notes: "",
-  };
-  const [form, setForm] = useState(EMPTY);
 
   const filtered = useMemo(() => {
     // Opened from a site's page, the list is that site's — before any search.
@@ -161,58 +137,13 @@ export function ContractsView({
 
   function openCreate() {
     setEditing(null);
-    // Opened from a site's page, the new contract is for that site — the
-    // whole point of coming in from there was not having to find it again.
-    setForm(
-      scopeSite
-        ? { ...EMPTY, site_id: scopeSite.id, company_id: scopeSite.company_id ?? "" }
-        : EMPTY
-    );
-    setError(null);
     setOpen(true);
   }
   function openEdit(c: ServiceContract, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
     setEditing(c);
-    setForm({
-      title: c.title,
-      company_id: c.company_id || "",
-      site_id: c.site_id || "",
-      service_type: c.service_type,
-      start_date: c.start_date,
-      first_visit_date: c.first_visit_date ?? c.start_date,
-      frequency_per_year: String(c.frequency_per_year),
-      duration_years: String(c.duration_years),
-      technician_id: c.technician_id || "",
-      board_key: c.board_key || "",
-      notes: c.notes || "",
-    });
-    setError(null);
     setOpen(true);
-  }
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    startTransition(async () => {
-      const res = await saveContract({
-        id: editing?.id,
-        title: form.title,
-        company_id: form.company_id || null,
-        site_id: form.site_id || null,
-        service_type: form.service_type,
-        start_date: form.start_date,
-        first_visit_date: form.first_visit_date || null,
-        frequency_per_year: form.frequency_per_year,
-        duration_years: form.duration_years,
-        technician_id: form.technician_id || null,
-        board_key: form.board_key || null,
-        notes: form.notes,
-      });
-      if (!res.ok) return setError(res.error);
-      setOpen(false);
-      router.refresh();
-    });
   }
   function remove(c: ServiceContract, e: React.MouseEvent) {
     e.preventDefault();
@@ -332,183 +263,15 @@ export function ContractsView({
         </div>
       )}
 
-      <Modal
+      <ContractFormModal
         open={open}
         onClose={() => setOpen(false)}
-        title={editing ? "แก้ไขสัญญาบริการ" : "สร้างสัญญาบริการ"}
-        size="lg"
-      >
-        <form onSubmit={submit} className="space-y-4">
-          {error ? (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-          ) : null}
-          <div>
-            <Label htmlFor="title">ชื่อสัญญา *</Label>
-            <Input
-              id="title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              placeholder="เช่น Solar PM 5Y"
-              required
-              autoFocus
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="service_type">ประเภทบริการ</Label>
-              <Select
-                id="service_type"
-                value={form.service_type}
-                onChange={(e) =>
-                  setForm({ ...form, service_type: e.target.value as ServiceType })
-                }
-              >
-                {SERVICE_TYPES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="technician_id">ช่างประจำ</Label>
-              <Combobox
-                id="technician_id"
-                value={form.technician_id}
-                onChange={(v) => setForm({ ...form, technician_id: v })}
-                placeholder="— ไม่ระบุ —"
-                options={technicians.map((t) => ({ value: t.id, label: t.name }))}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="company_id">นิติบุคคล (ลูกค้า)</Label>
-              <Combobox
-                id="company_id"
-                value={form.company_id}
-                onChange={(company_id) => setForm(withCompany(form, company_id, sites))}
-                placeholder="— ไม่ระบุ —"
-                options={companies.map((c) => ({ value: c.id, label: c.name }))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="site_id">ไซต์งาน</Label>
-              {/* Either order: a customer narrows this to their sites, a site
-                  fills the customer in. */}
-              <Combobox
-                id="site_id"
-                value={form.site_id}
-                onChange={(site_id) => setForm(withSite(form, site_id, sites))}
-                placeholder={form.company_id ? "— เลือกไซต์ของลูกค้านี้ —" : "— ไม่ระบุ —"}
-                options={sitesOf(sites, form.company_id, form.site_id).map((s) => ({
-                  value: s.id,
-                  label: s.name,
-                }))}
-              />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="board_key">Service Board</Label>
-            <Select
-              id="board_key"
-              value={form.board_key}
-              onChange={(e) => setForm({ ...form, board_key: e.target.value })}
-            >
-              <option value="">— ไม่ระบุ —</option>
-              {SERVICE_BOARDS.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </Select>
-            <p className="mt-1 text-xs text-muted-foreground">
-              เลือกบอร์ดเพื่อให้รอบบริการของสัญญานี้แสดงในหน้า Service Board
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="start_date">วันที่เริ่มสัญญา</Label>
-              <Input
-                id="start_date"
-                type="date"
-                value={form.start_date}
-                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
-              />
-            </div>
-            <div>
-              {/* Asked, not assumed. Nobody cleans the panels on the day the
-                  paperwork is signed; the first visit is agreed with the
-                  customer, and every later round is counted from it. */}
-              <Label htmlFor="first_visit_date">วันที่เข้าบริการครั้งแรก</Label>
-              <Input
-                id="first_visit_date"
-                type="date"
-                required
-                min={form.start_date || undefined}
-                value={form.first_visit_date}
-                onChange={(e) => setForm({ ...form, first_visit_date: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="frequency_per_year">ครั้ง/ปี</Label>
-              <Input
-                id="frequency_per_year"
-                type="number"
-                min="1"
-                value={form.frequency_per_year}
-                onChange={(e) => setForm({ ...form, frequency_per_year: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="duration_years">ระยะเวลา (ปี)</Label>
-              <Input
-                id="duration_years"
-                type="number"
-                min="1"
-                step="0.5"
-                value={form.duration_years}
-                onChange={(e) => setForm({ ...form, duration_years: e.target.value })}
-              />
-            </div>
-          </div>
-          {!editing ? (
-            <p className="rounded-md bg-accent px-3 py-2 text-xs text-accent-foreground">
-              ระบบจะสร้างรอบเข้าบริการ{" "}
-              {Math.max(
-                1,
-                Math.round(Number(form.frequency_per_year || 0) * Number(form.duration_years || 0))
-              )}{" "}
-              ครั้ง — รอบแรกตรงกับวันที่เข้าบริการครั้งแรก ที่เหลือนับต่อไปทุก{" "}
-              {Math.max(1, Math.round(12 / Number(form.frequency_per_year || 1)))} เดือน
-              และแก้วันของแต่ละรอบทีหลังได้ในหน้าสัญญา
-            </p>
-          ) : (
-            <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              ถ้าเปลี่ยนวันเข้าบริการครั้งแรก ความถี่ หรือระยะเวลา รอบที่ยังไม่ได้เข้าบริการจะถูกจัดตารางใหม่
-              (รอบที่เข้าบริการแล้วคงเดิม)
-            </p>
-          )}
-          <div>
-            <Label htmlFor="notes">หมายเหตุ</Label>
-            <Textarea
-              id="notes"
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
-              ยกเลิก
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "กำลังบันทึก…" : editing ? "บันทึกการแก้ไข" : "สร้างสัญญา"}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        editing={editing}
+        initial={scopeSite ? { site_id: scopeSite.id, company_id: scopeSite.company_id ?? "" } : undefined}
+        companies={companies}
+        sites={sites}
+        technicians={technicians}
+      />
     </div>
   );
 }
