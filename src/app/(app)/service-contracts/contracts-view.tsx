@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   useDataTable,
@@ -36,6 +37,30 @@ type ContractRow = ServiceContract & {
 const cycleText = (c: ContractRow) =>
   `ปีละ ${c.frequency_per_year} ครั้ง · ${c.duration_years} ปี`;
 const progressText = (c: ContractRow) => `${c.done}/${c.total}`;
+
+/**
+ * The one thing a contract is, right now.
+ *
+ *   complete  every round has a finished job — the contract has been honoured,
+ *             whatever its dates say
+ *   expired   its term has run out (or it was closed) with rounds still owed
+ *   active    live, with rounds still to come
+ *
+ * Complete is tested first: a five-year contract that was served in full is
+ * done, not expired, even once its end date has passed.
+ */
+type Quick = "all" | "active" | "expired" | "complete";
+const QUICK: { value: Quick; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "active", label: "ยังมีผล" },
+  { value: "expired", label: "หมดอายุ" },
+  { value: "complete", label: "เข้าบริการครบแล้ว" },
+];
+function quickOf(c: ContractRow, today: string): Exclude<Quick, "all"> {
+  if (c.total > 0 && c.done >= c.total) return "complete";
+  if (c.status !== "active" || (c.end_date && c.end_date < today)) return "expired";
+  return "active";
+}
 const dueText = (c: ContractRow) => (c.nextDue ? fmtDate(c.nextDue) : "ครบแล้ว");
 
 export function ContractsView({
@@ -54,10 +79,11 @@ export function ContractsView({
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [quick, setQuick] = useState<Quick>("all");
+  const today = new Date().toISOString().slice(0, 10);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceContract | null>(null);
   const [, startTransition] = useTransition();
-  const today = new Date().toISOString().slice(0, 10);
 
   const companyName = useMemo(() => {
     const m = new Map(companies.map((c) => [c.id, c.name]));
@@ -77,17 +103,30 @@ export function ContractsView({
   );
 
 
+  // Opened from a site's page, the list is that site's — before anything else.
+  const pool = useMemo(
+    () => (scopeSite ? contracts.filter((c) => c.site_id === scopeSite.id) : contracts),
+    [contracts, scopeSite]
+  );
+  const counts = useMemo(
+    () => ({
+      all: pool.length,
+      active: pool.filter((c) => quickOf(c, today) === "active").length,
+      expired: pool.filter((c) => quickOf(c, today) === "expired").length,
+      complete: pool.filter((c) => quickOf(c, today) === "complete").length,
+    }),
+    [pool, today]
+  );
   const filtered = useMemo(() => {
-    // Opened from a site's page, the list is that site's — before any search.
-    const pool = scopeSite ? contracts.filter((c) => c.site_id === scopeSite.id) : contracts;
+    const quicked = quick === "all" ? pool : pool.filter((c) => quickOf(c, today) === quick);
     const q = query.trim().toLowerCase();
-    if (!q) return pool;
-    return pool.filter(
+    if (!q) return quicked;
+    return quicked.filter(
       (c) =>
         c.title.toLowerCase().includes(q) ||
         (c.contract_no || "").toLowerCase().includes(q)
     );
-  }, [contracts, query, scopeSite]);
+  }, [pool, query, quick, today]);
 
   const columns = useMemo<ColumnDef<ContractRow>[]>(
     () => [
@@ -177,6 +216,20 @@ export function ContractsView({
             placeholder="ค้นหาสัญญา…"
             className="pl-9"
           />
+        </div>
+        {/* The three states a contract can be in, one tap each. Counted, so
+            the chip says what it hides before it is pressed. */}
+        <div className="flex flex-wrap gap-1">
+          {QUICK.map((f) => (
+            <Chip
+              key={f.value}
+              active={quick === f.value}
+              onClick={() => setQuick(f.value)}
+              count={counts[f.value]}
+            >
+              {f.label}
+            </Chip>
+          ))}
         </div>
         <DataTableFilterToggle table={table} />
       </div>

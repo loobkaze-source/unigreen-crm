@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/ui/chip";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
@@ -35,6 +36,22 @@ const KINDS: { value: WarrantyKind; label: string }[] = [
   { value: "project", label: "ประกันโครงการ (งานติดตั้ง)" },
   { value: "equipment", label: "ประกันอุปกรณ์ (ตาม Serial)" },
 ];
+
+/**
+ * In force, or not. Void counts as not; so does a term that has run out even
+ * if nobody flipped the status.
+ */
+type Quick = "all" | "active" | "expired";
+const QUICK: { value: Quick; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "active", label: "ยังมีผล" },
+  { value: "expired", label: "หมดอายุ" },
+];
+function quickOf(w: Warranty, today: string): Exclude<Quick, "all"> {
+  if (w.status !== "active") return "expired";
+  if (w.end_date && w.end_date < today) return "expired";
+  return "active";
+}
 const kindLabel = (v: WarrantyKind) => KINDS.find((k) => k.value === v)?.label ?? v;
 
 export function WarrantiesView({
@@ -52,6 +69,7 @@ export function WarrantiesView({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<WarrantyKind | "all">("all");
+  const [quick, setQuick] = useState<Quick>("all");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Warranty | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,12 +94,25 @@ export function WarrantiesView({
   };
   const [form, setForm] = useState(EMPTY);
 
+  // Counted over what the other filters leave, so the numbers are the ones
+  // pressing the chip would actually show.
+  const counts = useMemo(() => {
+    const base = warranties.filter(
+      (w) => (!scopeSite || w.site_id === scopeSite.id) && (kindFilter === "all" || w.kind === kindFilter)
+    );
+    return {
+      all: base.length,
+      active: base.filter((w) => quickOf(w, today) === "active").length,
+      expired: base.filter((w) => quickOf(w, today) === "expired").length,
+    };
+  }, [warranties, scopeSite, kindFilter, today]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return warranties.filter((w) => {
       // Opened from a site's page, the list is that site's — before anything.
       if (scopeSite && w.site_id !== scopeSite.id) return false;
       if (kindFilter !== "all" && w.kind !== kindFilter) return false;
+      if (quick !== "all" && quickOf(w, today) !== quick) return false;
       if (!q) return true;
       return (
         w.title.toLowerCase().includes(q) ||
@@ -89,7 +120,7 @@ export function WarrantiesView({
         (w.provider || "").toLowerCase().includes(q)
       );
     });
-  }, [warranties, query, kindFilter, scopeSite]);
+  }, [warranties, query, kindFilter, scopeSite, quick, today]);
 
   const columns = useMemo<ColumnDef<Warranty>[]>(
     () => [
@@ -228,6 +259,19 @@ export function WarrantiesView({
               onClick={() => setKindFilter(k.value)}
             >
               {k.value === "project" ? "โครงการ" : "อุปกรณ์"}
+            </Chip>
+          ))}
+        </div>
+        {/* In force or not — the question a warranty exists to answer. */}
+        <div className="flex flex-wrap gap-1 border-l border-border pl-2">
+          {QUICK.map((f) => (
+            <Chip
+              key={f.value}
+              active={quick === f.value}
+              onClick={() => setQuick(f.value)}
+              count={counts[f.value]}
+            >
+              {f.label}
             </Chip>
           ))}
         </div>
@@ -422,26 +466,3 @@ export function WarrantiesView({
   );
 }
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        active
-          ? "border-primary bg-primary text-white"
-          : "border-border bg-card text-muted-foreground hover:bg-muted"
-      )}
-    >
-      {children}
-    </button>
-  );
-}
