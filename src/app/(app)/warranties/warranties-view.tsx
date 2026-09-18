@@ -129,7 +129,13 @@ export function WarrantiesView({
         key: "title",
         header: "รายการ",
         sortAccessor: (w) => w.title,
-        filter: { kind: "text", accessor: (w) => w.title },
+        // The cell is two lines — the title, then the customer and the
+        // provider — and a filter that only reads the first cannot find
+        // "ปตท." when every title in the column is "Monitor".
+        filter: {
+          kind: "text",
+          accessor: (w) => [w.title, companyName(w.company_id), w.provider].filter(Boolean).join(" "),
+        },
       },
       {
         key: "kind",
@@ -149,7 +155,7 @@ export function WarrantiesView({
       },
       { key: "_actions", header: "" },
     ],
-    []
+    [companyName]
   );
   const table = useDataTable(filtered, columns, {
     initialSort: { key: "end_date", dir: "asc" },

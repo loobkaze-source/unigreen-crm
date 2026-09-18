@@ -126,7 +126,7 @@ export function SitesView({
         key: "name",
         header: "ไซต์",
         sortAccessor: (s) => s.name,
-        filter: { kind: "text", accessor: (s) => s.name },
+        filter: { kind: "text", accessor: (s) => [s.name, s.address].filter(Boolean).join(" ") },
       },
       {
         key: "company",

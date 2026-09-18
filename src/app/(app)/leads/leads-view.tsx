@@ -74,7 +74,7 @@ export function LeadsView({ leads }: { leads: Lead[] }) {
         key: "name",
         header: "ลูกค้ามุ่งหวัง",
         sortAccessor: (l) => l.name,
-        filter: { kind: "text", accessor: (l) => l.name },
+        filter: { kind: "text", accessor: (l) => [l.name, l.company_name, l.email].filter(Boolean).join(" ") },
       },
       {
         key: "status",

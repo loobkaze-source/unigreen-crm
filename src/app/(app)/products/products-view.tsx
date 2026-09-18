@@ -63,7 +63,7 @@ export function ProductsView({ products }: { products: Product[] }) {
         key: "name",
         header: "สินค้า",
         sortAccessor: (p) => p.name,
-        filter: { kind: "text", accessor: (p) => p.name },
+        filter: { kind: "text", accessor: (p) => [p.name, p.sku].filter(Boolean).join(" ") },
       },
       {
         key: "category",
