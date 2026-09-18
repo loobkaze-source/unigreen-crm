@@ -36,7 +36,7 @@ export type ContractOption = {
 
 /**
  * The form as the contract would fill it in: whose it is and which site it
- * covers. Not what the job is — a contract's own title ("สัญญาบำรุงรักษาโซลาร์
+ * covers. Not what the job is — a contract's own title ("Solar PM 5Y
  * 5 ปี — …") is a poor name for a single visit.
  */
 function withContract(
@@ -319,7 +319,7 @@ export function WorkOrderModal({
   /**
    * A contract says whose it is and which site it covers, so picking one fills
    * those in the same way a case does. It does not say what the job is: the
-   * contract's own title ("สัญญาบำรุงรักษาโซลาร์ 5 ปี — …") is a poor name for a
+   * contract's own title ("Solar PM 5Y — …") is a poor name for a
    * single visit, so the title is left to be written.
    */
   function selectContract(id: string) {
