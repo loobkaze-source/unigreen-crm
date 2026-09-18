@@ -343,6 +343,8 @@ export interface ServiceContract extends Mutable {
   title: string;
   service_type: ServiceType;
   start_date: string;
+  /** When round 1 is due; every later round is counted from here. */
+  first_visit_date: string | null;
   frequency_per_year: number;
   duration_years: number;
   end_date: string | null;

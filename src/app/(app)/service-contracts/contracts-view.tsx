@@ -85,6 +85,8 @@ export function ContractsView({
     site_id: "",
     service_type: "panel_cleaning" as ServiceType,
     start_date: today,
+    // Blank on purpose: it is a question, not a default. See the field.
+    first_visit_date: "",
     frequency_per_year: "2",
     duration_years: "5",
     technician_id: "",
@@ -165,6 +167,7 @@ export function ContractsView({
       site_id: c.site_id || "",
       service_type: c.service_type,
       start_date: c.start_date,
+      first_visit_date: c.first_visit_date ?? c.start_date,
       frequency_per_year: String(c.frequency_per_year),
       duration_years: String(c.duration_years),
       technician_id: c.technician_id || "",
@@ -185,6 +188,7 @@ export function ContractsView({
         site_id: form.site_id || null,
         service_type: form.service_type,
         start_date: form.start_date,
+        first_visit_date: form.first_visit_date || null,
         frequency_per_year: form.frequency_per_year,
         duration_years: form.duration_years,
         technician_id: form.technician_id || null,
@@ -402,9 +406,9 @@ export function ContractsView({
               เลือกบอร์ดเพื่อให้รอบบริการของสัญญานี้แสดงในหน้า Service Board
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="start_date">วันที่เริ่ม</Label>
+              <Label htmlFor="start_date">วันที่เริ่มสัญญา</Label>
               <Input
                 id="start_date"
                 type="date"
@@ -412,6 +416,22 @@ export function ContractsView({
                 onChange={(e) => setForm({ ...form, start_date: e.target.value })}
               />
             </div>
+            <div>
+              {/* Asked, not assumed. Nobody cleans the panels on the day the
+                  paperwork is signed; the first visit is agreed with the
+                  customer, and every later round is counted from it. */}
+              <Label htmlFor="first_visit_date">วันที่เข้าบริการครั้งแรก</Label>
+              <Input
+                id="first_visit_date"
+                type="date"
+                required
+                min={form.start_date || undefined}
+                value={form.first_visit_date}
+                onChange={(e) => setForm({ ...form, first_visit_date: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="frequency_per_year">ครั้ง/ปี</Label>
               <Input
@@ -441,11 +461,14 @@ export function ContractsView({
                 1,
                 Math.round(Number(form.frequency_per_year || 0) * Number(form.duration_years || 0))
               )}{" "}
-              ครั้งให้อัตโนมัติตามความถี่ที่กำหนด
+              ครั้ง — รอบแรกตรงกับวันที่เข้าบริการครั้งแรก ที่เหลือนับต่อไปทุก{" "}
+              {Math.max(1, Math.round(12 / Number(form.frequency_per_year || 1)))} เดือน
+              และแก้วันของแต่ละรอบทีหลังได้ในหน้าสัญญา
             </p>
           ) : (
             <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              การแก้ไขจะไม่สร้างรอบใหม่ (รอบที่สร้างไว้แล้วยังคงอยู่)
+              ถ้าเปลี่ยนวันเข้าบริการครั้งแรก ความถี่ หรือระยะเวลา รอบที่ยังไม่ได้เข้าบริการจะถูกจัดตารางใหม่
+              (รอบที่เข้าบริการแล้วคงเดิม)
             </p>
           )}
           <div>

@@ -13,6 +13,8 @@ export type ContractInput = {
   site_id?: string | null;
   service_type: ServiceType;
   start_date: string;
+  /** When round 1 is due. Every later round is counted from here. */
+  first_visit_date?: string | null;
   frequency_per_year: number | string;
   duration_years: number | string;
   technician_id?: string | null;
@@ -57,6 +59,12 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
   const years = num(input.duration_years, 5);
   const start = contractStart(input.start_date);
   if (!start) return fail("วันที่เริ่มไม่ถูกต้อง");
+  // Asked for, not assumed: nobody cleans the panels on the day the paperwork
+  // is signed. The rounds are counted from this, not from the start date.
+  if (!input.first_visit_date) return fail("กรุณาระบุวันที่เข้าบริการครั้งแรก");
+  const firstVisit = contractStart(input.first_visit_date);
+  if (!firstVisit) return fail("วันที่เข้าบริการครั้งแรกไม่ถูกต้อง");
+  if (firstVisit < start) return fail("วันที่เข้าบริการครั้งแรกต้องไม่ก่อนวันที่เริ่มสัญญา");
 
   const payload = {
     org_id: org.id,
@@ -65,6 +73,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     site_id: input.site_id || null,
     service_type: input.service_type || "panel_cleaning",
     start_date: ymd(start),
+    first_visit_date: ymd(firstVisit),
     frequency_per_year: freq,
     duration_years: years,
     end_date: ymd(addMonths(start, Math.round(years * 12))),
@@ -76,7 +85,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
   if (input.id) {
     const { data: current, error: curErr } = await supabase
       .from("service_contracts")
-      .select("start_date, frequency_per_year, duration_years")
+      .select("start_date, first_visit_date, frequency_per_year, duration_years")
       .eq("id", input.id)
       .eq("org_id", org.id)
       .maybeSingle();
@@ -93,7 +102,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     // When the schedule inputs change, regenerate the plan: visits already
     // acted on (done/skipped) keep their seq; pending ones are replaced.
     const scheduleChanged =
-      current.start_date !== payload.start_date ||
+      current.first_visit_date !== payload.first_visit_date ||
       Number(current.frequency_per_year) !== freq ||
       Number(current.duration_years) !== years;
     if (scheduleChanged) {
@@ -122,7 +131,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
         org_id: org.id,
         contract_id: input.id as string,
         seq: i + 1,
-        due_date: ymd(addMonths(start, i * interval)),
+        due_date: ymd(addMonths(firstVisit, i * interval)),
       })).filter((v) => !keptSeqs.has(v.seq));
       if (visits.length > 0) {
         const { error: insErr } = await supabase
@@ -151,7 +160,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
     org_id: org.id,
     contract_id: contract.id,
     seq: i + 1,
-    due_date: ymd(addMonths(start, i * interval)),
+    due_date: ymd(addMonths(firstVisit, i * interval)),
   }));
   const { error: vErr } = await supabase.from("service_visits").insert(visits);
   if (vErr) {
@@ -178,6 +187,51 @@ export async function deleteContract(id: string): Promise<ActionResult> {
     .eq("id", id)
     .eq("org_id", org.id);
   if (error) return fail(error.message);
+  revalidatePath("/service-contracts");
+  revalidatePath("/service-board");
+  return ok();
+}
+
+/**
+ * Moves one round to another day.
+ *
+ * The schedule is a plan, and the plan meets the customer's calendar: the
+ * station is closed that week, the rains came, the crew is elsewhere. Only a
+ * round still owed can move — one with a finished job on it happened when it
+ * happened, and its date is a fact rather than a plan.
+ */
+export async function setVisitDueDate(
+  visitId: string,
+  contractId: string,
+  dueDate: string
+): Promise<ActionResult> {
+  const { supabase, org } = await getSessionContext();
+  const day = contractStart(dueDate);
+  if (!dueDate || !day) return fail("วันที่ไม่ถูกต้อง");
+
+  const { data: visit, error: vErr } = await supabase
+    .from("service_visits")
+    .select("id, work_orders(status)")
+    .eq("id", visitId)
+    .eq("contract_id", contractId)
+    .eq("org_id", org.id)
+    .maybeSingle();
+  if (vErr) return fail(vErr.message);
+  if (!visit) return fail("ไม่พบรอบบริการนี้ในสัญญา");
+  // A to-one embed comes back as an object; the generated types say array.
+  const raw = visit.work_orders as unknown as { status: string } | { status: string }[] | null;
+  const job = Array.isArray(raw) ? raw[0] : raw;
+  if (job?.status === "completed") return fail("รอบนี้เข้าบริการแล้ว เลื่อนวันไม่ได้");
+
+  const { error } = await supabase
+    .from("service_visits")
+    .update({ due_date: ymd(day) })
+    .eq("id", visitId)
+    .eq("contract_id", contractId)
+    .eq("org_id", org.id);
+  if (error) return fail(error.message);
+
+  revalidatePath(`/service-contracts/${contractId}`);
   revalidatePath("/service-contracts");
   revalidatePath("/service-board");
   return ok();

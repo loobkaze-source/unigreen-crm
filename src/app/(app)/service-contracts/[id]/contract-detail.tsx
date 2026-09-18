@@ -1,13 +1,17 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
   CalendarCheck,
   CheckCircle2,
   Circle,
+  Loader2,
   MapPin,
+  Pencil,
   Plus,
   Repeat,
   User,
@@ -23,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { fmtDate } from "@/lib/format";
 import { serviceTypeLabel } from "../constants";
 import { statusMeta, woCode } from "../../work-orders/constants";
+import { setVisitDueDate } from "../actions";
 
 /** The job raised for a round, as far as this page needs to know it. */
 type VisitWorkOrder = {
@@ -156,9 +161,15 @@ export function ContractDetail({
                     <div className="min-w-0 flex-1">
                       <div className={cn("text-sm", ok && "text-muted-foreground")}>
                         ครบกำหนด{" "}
-                        <span className={cn("font-medium", overdue && "text-destructive")}>
-                          {fmtDate(v.due_date)}
-                        </span>
+                        {ok ? (
+                          <span className="font-medium">{fmtDate(v.due_date)}</span>
+                        ) : (
+                          <DueDate
+                            visit={v}
+                            contractId={contract.id}
+                            overdue={overdue}
+                          />
+                        )}
                       </div>
                       {wo ? (
                         <Link
@@ -202,6 +213,71 @@ export function ContractDetail({
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * A round's due date, as a date you can change.
+ *
+ * The schedule is a plan, and the plan meets the customer's calendar — the
+ * station is closed that week, the rains came, the crew is elsewhere. Shown as
+ * the formatted date until it is clicked, so the list still reads as a list;
+ * a native date input under it so the phone's own picker does the work. Only
+ * for a round still owed: one with a finished job on it happened when it
+ * happened, and that date is a fact rather than a plan.
+ */
+function DueDate({
+  visit,
+  contractId,
+  overdue,
+}: {
+  visit: ServiceVisit;
+  contractId: string;
+  overdue: boolean;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [value, setValue] = useState(visit.due_date);
+  // Resync when the server hands back a different date (someone else moved it).
+  const [known, setKnown] = useState(visit.due_date);
+  if (known !== visit.due_date) {
+    setKnown(visit.due_date);
+    setValue(visit.due_date);
+  }
+
+  function commit(next: string) {
+    if (!next || next === visit.due_date) return;
+    setValue(next);
+    startTransition(async () => {
+      const res = await setVisitDueDate(visit.id, contractId, next);
+      if (!res.ok) {
+        setValue(visit.due_date);
+        return alert(res.error);
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <span className="relative inline-flex items-center gap-1">
+      <span className={cn("font-medium", overdue && "text-destructive")}>{fmtDate(value)}</span>
+      {pending ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+      ) : (
+        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+      {/* The real control sits over the label, invisible, so a tap anywhere
+          on the date opens the picker without the row growing a form. */}
+      <input
+        type="date"
+        lang="en-GB"
+        value={value}
+        disabled={pending}
+        onChange={(e) => commit(e.target.value)}
+        aria-label={`เลื่อนวันรอบที่ ${visit.seq}`}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      />
+    </span>
   );
 }
 

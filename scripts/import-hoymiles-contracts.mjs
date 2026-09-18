@@ -195,6 +195,8 @@ if (!APPLY) {
           title: `สัญญาบำรุงรักษาโซลาร์ ${p.years} ปี — ${p.name}`,
           service_type: "panel_cleaning",
           start_date: p.on,
+          // The plant went live and the first clean is counted from that day.
+          first_visit_date: p.on,
           end_date: p.cleaningEnd,
           frequency_per_year: CLEANINGS_PER_YEAR,
           duration_years: p.years,
