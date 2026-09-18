@@ -12,6 +12,7 @@ import {
   ClipboardList,
   HardHat,
   Handshake,
+  History,
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
@@ -57,6 +58,7 @@ const NAV = [
 // Admin-only settings submenu.
 const SETTINGS_NAV = [
   { href: "/users", label: "ผู้ใช้", icon: UserCog },
+  { href: "/audit-log", label: "ประวัติการเปลี่ยนแปลง", icon: History },
   { href: "/settings/pipelines", label: "ไปป์ไลน์", icon: Workflow },
   { href: "/settings/service-boards", label: "Service Board", icon: Wrench },
 ];

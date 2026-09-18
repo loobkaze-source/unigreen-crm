@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { loadAudit } from "@/lib/audit";
+import { ChangeLog } from "@/components/app/change-log";
 import { loadConflicts } from "@/lib/schedule-conflicts";
 import { isTechnicianOnly } from "@/lib/roles";
 import type { WorkOrder } from "@/lib/database.types";
@@ -189,6 +191,8 @@ export default async function WorkOrderDetailPage({
     url: `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${p.path}`,
   }));
 
+  const history = await loadAudit(supabase, org.id, { table: "work_orders", rowId: id, limit: 100 });
+
   return (
     <WorkOrderDetail
       workOrder={workOrder}
@@ -220,6 +224,7 @@ export default async function WorkOrderDetailPage({
       companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}
       contactName={contactList.find((c) => c.id === workOrder.contact_id)?.name}
       contactPhone={contacts?.find((c) => c.id === workOrder.contact_id)?.phone ?? undefined}
+      changeLog={<ChangeLog entries={history} />}
     />
   );
 }

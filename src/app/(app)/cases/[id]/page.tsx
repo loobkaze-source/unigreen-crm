@@ -2,6 +2,8 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSessionContext, row, rows } from "@/lib/data";
+import { loadAudit } from "@/lib/audit";
+import { ChangeLog } from "@/components/app/change-log";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
@@ -135,6 +137,8 @@ export default async function CaseDetailPage({
     ? [caseRow.contacts.first_name, caseRow.contacts.last_name].filter(Boolean).join(" ")
     : null;
 
+  const history = await loadAudit(supabase, org.id, { table: "cases", rowId: id, limit: 100 });
+
   return (
     <CaseDetail
       caseRow={caseRow}
@@ -187,6 +191,7 @@ export default async function CaseDetailPage({
       canManage={canManage}
       orgId={org.id}
       status={caseRow.status as CaseStatus}
+      changeLog={<ChangeLog entries={history} />}
     />
   );
 }

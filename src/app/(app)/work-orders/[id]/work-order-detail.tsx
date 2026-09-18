@@ -136,6 +136,7 @@ function useBusyTransition() {
 }
 
 export function WorkOrderDetail({
+  changeLog,
   workOrder,
   photos,
   parts,
@@ -162,6 +163,8 @@ export function WorkOrderDetail({
   contactName,
   contactPhone,
 }: {
+  /** The record's own history, rendered on the server and handed in. */
+  changeLog?: React.ReactNode;
   workOrder: WorkOrder;
   photos: PhotoWithUrl[];
   parts: PartRow[];
@@ -1060,6 +1063,7 @@ export function WorkOrderDetail({
           }}
         />
       ) : null}
+      {changeLog ? <div className="mt-6">{changeLog}</div> : null}
     </div>
   );
 }

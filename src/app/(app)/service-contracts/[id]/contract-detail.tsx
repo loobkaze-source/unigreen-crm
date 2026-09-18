@@ -66,6 +66,7 @@ type VisitWorkOrder = {
 };
 
 export function ContractDetail({
+  changeLog,
   contract,
   visits,
   workOrders,
@@ -77,6 +78,8 @@ export function ContractDetail({
   siteName,
   technicianName,
 }: {
+  /** The record's own history, rendered on the server and handed in. */
+  changeLog?: React.ReactNode;
   contract: ServiceContract;
   visits: ServiceVisit[];
   workOrders: VisitWorkOrder[];
@@ -404,6 +407,7 @@ export function ContractDetail({
           </div>
         </form>
       </Modal>
+      {changeLog ? <div className="mt-6">{changeLog}</div> : null}
     </div>
   );
 }

@@ -76,6 +76,7 @@ const CONDITION_TONE: Record<string, "success" | "warning" | "danger"> = {
 };
 
 export function CaseDetail({
+  changeLog,
   caseRow,
   companyName,
   site,
@@ -91,6 +92,8 @@ export function CaseDetail({
   orgId,
   status,
 }: {
+  /** The record's own history, rendered on the server and handed in. */
+  changeLog?: React.ReactNode;
   caseRow: Case;
   companyName: string | null;
   site: { id: string; name: string } | null;
@@ -687,6 +690,7 @@ export function CaseDetail({
           </CardContent>
         </Card>
       </div>
+      {changeLog ? <div className="mt-6">{changeLog}</div> : null}
     </div>
   );
 }

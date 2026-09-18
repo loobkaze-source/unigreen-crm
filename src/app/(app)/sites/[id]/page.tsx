@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { loadAudit } from "@/lib/audit";
+import { ChangeLog } from "@/components/app/change-log";
 import type { Site } from "@/lib/database.types";
 import { SiteDetail } from "./site-detail";
 
@@ -95,6 +97,8 @@ export default async function SiteDetailPage({
     }
   }
 
+  const history = await loadAudit(supabase, org.id, { table: "sites", rowId: id, limit: 100 });
+
   return (
     <SiteDetail
       site={site}
@@ -111,6 +115,7 @@ export default async function SiteDetailPage({
               .join(" ")
           : undefined
       }
+      changeLog={<ChangeLog entries={history} />}
     />
   );
 }

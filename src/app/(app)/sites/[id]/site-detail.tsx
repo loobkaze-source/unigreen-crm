@@ -71,6 +71,7 @@ type WarrantyBrief = Brief & { kind: string };
 type Group = { id: string; name: string; site_id: string };
 
 export function SiteDetail({
+  changeLog,
   site,
   equipment,
   groups,
@@ -80,6 +81,8 @@ export function SiteDetail({
   companyName,
   contactName,
 }: {
+  /** The record's own history, rendered on the server and handed in. */
+  changeLog?: React.ReactNode;
   site: Site;
   equipment: Equipment[];
   groups: Group[];
@@ -835,6 +838,7 @@ export function SiteDetail({
           </div>
         </form>
       </Modal>
+      {changeLog ? <div className="mt-6">{changeLog}</div> : null}
     </div>
   );
 }

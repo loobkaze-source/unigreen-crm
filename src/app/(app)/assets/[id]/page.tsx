@@ -14,6 +14,8 @@ import {
   Cog,
 } from "lucide-react";
 import { getSessionContext, row, rows } from "@/lib/data";
+import { loadAudit } from "@/lib/audit";
+import { ChangeLog } from "@/components/app/change-log";
 import type { Equipment, WorkOrder } from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -189,6 +191,8 @@ export default async function AssetLifetimePage({
     { label: "ซ่อมไปแล้ว", value: `${repairs.length} ครั้ง`, icon: Wrench },
     { label: "เปลี่ยนอะไหล่", value: `${partRounds} รอบ (${partPieces} ชิ้น)`, icon: Cog },
   ];
+
+  const history = await loadAudit(supabase, org.id, { table: "equipment", rowId: id, limit: 100 });
 
   return (
     <div>
@@ -367,6 +371,10 @@ export default async function AssetLifetimePage({
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <ChangeLog entries={history} />
       </div>
     </div>
   );
