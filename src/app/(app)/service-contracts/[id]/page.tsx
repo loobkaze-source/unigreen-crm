@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getSessionContext, row, rows } from "@/lib/data";
 import type { ServiceContract, ServiceVisit } from "@/lib/database.types";
-import { ContractDetail } from "./contract-detail";
+import { ContractDetail, type ScheduleSnapshot } from "./contract-detail";
 
 type Named = { name: string } | null;
 type ContractRow = ServiceContract & {
@@ -52,6 +52,25 @@ export default async function ContractDetailPage({
       .order("seq", { ascending: true })
   );
 
+  // How the plan got to be what it is, newest first — and who did it, as a
+  // name rather than a uuid.
+  const { data: log } = await supabase
+    .from("service_schedule_log")
+    .select("id, changed_at, changed_by, action, before, after, note")
+    .eq("contract_id", id)
+    .eq("org_id", org.id)
+    .order("changed_at", { ascending: false })
+    .limit(100);
+  const changerIds = [
+    ...new Set((log ?? []).map((l) => l.changed_by as string | null).filter(Boolean)),
+  ] as string[];
+  const { data: changers } = changerIds.length
+    ? await supabase.from("profiles").select("id, full_name").in("id", changerIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const changerName = new Map(
+    (changers ?? []).map((c) => [c.id as string, (c.full_name as string | null) ?? "—"])
+  );
+
   const workOrders = visits
     .map((v) => v.work_orders)
     .filter((w): w is NonNullable<VisitRow["work_orders"]> => Boolean(w))
@@ -72,6 +91,15 @@ export default async function ContractDetailPage({
         return copy;
       })}
       workOrders={workOrders}
+      log={(log ?? []).map((l) => ({
+        id: l.id as string,
+        changed_at: l.changed_at as string,
+        by: l.changed_by ? changerName.get(l.changed_by as string) ?? "—" : "ระบบ",
+        action: l.action as "planned" | "rescheduled" | "moved",
+        before: (l.before as ScheduleSnapshot | null) ?? null,
+        after: l.after as ScheduleSnapshot,
+        note: (l.note as string | null) ?? null,
+      }))}
       companyName={contract.companies?.name}
       siteName={contract.sites?.name}
       technicianName={contract.technicians?.name}

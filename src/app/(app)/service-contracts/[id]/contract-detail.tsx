@@ -7,8 +7,10 @@ import {
   ArrowLeft,
   Building2,
   CalendarCheck,
+  CalendarRange,
   CheckCircle2,
   Circle,
+  History,
   Loader2,
   MapPin,
   Pencil,
@@ -22,12 +24,36 @@ import type {
   WorkOrderStatus,
 } from "@/lib/database.types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, fmtDateTime } from "@/lib/format";
 import { serviceTypeLabel } from "../constants";
 import { statusMeta, woCode } from "../../work-orders/constants";
-import { setVisitDueDate } from "../actions";
+import { rescheduleContract, setVisitDueDate } from "../actions";
+
+/** A plan as the history records it — or, for a single move, one round. */
+export type ScheduleSnapshot = {
+  first_visit_date?: string | null;
+  frequency_per_year?: number;
+  rounds?: { seq: number; due_date: string }[];
+  seq?: number;
+  due_date?: string;
+};
+
+export type ScheduleLogEntry = {
+  id: string;
+  changed_at: string;
+  by: string;
+  action: "planned" | "rescheduled" | "moved";
+  before: ScheduleSnapshot | null;
+  after: ScheduleSnapshot;
+  note: string | null;
+};
 
 /** The job raised for a round, as far as this page needs to know it. */
 type VisitWorkOrder = {
@@ -42,6 +68,7 @@ export function ContractDetail({
   contract,
   visits,
   workOrders,
+  log,
   companyName,
   siteName,
   technicianName,
@@ -49,6 +76,7 @@ export function ContractDetail({
   contract: ServiceContract;
   visits: ServiceVisit[];
   workOrders: VisitWorkOrder[];
+  log: ScheduleLogEntry[];
   companyName?: string;
   siteName?: string;
   technicianName?: string;
@@ -69,6 +97,50 @@ export function ContractDetail({
   const nextDue = visits
     .filter((v) => !served(v))
     .sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
+
+  const router = useRouter();
+  const [planning, setPlanning] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [plan, setPlan] = useState({
+    from: nextDue?.due_date ?? today,
+    frequency_per_year: String(contract.frequency_per_year),
+    note: "",
+  });
+  const owedCount = total - done;
+  // What the dialog is about to do, worked out the same way the server will.
+  const preview = (() => {
+    const freq = Number(plan.frequency_per_year) || 0;
+    const end = contract.end_date ?? "";
+    if (!plan.from || !freq || !end || plan.from > end) return null;
+    const interval = Math.max(1, Math.round(12 / freq));
+    const [y, m, d] = plan.from.split("-").map(Number);
+    let n = 0;
+    let last = plan.from;
+    for (let i = 0; ; i++) {
+      const dt = new Date(Date.UTC(y, m - 1 + i * interval, d)).toISOString().slice(0, 10);
+      if (dt > end) break;
+      n++;
+      last = dt;
+    }
+    return { n, last, interval };
+  })();
+
+  function submitPlan(e: React.FormEvent) {
+    e.preventDefault();
+    setPlanError(null);
+    startTransition(async () => {
+      const res = await rescheduleContract({
+        contractId: contract.id,
+        from: plan.from,
+        frequency_per_year: plan.frequency_per_year,
+        note: plan.note,
+      });
+      if (!res.ok) return setPlanError(res.error);
+      setPlanning(false);
+      router.refresh();
+    });
+  }
 
   return (
     <div>
@@ -134,8 +206,13 @@ export function ContractDetail({
 
         {/* Visit schedule */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between">
             <CardTitle>รอบเข้าบริการ</CardTitle>
+            {owedCount > 0 && contract.status === "active" ? (
+              <Button variant="secondary" size="sm" onClick={() => setPlanning(true)}>
+                <CalendarRange className="h-4 w-4" /> จัดตารางใหม่
+              </Button>
+            ) : null}
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -211,9 +288,128 @@ export function ContractDetail({
             </div>
           </CardContent>
         </Card>
+
+        {/* How the plan got to be what it is. */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-4 w-4" /> ประวัติการเปลี่ยนแปลงตาราง
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {log.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                ยังไม่มีการเปลี่ยนแปลง — สัญญานี้สร้างก่อนจะเริ่มบันทึกประวัติ
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {log.map((entry) => (
+                  <li key={entry.id} className="rounded-md border border-border px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="font-medium">{describeLog(entry)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {fmtDateTime(entry.changed_at)} · {entry.by}
+                      </span>
+                    </div>
+                    {entry.note ? (
+                      <div className="mt-0.5 text-xs text-muted-foreground">{entry.note}</div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <Modal
+        open={planning}
+        onClose={() => setPlanning(false)}
+        title="จัดตารางเข้าบริการใหม่"
+        description="รอบที่เข้าบริการแล้วคงเดิม · รอบที่ยังค้างจะถูกวางใหม่ตั้งแต่วันที่กำหนด ตามความถี่ จนสิ้นสุดสัญญา"
+      >
+        <form onSubmit={submitPlan} className="space-y-4">
+          {planError ? (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{planError}</p>
+          ) : null}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="plan_from">วันเริ่มรอบถัดไป</Label>
+              <Input
+                id="plan_from"
+                type="date"
+                required
+                value={plan.from}
+                max={contract.end_date ?? undefined}
+                onChange={(e) => setPlan({ ...plan, from: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="plan_freq">ครั้ง/ปี</Label>
+              <Input
+                id="plan_freq"
+                type="number"
+                min="1"
+                max="12"
+                required
+                value={plan.frequency_per_year}
+                onChange={(e) => setPlan({ ...plan, frequency_per_year: e.target.value })}
+              />
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="plan_note">เหตุผล (บันทึกลงประวัติ)</Label>
+            <Textarea
+              id="plan_note"
+              rows={2}
+              value={plan.note}
+              onChange={(e) => setPlan({ ...plan, note: e.target.value })}
+              placeholder="เช่น ลูกค้าขอเปลี่ยนเป็นทุก 3 เดือน / ปั๊มปิดปรับปรุงเดือนตุลาคม"
+            />
+          </div>
+          <p className="rounded-md bg-accent px-3 py-2 text-xs text-accent-foreground">
+            เข้าบริการแล้ว {done} รอบ คงเดิม ·{" "}
+            {preview
+              ? `จะวางใหม่ ${preview.n} รอบ ทุก ${preview.interval} เดือน ตั้งแต่ ${fmtDate(plan.from)} ถึง ${fmtDate(preview.last)} (แทนที่ ${owedCount} รอบที่ค้าง)`
+              : "เลือกวันและความถี่ที่ใช้ได้ก่อน"}
+          </p>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setPlanning(false)}>
+              ยกเลิก
+            </Button>
+            <Button type="submit" disabled={pending || !preview}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {pending ? "กำลังจัดตาราง…" : "จัดตารางใหม่"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
+}
+
+/**
+ * One history line, in words. A reschedule of eight rounds is one decision
+ * and reads as one line; the eight dates are in the record if anyone asks.
+ */
+function describeLog(e: ScheduleLogEntry) {
+  if (e.action === "moved") {
+    return `เลื่อนรอบที่ ${e.after.seq} จาก ${fmtDate(e.before?.due_date ?? "")} เป็น ${fmtDate(e.after.due_date ?? "")}`;
+  }
+  const rounds = e.after.rounds ?? [];
+  const first = rounds[0]?.due_date;
+  const last = rounds[rounds.length - 1]?.due_date;
+  const span = first && last ? ` ${fmtDate(first)} – ${fmtDate(last)}` : "";
+  if (e.action === "planned") {
+    return `วางแผน ${rounds.length} รอบ ปีละ ${e.after.frequency_per_year} ครั้ง${span}`;
+  }
+  const was = e.before?.rounds?.length ?? 0;
+  const freqWas = e.before?.frequency_per_year;
+  const freqChange =
+    freqWas && freqWas !== e.after.frequency_per_year
+      ? ` · ความถี่ ${freqWas} → ${e.after.frequency_per_year} ครั้ง/ปี`
+      : "";
+  return `จัดตารางใหม่ ${was} → ${rounds.length} รอบ${span}${freqChange}`;
 }
 
 /**

@@ -50,8 +50,67 @@ function contractStart(input: string | undefined): Date | null {
   return new Date(Date.UTC(bkk.getUTCFullYear(), bkk.getUTCMonth(), bkk.getUTCDate()));
 }
 
+/** A round as the log records it. */
+type LoggedRound = { seq: number; due_date: string };
+type PlanSnapshot = {
+  first_visit_date: string | null;
+  frequency_per_year: number;
+  rounds: LoggedRound[];
+};
+
+type Db = Awaited<ReturnType<typeof getSessionContext>>["supabase"];
+
+/** The plan as it stands: every round of the contract, in order. */
+async function readPlan(supabase: Db, orgId: string, contractId: string): Promise<PlanSnapshot> {
+  const [{ data: c }, { data: rounds }] = await Promise.all([
+    supabase
+      .from("service_contracts")
+      .select("first_visit_date, frequency_per_year")
+      .eq("id", contractId)
+      .eq("org_id", orgId)
+      .maybeSingle(),
+    supabase
+      .from("service_visits")
+      .select("seq, due_date")
+      .eq("contract_id", contractId)
+      .eq("org_id", orgId)
+      .order("seq"),
+  ]);
+  return {
+    first_visit_date: (c?.first_visit_date as string | null) ?? null,
+    frequency_per_year: Number(c?.frequency_per_year ?? 0),
+    rounds: ((rounds ?? []) as LoggedRound[]).map((r) => ({ seq: r.seq, due_date: r.due_date })),
+  };
+}
+
+/**
+ * One line in the contract's history. Written after the change it describes,
+ * and never allowed to fail the change: a plan that moved but was not written
+ * down is a smaller problem than a plan that refused to move.
+ */
+async function logSchedule(
+  supabase: Db,
+  orgId: string,
+  userId: string,
+  contractId: string,
+  action: "planned" | "rescheduled" | "moved",
+  before: unknown,
+  after: unknown,
+  note?: string | null
+) {
+  await supabase.from("service_schedule_log").insert({
+    org_id: orgId,
+    contract_id: contractId,
+    changed_by: userId,
+    action,
+    before: before ?? null,
+    after,
+    note: note?.trim() || null,
+  });
+}
+
 export async function saveContract(input: ContractInput): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, userId } = await getSessionContext();
   const title = input.title?.trim();
   if (!title) return fail("กรุณากรอกชื่อสัญญา");
 
@@ -106,6 +165,7 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
       Number(current.frequency_per_year) !== freq ||
       Number(current.duration_years) !== years;
     if (scheduleChanged) {
+      const before = await readPlan(supabase, org.id, input.id);
       const { data: keptRows, error: keptErr } = await supabase
         .from("service_visits")
         .select("seq")
@@ -139,6 +199,11 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
           .insert(visits);
         if (insErr) return fail(insErr.message);
       }
+      await logSchedule(
+        supabase, org.id, userId, input.id, "rescheduled",
+        before, await readPlan(supabase, org.id, input.id),
+        "แก้ไขจากฟอร์มสัญญา"
+      );
     }
 
     revalidatePath(`/service-contracts/${input.id}`);
@@ -173,6 +238,12 @@ export async function saveContract(input: ContractInput): Promise<ActionResult> 
       .eq("org_id", org.id);
     return fail("สร้างรอบบริการไม่สำเร็จ: " + vErr.message + " — กรุณาลองใหม่");
   }
+  await logSchedule(
+    supabase, org.id, userId, contract.id, "planned",
+    null,
+    { first_visit_date: ymd(firstVisit), frequency_per_year: freq,
+      rounds: visits.map((v) => ({ seq: v.seq, due_date: v.due_date })) }
+  );
 
   revalidatePath("/service-contracts");
   revalidatePath("/service-board");
@@ -203,15 +274,16 @@ export async function deleteContract(id: string): Promise<ActionResult> {
 export async function setVisitDueDate(
   visitId: string,
   contractId: string,
-  dueDate: string
+  dueDate: string,
+  note?: string
 ): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, userId } = await getSessionContext();
   const day = contractStart(dueDate);
   if (!dueDate || !day) return fail("วันที่ไม่ถูกต้อง");
 
   const { data: visit, error: vErr } = await supabase
     .from("service_visits")
-    .select("id, work_orders(status)")
+    .select("id, seq, due_date, work_orders(status)")
     .eq("id", visitId)
     .eq("contract_id", contractId)
     .eq("org_id", org.id)
@@ -230,11 +302,117 @@ export async function setVisitDueDate(
     .eq("contract_id", contractId)
     .eq("org_id", org.id);
   if (error) return fail(error.message);
+  await logSchedule(
+    supabase, org.id, userId, contractId, "moved",
+    { seq: visit.seq, due_date: visit.due_date },
+    { seq: visit.seq, due_date: ymd(day) },
+    note
+  );
 
   revalidatePath(`/service-contracts/${contractId}`);
   revalidatePath("/service-contracts");
   revalidatePath("/service-board");
   return ok();
+}
+
+/**
+ * Lays the rest of the plan out again from a date and a cadence.
+ *
+ * The rounds already served stay exactly where they are — they happened.
+ * Every round still owed is thrown away and the remaining term is filled
+ * again: the first on the day given, the rest every 12/frequency months, up
+ * to the contract's end. So "quarterly from 1 November" is one action, not
+ * eight date edits, and it reads as one line in the history.
+ *
+ * Seq carries on from the last served round, so a report number like
+ * UNG-2024-0004-05 keeps meaning the fifth visit.
+ */
+export async function rescheduleContract(input: {
+  contractId: string;
+  from: string;
+  frequency_per_year: number | string;
+  note?: string;
+}): Promise<ActionResult> {
+  const { supabase, org, userId } = await getSessionContext();
+  const from = contractStart(input.from);
+  if (!input.from || !from) return fail("วันเริ่มรอบถัดไปไม่ถูกต้อง");
+  const freq = num(input.frequency_per_year, 0);
+  if (!freq) return fail("ความถี่ต้องมากกว่า 0");
+
+  const { data: contract, error: cErr } = await supabase
+    .from("service_contracts")
+    .select("id, start_date, end_date, duration_years")
+    .eq("id", input.contractId)
+    .eq("org_id", org.id)
+    .maybeSingle();
+  if (cErr) return fail(cErr.message);
+  if (!contract) return fail("ไม่พบสัญญา");
+
+  const end = contract.end_date
+    ? contractStart(contract.end_date)!
+    : addMonths(contractStart(contract.start_date)!, Math.round(Number(contract.duration_years) * 12));
+  if (from > end) return fail("วันเริ่มรอบถัดไปอยู่หลังวันสิ้นสุดสัญญาแล้ว");
+
+  const before = await readPlan(supabase, org.id, contract.id);
+
+  // Served rounds are facts; everything else is the plan, and the plan is
+  // about to be redrawn.
+  const { data: rounds, error: rErr } = await supabase
+    .from("service_visits")
+    .select("id, seq, work_orders(status)")
+    .eq("contract_id", contract.id)
+    .eq("org_id", org.id)
+    .order("seq");
+  if (rErr) return fail(rErr.message);
+  const isServed = (r: { work_orders: unknown }) => {
+    const raw = r.work_orders as { status: string } | { status: string }[] | null;
+    const job = Array.isArray(raw) ? raw[0] : raw;
+    return job?.status === "completed";
+  };
+  const served = (rounds ?? []).filter(isServed);
+  const owed = (rounds ?? []).filter((r) => !isServed(r));
+
+  if (owed.length) {
+    const { error: dErr } = await supabase
+      .from("service_visits")
+      .delete()
+      .in("id", owed.map((r) => r.id));
+    if (dErr) return fail(dErr.message);
+  }
+
+  const interval = Math.max(1, Math.round(12 / freq));
+  const nextSeq = served.reduce((n, r) => Math.max(n, r.seq), 0) + 1;
+  const fresh: { org_id: string; contract_id: string; seq: number; due_date: string }[] = [];
+  for (let i = 0; ; i++) {
+    const d = addMonths(from, i * interval);
+    if (d > end) break;
+    fresh.push({ org_id: org.id, contract_id: contract.id, seq: nextSeq + i, due_date: ymd(d) });
+  }
+  if (fresh.length) {
+    const { error: iErr } = await supabase.from("service_visits").insert(fresh);
+    if (iErr) return fail(iErr.message);
+  }
+
+  // The cadence is now the contract's; the anchor only if round 1 was redrawn.
+  const patch: Record<string, unknown> = { frequency_per_year: freq };
+  if (nextSeq === 1) patch.first_visit_date = ymd(from);
+  const { error: uErr } = await supabase
+    .from("service_contracts")
+    .update(patch)
+    .eq("id", contract.id)
+    .eq("org_id", org.id);
+  if (uErr) return fail(uErr.message);
+
+  await logSchedule(
+    supabase, org.id, userId, contract.id, "rescheduled",
+    before, await readPlan(supabase, org.id, contract.id),
+    input.note
+  );
+
+  revalidatePath(`/service-contracts/${contract.id}`);
+  revalidatePath("/service-contracts");
+  revalidatePath("/service-board");
+  return ok(String(fresh.length));
 }
 
 export async function markVisit(
