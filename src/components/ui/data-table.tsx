@@ -95,7 +95,11 @@ export function useDataTable<T>(
   const pageSizes = opts?.pageSizes?.length ? opts.pageSizes : PAGE_SIZES;
   const [sort, setSort] = useState<Sort>(opts?.initialSort ?? null);
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [showFilters, setShowFilters] = useState(false);
+  // Open from the start. The filter row is the first thing anyone reaches for
+  // on a list of ninety contracts or two and a half thousand sites, and a row
+  // that has to be switched on first is a row that gets asked about. The
+  // toggle stays, for hiding it on a table that does not need it.
+  const [showFilters, setShowFilters] = useState(true);
   const [page, setPage] = useState(1);
   const [pageSize, setSize] = useState(pageSizes[0]);
 
