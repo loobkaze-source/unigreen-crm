@@ -5,6 +5,8 @@
  * person cannot be at both, so for this purpose they are the same thing: a name,
  * a day, and something they are down for.
  */
+
+import { bangkokDay } from "@/lib/format";
 export type Booking = {
   technicianId: string;
   /** YYYY-MM-DD. */
@@ -91,7 +93,8 @@ export async function loadConflicts(supabase: Db, orgId: string): Promise<Confli
     supabase.from("activity_technicians").select("activity_id, technician_id").eq("org_id", orgId),
   ]);
 
-  const day = (t: string | null) => (t ? t.slice(0, 10) : "");
+  // The Bangkok day — a 06:00 job is not on the previous (UTC) day.
+  const day = (t: string | null) => bangkokDay(t);
   const jobs = (jobsRes.data ?? []) as {
     id: string;
     title: string;

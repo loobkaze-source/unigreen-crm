@@ -4,7 +4,6 @@ import { useId, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
 import {
   ArrowLeft,
   Box,
@@ -50,7 +49,7 @@ import {
   ServiceReportCard,
   TimeMileageCard,
 } from "./service-report-cards";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtTime } from "@/lib/format";
 import {
   WO_STATUSES,
   priorityMeta,
@@ -634,7 +633,7 @@ export function WorkOrderDetail({
               workOrder.scheduled_start
                 ? fmtDateTime(workOrder.scheduled_start) +
                   (workOrder.scheduled_end
-                    ? ` – ${format(new Date(workOrder.scheduled_end), "HH:mm")}`
+                    ? ` – ${fmtTime(workOrder.scheduled_end)}`
                     : "")
                 : "ยังไม่นัดหมาย"
             }

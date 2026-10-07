@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import { fmtDate, fmtDateTime, isoToBangkokInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { shrinkImage } from "@/lib/image";
 import { CASE_STATUS, caseStatusMeta } from "../constants";
@@ -125,7 +125,7 @@ export function CaseDetail({
     employee: caseRow.employee || "",
     team: caseRow.team || "",
     supporter_id: caseRow.supporter_id || "",
-    case_date: caseRow.case_date ? caseRow.case_date.slice(0, 16) : "",
+    case_date: isoToBangkokInput(caseRow.case_date),
     note: caseRow.note || "",
     action: caseRow.action || "",
   });

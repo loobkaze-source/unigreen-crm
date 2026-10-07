@@ -29,7 +29,7 @@ import {
   type ColumnDef,
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
-import { fmtDate, fmtDateTime } from "@/lib/format";
+import { bangkokDay, fmtDate, fmtDateTime, fmtTime } from "@/lib/format";
 import {
   WO_STATUSES,
   WO_TYPES,
@@ -229,7 +229,7 @@ export function WorkOrdersView({
       )
       .forEach((w) => {
         if (!w.scheduled_start) return noDate.push(w);
-        const key = w.scheduled_start.slice(0, 10);
+        const key = bangkokDay(w.scheduled_start);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key)!.push(w);
       });
@@ -530,7 +530,7 @@ function ScheduleCard({
       <div className="w-14 shrink-0 text-center">
         <div className="text-sm font-semibold">
           {w.scheduled_start
-            ? format(new Date(w.scheduled_start), "HH:mm")
+            ? fmtTime(w.scheduled_start)
             : "--:--"}
         </div>
       </div>

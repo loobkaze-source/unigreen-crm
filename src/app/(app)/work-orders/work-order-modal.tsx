@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/modal";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { SERVICE_BOARDS } from "@/lib/departments";
 import { cn } from "@/lib/utils";
+import { isoToBangkokInput } from "@/lib/format";
 import {
   DEFAULT_WO_TYPE,
   WO_BILLING,
@@ -80,16 +81,6 @@ export type SiteOption = {
   map_url: string | null;
 };
 export type AssetOption = { id: string; name: string; site_id: string | null };
-
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
-}
 
 const blank = {
   title: "",
@@ -231,8 +222,8 @@ export function WorkOrderModal({
           company_id: editing.company_id || "",
           site_id: editing.site_id || "",
           contact_id: editing.contact_id || "",
-          scheduled_start: toLocalInput(editing.scheduled_start),
-          scheduled_end: toLocalInput(editing.scheduled_end),
+          scheduled_start: isoToBangkokInput(editing.scheduled_start),
+          scheduled_end: isoToBangkokInput(editing.scheduled_end),
           site_address: editing.site_address || "",
           site_map_url: editing.site_map_url || "",
           description: editing.description || "",

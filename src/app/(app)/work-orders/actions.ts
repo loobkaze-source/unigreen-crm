@@ -5,6 +5,7 @@ import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { isTechnicianOnly } from "@/lib/roles";
 import { isOwnStoragePath } from "@/lib/storage-path";
+import { bangkokInputToIso } from "@/lib/format";
 import { SERVICE_BOARDS } from "@/lib/departments";
 import { DEFAULT_WO_TYPE } from "./constants";
 import type {
@@ -42,11 +43,8 @@ export type WorkOrderInput = {
 const oneOf = (v: string | null | undefined, allowed: string[]) =>
   v && allowed.includes(v) ? v : null;
 
-function iso(v: string | null | undefined): string | null {
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-}
+// Schedule values come from the date pickers as Bangkok wall-clock strings.
+const iso = bangkokInputToIso;
 
 /** Replace a work order's linked assets (M2M). Returns an error message or null. */
 async function syncAssets(

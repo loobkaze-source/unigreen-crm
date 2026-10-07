@@ -6,6 +6,7 @@ import { getSessionContext, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { isOwnStoragePath } from "@/lib/storage-path";
+import { bangkokInputToIso } from "@/lib/format";
 import type { CaseStatus } from "@/lib/database.types";
 
 export type CaseInput = {
@@ -103,7 +104,7 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
     supporter_id: input.supporter_id || null,
     // First affected asset mirrored here for backward compatibility.
     equipment_id: assetList[0]?.equipment_id ?? null,
-    case_date: input.case_date ? new Date(input.case_date).toISOString() : null,
+    case_date: bangkokInputToIso(input.case_date),
   };
 
   // Reconcile the case ↔ asset links, then apply each reported condition to the

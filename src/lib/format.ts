@@ -53,3 +53,54 @@ export function fmtDateTime(v: string | Date | null | undefined): string {
   const b = bangkok(d);
   return `${b.d}-${b.m}-${b.y} ${pad(b.h)}:${pad(b.min)}`;
 }
+
+/** HH:mm, Bangkok. */
+export function fmtTime(v: string | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "";
+  const b = bangkok(d);
+  return `${pad(b.h)}:${pad(b.min)}`;
+}
+
+/** The Bangkok calendar day ("YYYY-MM-DD") a timestamp falls on — not the
+ *  UTC day that slicing the ISO string gives, which is a day early before 07:00. */
+export function bangkokDay(v: string | Date | null | undefined): string {
+  if (typeof v === "string" && DATE_ONLY.test(v)) return v;
+  const d = toDate(v);
+  if (!d) return "";
+  const b = bangkok(d);
+  return `${b.y}-${b.m}-${b.d}`;
+}
+
+// ---- Date pickers ↔ stored timestamps --------------------------------------
+// The pickers deal in zoneless wall-clock strings ("YYYY-MM-DDTHH:mm"). Those
+// are Bangkok times, so they are pinned to +07:00 here rather than left to
+// whatever zone parses them: on the UTC server `new Date("…T09:00")` is 09:00
+// UTC (16:00 in Bangkok), and every save of an edit form pushed the time
+// another seven hours on. Thailand has no daylight saving, so the offset is
+// constant.
+
+const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+
+/** A picker value (Bangkok wall clock) → UTC ISO for the DB; null when empty
+ *  or invalid. A value that already carries a zone ("Z", "+07:00") is kept. */
+export function bangkokInputToIso(v: string | null | undefined): string | null {
+  const s = (v ?? "").trim();
+  if (!s) return null;
+  const withZone = LOCAL_DATETIME.test(s)
+    ? `${s}+07:00`
+    : DATE_ONLY.test(s)
+      ? `${s}T00:00+07:00`
+      : s;
+  const d = new Date(withZone);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** A stored timestamp → the Bangkok wall-clock "YYYY-MM-DDTHH:mm" a picker
+ *  shows. The same on the server and in any browser, so it hydrates cleanly. */
+export function isoToBangkokInput(v: string | Date | null | undefined): string {
+  const d = toDate(v);
+  if (!d) return "";
+  const b = bangkok(d);
+  return `${b.y}-${b.m}-${b.d}T${pad(b.h)}:${pad(b.min)}`;
+}

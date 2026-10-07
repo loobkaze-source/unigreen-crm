@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { warrantyEnd, warrantyState } from "@/lib/warranty";
 import { assetCode } from "@/lib/asset";
-import { fmtDate } from "@/lib/format";
+import { bangkokDay, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { statusMeta, typeLabel, woCode, jobClassLabel } from "../../work-orders/constants";
 import { AssetStatusControl } from "./status-control";
@@ -145,7 +145,7 @@ export default async function AssetLifetimePage({
     const woParts = partsByWo.get(w.id) ?? [];
     events.push({
       key: w.id,
-      date: (w.scheduled_start || w.created_at).slice(0, 10),
+      date: bangkokDay(w.scheduled_start || w.created_at),
       icon: Wrench,
       tone:
         w.job_class === "CM" || w.type === "repair"

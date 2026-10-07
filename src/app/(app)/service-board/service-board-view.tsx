@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { fmtDate } from "@/lib/format";
+import { bangkokDay, fmtDate } from "@/lib/format";
 import { statusMeta, woCode, jobClassLabel, billingMeta } from "../work-orders/constants";
 import { MonthCalendar, type CalendarItem } from "@/components/app/month-calendar";
 
@@ -118,7 +118,7 @@ export function ServiceBoardView({
       .filter((w) => w.scheduled_start)
       .map((w) => ({
         id: `w-${w.id}`,
-        date: w.scheduled_start!.slice(0, 10),
+        date: bangkokDay(w.scheduled_start),
         href: `/work-orders/${w.id}`,
         label: `${woCode(w)} · ${w.title}`,
         sub: [statusMeta(w.status as never).label, techName(w.technician_id)]
@@ -283,7 +283,7 @@ export function ServiceBoardView({
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {[
-                          w.scheduled_start ? fmtDate(w.scheduled_start.slice(0, 10)) : null,
+                          w.scheduled_start ? fmtDate(w.scheduled_start) : null,
                           techName(w.technician_id),
                         ]
                           .filter(Boolean)

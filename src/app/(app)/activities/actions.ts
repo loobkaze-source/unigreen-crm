@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { bangkokInputToIso } from "@/lib/format";
 import type { ActivityType } from "@/lib/database.types";
 
 export type ActivityInput = {
@@ -28,7 +29,7 @@ export async function saveActivity(input: ActivityInput): Promise<ActionResult> 
     type: input.type || "note",
     subject,
     body: input.body?.trim() || null,
-    due_date: input.due_date ? new Date(input.due_date).toISOString() : null,
+    due_date: bangkokInputToIso(input.due_date),
     contact_id: input.contact_id || null,
     company_id: input.company_id || null,
     deal_id: input.deal_id || null,

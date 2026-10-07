@@ -32,7 +32,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
-import { fmtDateTime } from "@/lib/format";
+import { bangkokDay, fmtDateTime, isoToBangkokInput } from "@/lib/format";
 import { saveActivity, toggleActivity, deleteActivity } from "./actions";
 import { MonthCalendar, type CalendarItem } from "@/components/app/month-calendar";
 import type { Conflicts } from "@/lib/schedule-conflicts";
@@ -128,7 +128,7 @@ export function ActivitiesView({
       type: a.type,
       subject: a.subject,
       body: a.body || "",
-      due_date: a.due_date ? a.due_date.slice(0, 16) : "",
+      due_date: isoToBangkokInput(a.due_date),
       contact_id: a.contact_id || "",
       company_id: a.company_id || "",
       deal_id: a.deal_id || "",
@@ -197,7 +197,7 @@ export function ActivitiesView({
         .filter((a) => a.due_date)
         .map((a) => ({
           id: a.id,
-          date: a.due_date!.slice(0, 10),
+          date: bangkokDay(a.due_date),
           href: "/activities",
           label: `${typeMeta(a.type).label} · ${a.subject}`,
           sub: related(a).join(" · ") || undefined,

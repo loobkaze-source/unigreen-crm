@@ -39,7 +39,7 @@ import {
   type ColumnDef,
 } from "@/components/ui/data-table";
 import { cn } from "@/lib/utils";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, isoToBangkokInput } from "@/lib/format";
 import { CASE_DEPTS, CASE_STATUS, DEFAULT_CASE_DEPT, caseStatusMeta } from "./constants";
 import {
   saveCase,
@@ -330,7 +330,7 @@ export function CasesView({
       contact_id: c.contact_id || "",
       site_id: c.site_id || "",
       supporter_id: c.supporter_id || "",
-      case_date: c.case_date ? c.case_date.slice(0, 16) : "",
+      case_date: isoToBangkokInput(c.case_date),
       note: c.note || "",
       action: c.action || "",
     });
