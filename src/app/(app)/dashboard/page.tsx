@@ -14,9 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
 import { departmentLabel } from "@/lib/departments";
+import { canUseDeals } from "@/lib/roles";
 
 export default async function DashboardPage() {
-  const { supabase, org, profile, email } = await getSessionContext();
+  const { supabase, org, profile, email, isAdmin, appRoles } = await getSessionContext();
+  // Pipeline figures and links to the deals board are for Sales only.
+  const showPipeline = canUseDeals(isAdmin, appRoles);
 
   const [stagesRes, dashStatsRes, contactsRes, upcomingRes] = await Promise.all([
     supabase
@@ -82,7 +85,7 @@ export default async function DashboardPage() {
 
   const greetingName = profile?.full_name?.split(" ")[0] || email?.split("@")[0] || "คุณ";
 
-  const stats = [
+  const allStats = [
     {
       label: "ไปป์ไลน์ที่เปิดอยู่",
       value: formatCurrency(pipelineValue),
@@ -112,6 +115,7 @@ export default async function DashboardPage() {
       tone: "text-sky-700 bg-sky-100",
     },
   ];
+  const stats = showPipeline ? allStats : allStats.filter((s) => s.href !== "/deals");
 
   return (
     <div>
@@ -125,7 +129,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div
+        className={cn(
+          "grid gap-4 sm:grid-cols-2",
+          showPipeline ? "lg:grid-cols-4" : "lg:grid-cols-2"
+        )}
+      >
         {stats.map((s) => (
           <Link key={s.label} href={s.href}>
             <Card className="transition-shadow hover:shadow-md">
@@ -152,55 +161,57 @@ export default async function DashboardPage() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         {/* Pipeline breakdown */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>ไปป์ไลน์ตามขั้นตอน</CardTitle>
-            <Link
-              href="/deals"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              ดูกระดาน <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {breakdown.length === 0 || totalDeals === 0 ? (
-              <EmptyState
-                icon={CircleDollarSign}
-                title="ยังไม่มีดีล"
-                description="สร้างดีลใหม่หรือแปลงลูกค้ามุ่งหวังเพื่อเริ่มต้นไปป์ไลน์ของคุณ"
-                className="border-0 py-10"
-              />
-            ) : (
-              <div className="space-y-4">
-                {breakdown.map((b) => (
-                  <div key={b.id}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="font-medium">
-                        {b.name}{" "}
-                        <span className="text-muted-foreground">({b.count})</span>
-                      </span>
-                      <span className="text-muted-foreground">
-                        {formatCurrency(b.value)}
-                      </span>
+        {showPipeline ? (
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>ไปป์ไลน์ตามขั้นตอน</CardTitle>
+              <Link
+                href="/deals"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                ดูกระดาน <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {breakdown.length === 0 || totalDeals === 0 ? (
+                <EmptyState
+                  icon={CircleDollarSign}
+                  title="ยังไม่มีดีล"
+                  description="สร้างดีลใหม่หรือแปลงลูกค้ามุ่งหวังเพื่อเริ่มต้นไปป์ไลน์ของคุณ"
+                  className="border-0 py-10"
+                />
+              ) : (
+                <div className="space-y-4">
+                  {breakdown.map((b) => (
+                    <div key={b.id}>
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span className="font-medium">
+                          {b.name}{" "}
+                          <span className="text-muted-foreground">({b.count})</span>
+                        </span>
+                        <span className="text-muted-foreground">
+                          {formatCurrency(b.value)}
+                        </span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            b.is_won ? "bg-green-500" : "bg-primary"
+                          )}
+                          style={{ width: `${(b.value / maxValue) * 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          b.is_won ? "bg-green-500" : "bg-primary"
-                        )}
-                        style={{ width: `${(b.value / maxValue) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
 
         {/* Upcoming activities */}
-        <Card>
+        <Card className={showPipeline ? undefined : "lg:col-span-3"}>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>งานที่ใกล้ถึงกำหนด</CardTitle>
             <Link

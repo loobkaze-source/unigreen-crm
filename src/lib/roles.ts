@@ -20,6 +20,16 @@ export const CASE_ROLES = ["Customer Service", "Dispatcher"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
+/** Roles allowed to see and work deals / the sales pipeline (admin always can). */
+export const DEAL_ROLES = ["Sales"] as const;
+
+export function canUseDeals(
+  isAdmin: boolean,
+  roles: readonly string[] | null | undefined
+) {
+  return isAdmin || hasRole(roles, ...DEAL_ROLES);
+}
+
 /** Roles that participate in a sales pipeline board. */
 export const PIPELINE_ROLES = ["Sales", "Manager"] as const;
 

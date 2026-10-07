@@ -1,8 +1,11 @@
+import { redirect } from "next/navigation";
 import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { canUseDeals } from "@/lib/roles";
 import { DealsBoard } from "./deals-board";
 
 export default async function DealsPage() {
-  const { supabase, org, isAdmin, department } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles, department } = await getSessionContext();
+  if (!canUseDeals(isAdmin, appRoles)) redirect("/dashboard");
 
   const [stagesRes, dealsRes, companiesRes, contactsRes] = await Promise.all([
     supabase

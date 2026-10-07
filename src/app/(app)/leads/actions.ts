@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import type { LeadStatus } from "@/lib/database.types";
+import { canUseDeals } from "@/lib/roles";
 
 export type LeadInput = {
   id?: string;
@@ -75,7 +76,10 @@ export async function deleteLead(id: string): Promise<ActionResult> {
  * placed in the first pipeline stage, then marks the lead as converted.
  */
 export async function convertLead(id: string): Promise<ActionResult> {
-  const { supabase } = await getSessionContext();
+  const { supabase, isAdmin, appRoles } = await getSessionContext();
+  // Conversion opens a deal, so it needs the same role as the deals board.
+  if (!canUseDeals(isAdmin, appRoles))
+    return fail("เฉพาะผู้ที่มีบทบาท Sales เท่านั้นที่แปลงเป็นดีลได้");
 
   // Atomic: company + contact + deal + lead update happen in one transaction
   // inside the DB function (migration 0021) — no orphans on partial failure,

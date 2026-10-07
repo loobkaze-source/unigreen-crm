@@ -35,7 +35,7 @@ import { LinkPending } from "@/components/ui/link-pending";
 import { OpenRecordsInTabs } from "@/components/app/open-records-in-tabs";
 import { LoadingScreen } from "@/components/ui/spinner";
 import { TECH_ROUTES, TECH_HOME, isTechnicianAllowed, routeMatches } from "@/lib/nav-access";
-import { isTechnicianOnly } from "@/lib/roles";
+import { canUseDeals, isTechnicianOnly } from "@/lib/roles";
 
 const NAV = [
   { href: "/my-jobs", label: "งานของฉัน", icon: ClipboardCheck },
@@ -85,10 +85,13 @@ export function AppShell({
   const isTechnician = !isAdmin && isTechnicianOnly(appRoles);
 
   const isFieldTech = appRoles.includes("Technician");
+  const dealsAllowed = canUseDeals(isAdmin, appRoles);
 
   const visibleNav = NAV.filter((item) => {
     // "งานของฉัน" only means something for someone on the technician roster.
     if (item.href === TECH_HOME && !isFieldTech) return false;
+    // Deals / the sales pipeline are for Sales only.
+    if (item.href === "/deals" && !dealsAllowed) return false;
     return !isTechnician || TECH_ROUTES.some((r) => r === item.href);
   });
 

@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { canUseDeals } from "@/lib/roles";
+
+const NO_PERMISSION = "เฉพาะผู้ที่มีบทบาท Sales เท่านั้นที่จัดการดีลได้";
 
 export type DealInput = {
   id?: string;
@@ -45,7 +48,8 @@ async function stageBoard(
 }
 
 export async function saveDeal(input: DealInput): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  if (!canUseDeals(isAdmin, appRoles)) return fail(NO_PERMISSION);
   const title = input.title?.trim();
   if (!title) return fail("กรุณากรอกชื่อดีล");
   if (!input.stage_id) return fail("กรุณาเลือกขั้นตอนไปป์ไลน์");
@@ -90,7 +94,8 @@ export async function updateDealStage(
   id: string,
   stageId: string
 ): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  if (!canUseDeals(isAdmin, appRoles)) return fail(NO_PERMISSION);
   const stage = await stageBoard(supabase, org.id, stageId);
   if ("error" in stage) return fail(stage.error);
   // Keep department in step with the stage's board — a replayed payload with a
@@ -108,7 +113,8 @@ export async function updateDealStage(
 }
 
 export async function deleteDeal(id: string): Promise<ActionResult> {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  if (!canUseDeals(isAdmin, appRoles)) return fail(NO_PERMISSION);
   const { error } = await supabase
     .from("deals")
     .delete()
