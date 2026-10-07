@@ -3,6 +3,7 @@
 import { getSessionContext } from "@/lib/data";
 import { createClient } from "@/lib/supabase/server";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
+import { KNOWN_TEMP_PASSWORDS } from "@/lib/temp-password";
 
 /** The signed-in user chooses a new password, clearing the must-change flag. */
 export async function forceSetPassword(newPassword: string): Promise<ActionResult> {
@@ -10,10 +11,9 @@ export async function forceSetPassword(newPassword: string): Promise<ActionResul
   if (!userId) return fail("ไม่พบผู้ใช้");
   if ((newPassword || "").length < 6)
     return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-  // Every shared temp password the team has ever been given — letting one
-  // through would clear the must-change flag without changing anything.
-  const TEMP_PASSWORDS = ["123456", "Uniwave#2026"];
-  if (TEMP_PASSWORDS.includes(newPassword))
+  // A shared temp password would clear the must-change flag without changing
+  // anything.
+  if (KNOWN_TEMP_PASSWORDS.includes(newPassword))
     return fail("กรุณาตั้งรหัสใหม่ที่ไม่ใช่รหัสชั่วคราว");
 
   const supabase = await createClient();

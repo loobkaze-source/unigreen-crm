@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Trash2, UserCog, UserPlus, AlertTriangle } from "lucide-react";
+import { KeyRound, Trash2, UserCog, UserPlus, AlertTriangle, Dices } from "lucide-react";
 import { PageHeader } from "@/components/app/page-header";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES, isDeptScoped } from "@/lib/roles";
 import { RoleMultiSelect } from "./role-multi-select";
 import { displayUsername } from "@/lib/username";
+import { generateTempPassword, tempPasswordProblem } from "@/lib/temp-password";
 import { updateMember, createUser, resetUserPassword, removeMember } from "./actions";
 
 type Member = {
@@ -52,7 +53,10 @@ export function UsersView({
   // create-user form
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("123456");
+  const [password, setPassword] = useState("");
+  // The last account created here, so its starting password can be copied
+  // and handed over — it isn't shown anywhere else afterwards.
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
   const [cuRoles, setCuRoles] = useState<string[]>(["Sales"]);
   const [cuDept, setCuDept] = useState<string>(DEPARTMENTS[0].value);
 
@@ -125,18 +129,25 @@ export function UsersView({
 
   function submitCreate() {
     if (!username.trim()) return;
+    // Left blank → a random one. Never a shared default: anyone who knows it
+    // could sign in first and claim the account.
+    const pw = password || generateTempPassword();
+    const problem = tempPasswordProblem(pw);
+    if (problem) return alert(problem);
+    const login = username.trim();
     run("create", async () => {
       const res = await createUser({
-        username,
+        username: login,
         fullName: name,
-        password,
+        password: pw,
         appRoles: cuRoles,
         department: isDeptScoped(cuRoles) ? cuDept : "",
       });
       if (res.ok) {
+        setCreated({ username: login, password: pw });
         setName("");
         setUsername("");
-        setPassword("123456");
+        setPassword("");
       }
       return res;
     });
@@ -144,11 +155,12 @@ export function UsersView({
 
   function resetPw(m: Member) {
     const pw = window.prompt(
-      `ตั้งรหัสชั่วคราวใหม่ให้ ${m.name || displayUsername(m.email)}\n(ผู้ใช้จะต้องตั้งรหัสของตัวเองอีกครั้งตอนล็อกอิน)`,
-      "123456"
+      `ตั้งรหัสชั่วคราวใหม่ให้ ${m.name || displayUsername(m.email)}\n(ผู้ใช้จะต้องตั้งรหัสของตัวเองอีกครั้งตอนล็อกอิน — คัดลอกรหัสนี้ไปให้ผู้ใช้ก่อนกดตกลง)`,
+      generateTempPassword()
     );
     if (!pw) return;
-    if (pw.length < 6) return alert("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+    const problem = tempPasswordProblem(pw);
+    if (problem) return alert(problem);
     run(m.id, () => resetUserPassword(m.id, pw));
   }
 
@@ -193,7 +205,23 @@ export function UsersView({
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">รหัสผ่านเริ่มต้น</label>
-              <Input value={password} onChange={(e) => setPassword(e.target.value)} />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="เว้นว่าง = สุ่มให้"
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  title="สุ่มรหัส"
+                  aria-label="สุ่มรหัส"
+                  onClick={() => setPassword(generateTempPassword())}
+                >
+                  <Dices className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">บทบาท</label>
@@ -216,6 +244,26 @@ export function UsersView({
           <p className="mt-2 text-xs text-muted-foreground">
             ผู้ใช้ล็อกอินด้วยชื่อผู้ใช้ + รหัสเริ่มต้นนี้ (ไม่ต้องมีอีเมล) แล้วระบบจะบังคับให้ตั้งรหัสของตัวเองก่อนใช้งาน
           </p>
+          {created ? (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-900 dark:border-green-800 dark:bg-green-950 dark:text-green-100">
+              <span>
+                สร้าง <b>{created.username}</b> แล้ว · รหัสเริ่มต้น{" "}
+                <code className="rounded bg-white/70 px-1.5 py-0.5 font-mono dark:bg-black/30">
+                  {created.password}
+                </code>
+              </span>
+              <span className="text-xs opacity-80">
+                คัดลอกไปให้ผู้ใช้ — ออกจากหน้านี้แล้วจะดูรหัสนี้ไม่ได้อีก
+              </span>
+              <button
+                type="button"
+                className="ml-auto text-xs underline"
+                onClick={() => setCreated(null)}
+              >
+                ปิด
+              </button>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

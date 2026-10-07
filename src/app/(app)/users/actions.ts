@@ -7,6 +7,7 @@ import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { DEPARTMENTS } from "@/lib/departments";
 import { USER_ROLES, primaryRole, isDeptScoped } from "@/lib/roles";
 import { toAuthEmail, isValidLoginId, displayUsername, USERNAME_DOMAIN } from "@/lib/username";
+import { tempPasswordProblem } from "@/lib/temp-password";
 
 const isRole = (v: string) =>
   USER_ROLES.includes(v as (typeof USER_ROLES)[number]) ? v : null;
@@ -114,8 +115,8 @@ export async function createUser(input: {
   if (!isValidLoginId(input.username))
     return fail("ชื่อผู้ใช้ไม่ถูกต้อง (ใช้ตัวอักษร/ตัวเลข . _ - อย่างน้อย 2 ตัว หรือกรอกอีเมล)");
   const email = toAuthEmail(input.username);
-  if ((input.password || "").length < 6)
-    return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+  const pwProblem = tempPasswordProblem(input.password);
+  if (pwProblem) return fail(pwProblem);
 
   let admin;
   try {
@@ -203,8 +204,8 @@ export async function resetUserPassword(
 ): Promise<ActionResult> {
   const { ctx, error } = await requireAdmin();
   if (error) return fail(error);
-  if ((newPassword || "").length < 6)
-    return fail("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+  const pwProblem = tempPasswordProblem(newPassword);
+  if (pwProblem) return fail(pwProblem);
 
   // The owner's password cannot be reset by an admin — that would let any
   // admin take over the owner's account through the service-role client.

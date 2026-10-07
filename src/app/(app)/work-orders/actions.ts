@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getSessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { isTechnicianOnly } from "@/lib/roles";
+import { isOwnStoragePath } from "@/lib/storage-path";
 import { SERVICE_BOARDS } from "@/lib/departments";
 import { DEFAULT_WO_TYPE } from "./constants";
 import type {
@@ -568,6 +569,9 @@ export async function saveServiceReport(
   return ok();
 }
 
+// Photos and signatures must be uploaded into this job's own folder.
+const BAD_PATH = "ไฟล์ไม่ได้อยู่ในโฟลเดอร์ของใบงานนี้";
+
 /**
  * Records the customer's signature for a job.
  *
@@ -585,6 +589,7 @@ export async function saveWorkOrderSignature(
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
+  if (!isOwnStoragePath(path, ctx.org.id, workOrderId)) return fail(BAD_PATH);
 
   const { error } = await ctx.supabase
     .from("work_orders")
@@ -629,6 +634,7 @@ export async function addWorkOrderPhoto(
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
+  if (!isOwnStoragePath(path, ctx.org.id, workOrderId)) return fail(BAD_PATH);
   // Land it at the end of the run rather than at position 0, where a photo
   // added to the last heading would otherwise drag that whole heading to the
   // top of the page. Two uploads racing for the same number is harmless —

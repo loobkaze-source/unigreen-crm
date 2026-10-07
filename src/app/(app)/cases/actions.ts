@@ -5,6 +5,7 @@ import { CASE_DEPTS, DEFAULT_CASE_DEPT, type CaseDept } from "./constants";
 import { getSessionContext, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
+import { isOwnStoragePath } from "@/lib/storage-path";
 import type { CaseStatus } from "@/lib/database.types";
 
 export type CaseInput = {
@@ -284,6 +285,10 @@ export async function addCaseAttachment(
 ): Promise<ActionResult> {
   const ctx = await getSessionContext();
   if (!canManageCases(ctx)) return fail(NO_PERMISSION);
+  // The file must sit in this case's own folder — deleteCaseAttachment later
+  // removes whatever path the row holds.
+  if (!isOwnStoragePath(path, ctx.org.id, caseId))
+    return fail("ไฟล์ไม่ได้อยู่ในโฟลเดอร์ของเคสนี้");
   // The parent case must be ours — org_id on the attachment alone would let a
   // row be filed under one org while hanging off another org's case.
   const { data: parent, error: pErr } = await ctx.supabase
