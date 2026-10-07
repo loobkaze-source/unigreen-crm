@@ -137,9 +137,13 @@ export function DealsBoard({
   const byStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
     boardStages.forEach((s) => map.set(s.id, []));
+    // A deal whose stage isn't on this board (stray data) would be counted on
+    // the tab yet render in no column — park it in the first open column so it
+    // stays findable; editing or dragging it re-files it properly.
+    const fallback = boardStages.find((s) => !s.is_won && !s.is_lost) ?? boardStages[0];
     visibleDeals.forEach((d) => {
-      if (!map.has(d.stage_id)) map.set(d.stage_id, []);
-      map.get(d.stage_id)!.push(d);
+      const col = map.get(d.stage_id) ?? (fallback && map.get(fallback.id));
+      col?.push(d);
     });
     return map;
   }, [visibleDeals, boardStages]);
@@ -177,13 +181,16 @@ export function DealsBoard({
     setOpen(true);
   }
   function openEdit(d: Deal) {
+    const dept = d.department || "unigreen";
+    // A stray stage from another board would re-file the deal there on save.
+    const onBoard = (stagesByBoard.get(dept) ?? []).some((s) => s.id === d.stage_id);
     setEditing(d);
     setForm({
       title: d.title,
       value: d.value != null ? String(d.value) : "",
       currency: d.currency || "THB",
-      stage_id: d.stage_id,
-      department: d.department || "unigreen",
+      stage_id: onBoard ? d.stage_id : firstStageOf(dept),
+      department: dept,
       company_id: d.company_id || "",
       contact_id: d.contact_id || "",
       expected_close_date: d.expected_close_date || "",
