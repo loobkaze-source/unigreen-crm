@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { WorkOrder } from "@/lib/database.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   WO_TYPES,
 } from "./constants";
 import { saveWorkOrder } from "./actions";
+import { loadWorkOrderAssets } from "./form-options";
 
 export type Option = { id: string; name: string };
 export type ContactOption = { id: string; name: string; company_id: string | null };
@@ -153,7 +154,6 @@ export function WorkOrderModal({
   companies,
   contacts,
   sites,
-  assets,
   cases,
   contracts,
   initialCaseId = null,
@@ -168,7 +168,6 @@ export function WorkOrderModal({
   companies: Option[];
   contacts: ContactOption[];
   sites: SiteOption[];
-  assets: AssetOption[];
   cases: CaseOption[];
   contracts: ContractOption[];
   /** Opened from a case: start a new work order already filled in from it. */
@@ -364,13 +363,53 @@ export function WorkOrderModal({
     () => technicians.map((t) => ({ value: t.id, label: t.name })),
     [technicians]
   );
+  // ---- Assets: loaded per site, as the site is picked -----------------------
+  // The org has thousands of assets and the form only ever lists one site's
+  // worth, plus whatever is already ticked. `assetPool` only grows, so going
+  // back to a site already loaded costs nothing.
+  const [assetPool, setAssetPool] = useState<AssetOption[]>([]);
+  const [loadedSites, setLoadedSites] = useState<Set<string>>(() => new Set());
+  const [triedKeys, setTriedKeys] = useState<Set<string>>(() => new Set());
+  const [assetError, setAssetError] = useState<string | null>(null);
+  const poolIds = useMemo(() => new Set(assetPool.map((a) => a.id)), [assetPool]);
+  // What is still missing: this site (if not loaded yet) and any ticked asset
+  // the pool doesn't have. "|" means nothing.
+  const assetLoadKey = `${form.site_id && !loadedSites.has(form.site_id) ? form.site_id : ""}|${form.asset_ids
+    .filter((id) => !poolIds.has(id))
+    .sort()
+    .join(",")}`;
+  const assetsLoading = assetLoadKey !== "|" && !triedKeys.has(assetLoadKey) && !assetError;
+  useEffect(() => {
+    if (assetLoadKey === "|" || triedKeys.has(assetLoadKey)) return;
+    const [site, idList] = assetLoadKey.split("|");
+    let live = true;
+    loadWorkOrderAssets(site || null, idList ? idList.split(",") : [])
+      .then((res) => {
+        if (!live) return;
+        setTriedKeys((prev) => new Set(prev).add(assetLoadKey));
+        if (!res.ok) return setAssetError(res.error);
+        setAssetError(null);
+        setAssetPool((prev) => {
+          const have = new Set(prev.map((a) => a.id));
+          return [...prev, ...res.data.filter((a) => !have.has(a.id))];
+        });
+        if (site) setLoadedSites((prev) => new Set(prev).add(site));
+      })
+      .catch((e: unknown) => {
+        if (live) setAssetError(e instanceof Error ? e.message : "โหลดรายการ Asset ไม่สำเร็จ");
+      });
+    return () => {
+      live = false;
+    };
+  }, [assetLoadKey, triedKeys]);
+
   const visibleAssets = useMemo(
     () =>
-      assets.filter(
+      assetPool.filter(
         (a) =>
           (form.site_id && a.site_id === form.site_id) || form.asset_ids.includes(a.id)
       ),
-    [assets, form.site_id, form.asset_ids]
+    [assetPool, form.site_id, form.asset_ids]
   );
   const shownAssets = useMemo(() => {
     const q = assetQuery.trim().toLowerCase();
@@ -658,9 +697,23 @@ export function WorkOrderModal({
                 เลือกทั้งหมด ({shownAssets.length})
               </label>
               <div className="max-h-48 overflow-y-auto">
-                {shownAssets.length === 0 ? (
+                {assetError ? (
+                  <p className="px-3 py-3 text-sm text-destructive">
+                    โหลดรายการ Asset ไม่สำเร็จ: {assetError}{" "}
+                    <button
+                      type="button"
+                      className="underline"
+                      onClick={() => {
+                        setAssetError(null);
+                        setTriedKeys(new Set());
+                      }}
+                    >
+                      ลองใหม่
+                    </button>
+                  </p>
+                ) : shownAssets.length === 0 ? (
                   <p className="px-3 py-3 text-sm text-muted-foreground">
-                    ไม่พบ Asset ในไซต์นี้
+                    {assetsLoading ? "กำลังโหลดรายการ Asset…" : "ไม่พบ Asset ในไซต์นี้"}
                   </p>
                 ) : (
                   shownAssets.map((a) => (

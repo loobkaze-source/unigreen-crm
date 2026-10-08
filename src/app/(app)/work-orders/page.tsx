@@ -1,7 +1,5 @@
-import { rows, fetchAll, fetchAllRes } from "@/lib/data";
-import { assetCode } from "@/lib/asset";
-import { loadCaseOptions } from "./case-options";
-import { loadContractOptions } from "./contract-options";
+import { rows, fetchAll } from "@/lib/data";
+import type { WorkOrder } from "@/lib/database.types";
 import { WorkOrdersView } from "./work-orders-view";
 import { searchedRecordNumber } from "@/lib/search";
 import { requireFullAccess } from "@/lib/page-access";
@@ -36,13 +34,15 @@ export default async function WorkOrdersPage({
     if (n !== null) ors.push(`number.eq.${n}`);
     searchOr = ors.join(",");
   }
-  // The linked assets ride along embedded — fetching the whole junction table
-  // org-wide would silently truncate at PostgREST's 1,000-row cap long before
-  // the job list does.
+  // The linked assets and the customer's name ride along embedded. Fetching
+  // the whole junction table org-wide would silently truncate at PostgREST's
+  // 1,000-row cap; fetching every company just to name the listed jobs' was
+  // most of this page's weight, re-sent on every search keystroke.
+  // (The form's pickers load when the form opens — form-options.ts.)
   const woBase = () => {
     const q = supabase
       .from("work_orders")
-      .select("*, work_order_assets(equipment_id)")
+      .select("*, work_order_assets(equipment_id), companies(name)")
       .eq("org_id", org.id);
     return searchOr ? q.or(searchOr) : q;
   };
@@ -61,18 +61,7 @@ export default async function WorkOrdersPage({
       );
 
   // One parallel wave — every query here depends only on the session.
-  const [
-    woRes,
-    openRows,
-    techRes,
-    companiesRes,
-    contactsRes,
-    sitesRes,
-    assetsRes,
-    caseList,
-    contractList,
-    visitRes,
-  ] = await Promise.all([
+  const [woRes, openRows, techRes, visitRes] = await Promise.all([
     recentQuery,
     openQuery,
     supabase
@@ -82,38 +71,6 @@ export default async function WorkOrdersPage({
       .eq("active", true)
       .order("name")
       .limit(500),
-    fetchAllRes(() =>
-      supabase
-        .from("companies")
-        .select("id, name")
-        .eq("org_id", org.id)
-        .order("name")
-        .order("id")
-    ),
-    supabase
-      .from("contacts")
-      .select("id, first_name, last_name, company_id")
-      .eq("org_id", org.id)
-      .order("first_name")
-      .limit(500),
-    fetchAllRes(() =>
-      supabase
-        .from("sites")
-        .select("id, name, company_id, address, map_url")
-        .eq("org_id", org.id)
-        .order("name")
-        .order("id")
-    ),
-    fetchAllRes(() =>
-      supabase
-        .from("equipment")
-        .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
-        .eq("org_id", org.id)
-        .order("code")
-        .order("id")
-    ),
-    loadCaseOptions(supabase, org.id),
-    loadContractOptions(supabase, org.id),
     fromVisit
       ? supabase
           .from("service_visits")
@@ -124,28 +81,30 @@ export default async function WorkOrdersPage({
       : Promise.resolve({ data: null }),
   ]);
 
-  const recent = rows(woRes);
+  type Row = WorkOrder & {
+    work_order_assets?: { equipment_id: string }[];
+    companies?: { name: string } | null;
+  };
+  const recent = rows(woRes) as Row[];
   const byId = new Map(recent.map((w) => [w.id as string, w]));
-  for (const w of openRows as typeof recent) if (!byId.has(w.id)) byId.set(w.id, w);
-  const workOrders = [...byId.values()].sort((a, b) =>
+  for (const w of openRows as Row[]) if (!byId.has(w.id)) byId.set(w.id, w);
+  const merged = [...byId.values()].sort((a, b) =>
     a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
   );
   const technicians = rows(techRes);
-  const companies = rows(companiesRes);
-  const contacts = rows(contactsRes);
-  const sites = rows(sitesRes);
-  const assets = rows(assetsRes);
 
   const assetIdsByWo: Record<string, string[]> = {};
-  for (const w of workOrders ?? []) {
-    const links = (w as { work_order_assets?: { equipment_id: string }[] })
-      .work_order_assets;
-    if (links?.length) assetIdsByWo[w.id] = links.map((l) => l.equipment_id);
-  }
+  const companyNames: Record<string, string> = {};
+  const workOrders = merged.map(({ work_order_assets, companies, ...w }) => {
+    if (work_order_assets?.length)
+      assetIdsByWo[w.id] = work_order_assets.map((l) => l.equipment_id);
+    if (w.company_id && companies?.name) companyNames[w.company_id] = companies.name;
+    return w;
+  });
 
   return (
     <WorkOrdersView
-      workOrders={workOrders ?? []}
+      workOrders={workOrders}
       initialQuery={search}
       initialCaseId={fromCase}
       initialVisit={
@@ -161,26 +120,8 @@ export default async function WorkOrdersPage({
       limitHit={recent.length === WO_PAGE_LIMIT}
       openAlwaysShown={!search}
       technicians={technicians ?? []}
-      companies={companies ?? []}
-      contacts={(contacts ?? []).map((c) => ({
-        id: c.id,
-        name: [c.first_name, c.last_name].filter(Boolean).join(" "),
-        company_id: c.company_id,
-      }))}
+      companyNames={companyNames}
       assetIdsByWo={assetIdsByWo}
-      cases={caseList}
-      contracts={contractList}
-      sites={sites ?? []}
-      assets={(assets ?? []).map((a) => {
-        const ident =
-          a.asset_type === "project" ? a.project_number : a.serial_number;
-        const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
-        return {
-          id: a.id,
-          site_id: a.site_id,
-          name: `${assetCode(a.code)} · ${a.name}${ident ? ` · ${ident}` : ""}${brand}`,
-        };
-      })}
     />
   );
 }

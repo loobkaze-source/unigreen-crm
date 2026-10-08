@@ -58,18 +58,12 @@ import {
   woCode,
 } from "../constants";
 import dynamic from "next/dynamic";
-import type {
-  Option,
-  ContactOption,
-  CaseOption,
-  ContractOption,
-  SiteOption,
-  AssetOption,
-} from "../work-order-modal";
+import type { Option, AssetOption } from "../work-order-modal";
 
-// Loaded on demand — keeps the modal out of the detail page's chunk.
+// Loaded on demand — keeps the modal out of the detail page's chunk, and its
+// pickers' options are fetched when it opens (form-options.ts).
 const WorkOrderModal = dynamic(
-  () => import("../work-order-modal").then((m) => m.WorkOrderModal),
+  () => import("../work-order-modal-loader").then((m) => m.WorkOrderModalLoader),
   { ssr: false }
 );
 import {
@@ -140,12 +134,9 @@ export function WorkOrderDetail({
   photos,
   parts,
   technicians,
-  companies,
-  contacts,
-  sites,
   assets,
-  cases,
-  contracts,
+  contractName,
+  caseName,
   assetIds,
   crewIds,
   faultCodes,
@@ -168,12 +159,11 @@ export function WorkOrderDetail({
   photos: PhotoWithUrl[];
   parts: PartRow[];
   technicians: Option[];
-  companies: Option[];
-  contacts: ContactOption[];
-  sites: SiteOption[];
+  /** This job's own assets — not the org's register. */
   assets: AssetOption[];
-  cases: CaseOption[];
-  contracts: ContractOption[];
+  /** The contract or case the job answers, as the pickers name them. */
+  contractName?: string;
+  caseName?: string;
   assetIds: string[];
   /** Technicians recorded as having been on site. */
   crewIds: string[];
@@ -223,8 +213,7 @@ export function WorkOrderDetail({
   const [uploadingTo, setUploadingTo] = useState<string | null>(null);
 
   /** The assets on this job, in the order the picker lists them. Memoized:
-   *  `assets` is every asset in the org, and this page re-renders per
-   *  keystroke in the remark box. */
+   *  this page re-renders per keystroke in the remark box. */
   const linkedAssets = useMemo(() => {
     const ids = new Set(assetIds);
     return assets.filter((a) => ids.has(a.id));
@@ -599,13 +588,13 @@ export function WorkOrderDetail({
             <Info
               icon={Repeat}
               label="สัญญาบริการ"
-              value={contracts.find((c) => c.id === workOrder.contract_id)?.name || "—"}
+              value={contractName || "—"}
             />
           ) : workOrder.case_id ? (
             <Info
               icon={LifeBuoy}
               label="เคสที่เกี่ยวข้อง"
-              value={cases.find((c) => c.id === workOrder.case_id)?.name || "—"}
+              value={caseName || "—"}
             />
           ) : null}
           <Info
@@ -1049,12 +1038,6 @@ export function WorkOrderDetail({
           onClose={() => setEditing(false)}
           editing={workOrder}
           technicians={technicians}
-          companies={companies}
-          contacts={contacts}
-          sites={sites}
-          assets={assets}
-          cases={cases}
-          contracts={contracts}
           assetIds={assetIds}
           onSaved={() => {
             setEditing(false);

@@ -1,14 +1,16 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { getSessionContext, row, rows } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
 import { ChangeLog } from "@/components/app/change-log";
 import { loadConflicts } from "@/lib/schedule-conflicts";
 import { SUPABASE_URL } from "@/lib/supabase/env";
-import { assetCode } from "@/lib/asset";
-import { loadCaseOptions } from "../case-options";
-import { loadContractOptions } from "../contract-options";
+import { ASSET_LABEL_COLUMNS, assetLabel } from "@/lib/asset";
 import { WorkOrderDetail } from "./work-order-detail";
 import { loadVisibleWorkOrder } from "./load-work-order";
+
+/** A to-one embed comes back as an object; the generated types say array. */
+const one = <T,>(v: T | T[] | null | undefined): T | null =>
+  (Array.isArray(v) ? v[0] : v) ?? null;
 
 export default async function WorkOrderDetailPage({
   params,
@@ -22,20 +24,23 @@ export default async function WorkOrderDetailPage({
   const { workOrder, fieldOnly } = await loadVisibleWorkOrder(id);
   if (!workOrder) notFound();
 
+  // Only what this one job shows. The edit form's pickers (every company,
+  // site, contact, case, contract and asset) are fetched when it opens — this
+  // page is a technician's, on a phone, and they never open it.
   const [
     photosRes,
     partsRes,
     techRes,
-    companiesRes,
-    contactsRes,
-    sitesRes,
-    assetsRes,
+    companyRes,
+    contactRes,
+    caseRes,
+    contractRes,
     woAssetsRes,
     woTechsRes,
     tagsRes,
     codesRes,
-    caseList,
-    contractList,
+    history,
+    conflicts,
   ] = await Promise.all([
     supabase
       .from("work_order_photos")
@@ -54,40 +59,35 @@ export default async function WorkOrderDetailPage({
       .select("id, name")
       .eq("org_id", org.id)
       .order("name")
-        .limit(500),
-    fetchAllRes(() =>
-      supabase
-        .from("companies")
-        .select("id, name")
-        .eq("org_id", org.id)
-        .order("name")
-        .order("id")
-    ),
-    supabase
-      .from("contacts")
-      .select("id, first_name, last_name, company_id, phone")
-      .eq("org_id", org.id)
-      .order("first_name")
-        .limit(500),
-    fetchAllRes(() =>
-      supabase
-        .from("sites")
-        .select("id, name, company_id, address, map_url")
-        .eq("org_id", org.id)
-        .order("name")
-        .order("id")
-    ),
-    fetchAllRes(() =>
-      supabase
-        .from("equipment")
-        .select("id, code, name, asset_type, brand, serial_number, project_number, site_id")
-        .eq("org_id", org.id)
-        .order("code")
-        .order("id")
-    ),
+      .limit(500),
+    workOrder.company_id
+      ? supabase.from("companies").select("name").eq("id", workOrder.company_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    workOrder.contact_id
+      ? supabase
+          .from("contacts")
+          .select("first_name, last_name, phone")
+          .eq("id", workOrder.contact_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    workOrder.case_id
+      ? supabase
+          .from("cases")
+          .select("code, number, subject")
+          .eq("id", workOrder.case_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    workOrder.contract_id
+      ? supabase
+          .from("service_contracts")
+          .select("contract_no, title, sites(name)")
+          .eq("id", workOrder.contract_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    // This job's assets, named the way the picker names them.
     supabase
       .from("work_order_assets")
-      .select("equipment_id")
+      .select(`equipment_id, equipment(id, site_id, ${ASSET_LABEL_COLUMNS})`)
       .eq("work_order_id", id),
     supabase
       .from("work_order_technicians")
@@ -113,21 +113,32 @@ export default async function WorkOrderDetailPage({
       .or("fault_codes.not.is.null,repair_codes.not.is.null,causes.not.is.null")
       .order("created_at", { ascending: false })
       .limit(500),
-    loadCaseOptions(supabase, org.id),
-    loadContractOptions(supabase, org.id),
+    // Independent of everything above — in the same wave, not after it.
+    loadAudit(supabase, org.id, { table: "work_orders", rowId: id, limit: 100 }),
+    loadConflicts(supabase, org.id),
   ]);
 
   const photos = rows(photosRes);
   const parts = rows(partsRes);
-  const technicians = rows(techRes);
-  const companies = rows(companiesRes);
-  const contacts = rows(contactsRes);
-  const sites = rows(sitesRes);
-  const assets = rows(assetsRes);
-  const woAssets = rows(woAssetsRes);
+  const techList = rows(techRes);
+  const company = row<{ name: string }>(companyRes);
+  const contact = row<{ first_name: string; last_name: string | null; phone: string | null }>(
+    contactRes
+  );
+  const caseRow = row<{ code: string | null; number: number | null; subject: string }>(caseRes);
+  const contractRow = row<{ contract_no: string | null; title: string; sites: unknown }>(
+    contractRes
+  );
 
-  const techList = technicians ?? [];
-  const assetIds = (woAssets ?? []).map((r) => r.equipment_id as string);
+  type LinkedAsset = Parameters<typeof assetLabel>[0] & { id: string; site_id: string | null };
+  const woAssets = rows(woAssetsRes) as { equipment_id: string; equipment: unknown }[];
+  const assetIds = woAssets.map((r) => r.equipment_id);
+  const linkedAssets = woAssets
+    .map((r) => one(r.equipment as LinkedAsset | LinkedAsset[] | null))
+    .filter((a): a is LinkedAsset => a != null)
+    .sort((a, b) => (a.code ?? 0) - (b.code ?? 0))
+    .map((a) => ({ id: a.id, site_id: a.site_id, name: assetLabel(a) }));
+
   const crewIds = rows(woTechsRes).map((r) => r.technician_id as string);
   // Flattened and de-duplicated here so the field is handed a vocabulary rather
   // than a thousand jobs to pick through. The catalogue leads, in the order the
@@ -143,28 +154,26 @@ export default async function WorkOrderDetailPage({
   const faultCodes = vocabulary("fault", "fault_codes");
   const repairCodes = vocabulary("repair", "repair_codes");
   const causeTags = vocabulary("cause", "causes");
-  const assetList = (assets ?? []).map((a) => {
-    const ident = a.asset_type === "project" ? a.project_number : a.serial_number;
-    const brand = a.asset_type === "object" && a.brand ? ` (${a.brand})` : "";
-    return {
-      id: a.id,
-      site_id: a.site_id,
-      name: `${assetCode(a.code)} · ${a.name}${ident ? ` · ${ident}` : ""}${brand}`,
-    };
-  });
-  const companyList = companies ?? [];
-  const contactList = (contacts ?? []).map((c) => ({
-    id: c.id,
-    name: [c.first_name, c.last_name].filter(Boolean).join(" "),
-    company_id: c.company_id,
-  }));
 
-  const photosWithUrl = (photos ?? []).map((p) => ({
+  const photosWithUrl = photos.map((p) => ({
     ...p,
     url: `${SUPABASE_URL}/storage/v1/object/public/wo-photos/${p.path}`,
   }));
 
-  const history = await loadAudit(supabase, org.id, { table: "work_orders", rowId: id, limit: 100 });
+  // Named exactly as the form's pickers name them (case-options.ts /
+  // contract-options.ts), so the page and the form agree.
+  const caseName = caseRow
+    ? `${caseRow.code ?? (caseRow.number ? `CASE-${String(caseRow.number).padStart(4, "0")}` : "เคส")} · ${caseRow.subject}`
+    : undefined;
+  const contractName = contractRow
+    ? [
+        contractRow.contract_no,
+        contractRow.title,
+        one(contractRow.sites as { name: string } | { name: string }[] | null)?.name,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
 
   return (
     <WorkOrderDetail
@@ -177,26 +186,25 @@ export default async function WorkOrderDetailPage({
       }
       parts={parts}
       technicians={techList}
-      companies={companyList}
-      contacts={contactList}
-      sites={sites ?? []}
-      assets={assetList}
-      cases={caseList}
-      contracts={contractList}
+      assets={linkedAssets}
+      contractName={contractName}
+      caseName={caseName}
       assetIds={assetIds}
       crewIds={crewIds}
       faultCodes={faultCodes}
       repairCodes={repairCodes}
       causeTags={causeTags}
       orgId={org.id}
-      clashes={(await loadConflicts(supabase, org.id)).byRecord[id] ?? []}
+      clashes={conflicts.byRecord[id] ?? []}
       canEdit={!fieldOnly}
       backHref={fieldOnly ? "/my-jobs" : "/work-orders"}
       backLabel={fieldOnly ? "กลับไปงานของฉัน" : "กลับไปใบงาน"}
       technicianName={techList.find((t) => t.id === workOrder.technician_id)?.name}
-      companyName={companyList.find((c) => c.id === workOrder.company_id)?.name}
-      contactName={contactList.find((c) => c.id === workOrder.contact_id)?.name}
-      contactPhone={contacts?.find((c) => c.id === workOrder.contact_id)?.phone ?? undefined}
+      companyName={company?.name}
+      contactName={
+        contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : undefined
+      }
+      contactPhone={contact?.phone ?? undefined}
       changeLog={<ChangeLog entries={history} />}
     />
   );

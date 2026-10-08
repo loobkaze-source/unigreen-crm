@@ -41,31 +41,20 @@ import {
   woCode,
 } from "./constants";
 import dynamic from "next/dynamic";
-import type {
-  Option,
-  ContactOption,
-  CaseOption,
-  ContractOption,
-  SiteOption,
-  AssetOption,
-} from "./work-order-modal";
+import type { Option } from "./work-order-modal";
 import { deleteWorkOrder } from "./actions";
 
-// Loaded on demand — the 500-line modal stays out of the list page's chunk.
+// Loaded on demand — the 500-line modal stays out of the list page's chunk,
+// and its pickers' options are fetched when it opens (form-options.ts).
 const WorkOrderModal = dynamic(
-  () => import("./work-order-modal").then((m) => m.WorkOrderModal),
+  () => import("./work-order-modal-loader").then((m) => m.WorkOrderModalLoader),
   { ssr: false }
 );
 
 export function WorkOrdersView({
   workOrders,
   technicians,
-  companies,
-  contacts,
-  sites,
-  assets,
-  cases,
-  contracts,
+  companyNames,
   assetIdsByWo,
   initialQuery = "",
   initialCaseId = null,
@@ -75,12 +64,8 @@ export function WorkOrdersView({
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
-  companies: Option[];
-  contacts: ContactOption[];
-  sites: SiteOption[];
-  assets: AssetOption[];
-  cases: CaseOption[];
-  contracts: ContractOption[];
+  /** company id → name, for the companies on the listed jobs only. */
+  companyNames: Record<string, string>;
   assetIdsByWo: Record<string, string[]>;
   initialQuery?: string;
   /** Set by ?case=… — open the form already filled in from that case. */
@@ -144,10 +129,10 @@ export function WorkOrdersView({
     const m = new Map(technicians.map((t) => [t.id, t.name]));
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [technicians]);
-  const companyName = useMemo(() => {
-    const m = new Map(companies.map((c) => [c.id, c.name]));
-    return (id: string | null) => (id ? m.get(id) : undefined);
-  }, [companies]);
+  const companyName = useMemo(
+    () => (id: string | null) => (id ? companyNames[id] : undefined),
+    [companyNames]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -431,12 +416,6 @@ export function WorkOrdersView({
           onClose={closeModal}
           editing={editing}
           technicians={technicians}
-          companies={companies}
-          contacts={contacts}
-          sites={sites}
-          assets={assets}
-          cases={cases}
-          contracts={contracts}
           initialCaseId={editing ? null : initialCaseId}
           initialVisit={editing ? null : initialVisit}
           assetIds={editing ? assetIdsByWo[editing.id] ?? [] : []}
