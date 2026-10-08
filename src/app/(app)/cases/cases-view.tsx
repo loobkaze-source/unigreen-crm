@@ -47,6 +47,7 @@ import {
   addCaseAttachment,
   deleteCaseAttachment,
   quickAddContact,
+  loadCaseSiteAssets,
 } from "./actions";
 import { sitesOf } from "@/lib/linked-pickers";
 
@@ -83,7 +84,7 @@ export function CasesView({
   companies,
   contacts,
   sites,
-  assets,
+  assetNames,
   caseAssets,
   supporters,
   dispatchers,
@@ -97,7 +98,9 @@ export function CasesView({
   companies: Option[];
   contacts: (Option & { company_id?: string | null })[];
   sites: SiteOption[];
-  assets: AssetOption[];
+  /** Names of the assets linked to the listed cases — not the whole register;
+   *  the form loads a site's assets when the site is picked. */
+  assetNames: Record<string, string>;
   caseAssets: CaseAssetLink[];
   supporters: Option[];
   /** Members holding the Dispatcher role — who a case can be assigned to. */
@@ -230,10 +233,10 @@ export function CasesView({
     return (id: string | null) => (id ? m.get(id) : undefined);
   }, [sites]);
 
-  const assetName = useMemo(() => {
-    const m = new Map(assets.map((a) => [a.id, a.name]));
-    return (id: string) => m.get(id) ?? "—";
-  }, [assets]);
+  const assetName = useMemo(
+    () => (id: string) => assetNames[id] ?? "—",
+    [assetNames]
+  );
 
   // Affected-asset names per case, for the list.
   const assetsByCase = useMemo(() => {
@@ -246,10 +249,32 @@ export function CasesView({
     return m;
   }, [caseAssets, assetName]);
 
-  // Assets available to tick for the form's currently-selected site.
+  // Assets available to tick for the form's currently-selected site, fetched
+  // when the site is picked and kept per site for the life of the page.
+  const [assetsBySite, setAssetsBySite] = useState<Record<string, AssetOption[]>>({});
+  const [siteAssetsError, setSiteAssetsError] = useState<string | null>(null);
+  const siteAssetsLoaded = !form.site_id || form.site_id in assetsBySite;
+  const siteAssetsLoading = open && !siteAssetsLoaded && !siteAssetsError;
+  useEffect(() => {
+    const siteId = form.site_id;
+    if (!open || !siteId || siteId in assetsBySite || siteAssetsError) return;
+    let live = true;
+    loadCaseSiteAssets(siteId)
+      .then((res) => {
+        if (!live) return;
+        if (!res.ok) return setSiteAssetsError(res.error);
+        setAssetsBySite((prev) => ({ ...prev, [siteId]: res.data }));
+      })
+      .catch((e: unknown) => {
+        if (live) setSiteAssetsError(e instanceof Error ? e.message : "โหลดรายการเครื่องไม่สำเร็จ");
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, form.site_id, assetsBySite, siteAssetsError]);
   const siteAssets = useMemo(
-    () => (form.site_id ? assets.filter((a) => a.site_id === form.site_id) : []),
-    [assets, form.site_id]
+    () => (form.site_id ? assetsBySite[form.site_id] ?? [] : []),
+    [assetsBySite, form.site_id]
   );
 
   const columns = useMemo<ColumnDef<Case>[]>(
@@ -347,6 +372,8 @@ export function CasesView({
 
   // Selecting a customer / site narrows what can be ticked — prune stale picks.
   function changeCompany(company_id: string) {
+    // Re-picking the same customer must not wipe the site and the ticks.
+    if (company_id === form.company_id) return;
     setForm((f) => {
       // The old customer's contact must not survive onto the new one's case.
       const contactOk =
@@ -361,19 +388,17 @@ export function CasesView({
     setAssetSel({});
   }
   function changeSite(site_id: string) {
+    // Picking the site that is already picked changes nothing — the ticks stay.
+    if (site_id === form.site_id) return;
     // A site brings its customer with it, so the box need not wait for one.
     setForm((f) => ({
       ...f,
       site_id,
       company_id: sites.find((s) => s.id === site_id)?.company_id ?? f.company_id,
     }));
-    // Keep only ticks that belong to the newly-selected site.
-    setAssetSel((sel) => {
-      const allowed = new Set(assets.filter((a) => a.site_id === site_id).map((a) => a.id));
-      const next: AssetSel = {};
-      for (const [id, cond] of Object.entries(sel)) if (allowed.has(id)) next[id] = cond;
-      return next;
-    });
+    // An asset belongs to one site, so ticks made under another site go.
+    setAssetSel({});
+    setSiteAssetsError(null);
   }
   function toggleAsset(id: string) {
     setAssetSel((sel) => {
@@ -895,6 +920,21 @@ export function CasesView({
             {!form.site_id ? (
               <p className="mt-1 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
                 เลือกลูกค้าและไซต์ก่อน จึงจะเลือกเครื่องที่มีปัญหาได้
+              </p>
+            ) : siteAssetsError ? (
+              <p className="mt-1 rounded-md border border-dashed border-border px-3 py-3 text-sm text-destructive">
+                โหลดรายการเครื่องไม่สำเร็จ: {siteAssetsError}{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => setSiteAssetsError(null)}
+                >
+                  ลองใหม่
+                </button>
+              </p>
+            ) : siteAssetsLoading ? (
+              <p className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> กำลังโหลดรายการเครื่อง…
               </p>
             ) : siteAssets.length === 0 ? (
               <p className="mt-1 rounded-md border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">

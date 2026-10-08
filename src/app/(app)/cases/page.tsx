@@ -21,7 +21,7 @@ export default async function CasesPage({
   let casesQuery = supabase
     .from("cases")
     .select(
-      "*, case_attachments(id, path, name, mime, created_at), case_assets(equipment_id, condition)"
+      "*, case_attachments(id, path, name, mime, created_at), case_assets(equipment_id, condition, equipment(name, serial_number))"
     )
     .eq("org_id", org.id)
     .order("case_date", { ascending: false, nullsFirst: false })
@@ -42,7 +42,7 @@ export default async function CasesPage({
     casesQuery = casesQuery.or(ors.join(","));
   }
 
-  const [casesRes, companiesRes, contactsRes, sitesRes, assetsRes, membersRes] =
+  const [casesRes, companiesRes, contactsRes, sitesRes, membersRes] =
     await Promise.all([
       casesQuery,
       fetchAllRes(() =>
@@ -69,15 +69,6 @@ export default async function CasesPage({
           .order("name")
           .order("id")
       ),
-      fetchAllRes(() =>
-        supabase
-          .from("equipment")
-          .select("id, name, site_id, status, code, serial_number")
-          .eq("org_id", org.id)
-          .neq("status", "retired")
-          .order("code")
-          .order("id")
-      ),
       supabase
         .from("organization_members")
         .select("user_id, app_roles")
@@ -88,7 +79,6 @@ export default async function CasesPage({
   const companies = rows(companiesRes);
   const contacts = rows(contactsRes);
   const sites = rows(sitesRes);
-  const assets = rows(assetsRes);
   const members = rows(membersRes);
 
   // Who can be named on a case (user_id -> profile name), plus attachments for
@@ -129,6 +119,7 @@ export default async function CasesPage({
   type EmbeddedCaseAsset = {
     equipment_id: string;
     condition: "operational" | "degraded" | "down" | null;
+    equipment: { name: string; serial_number: string | null } | null;
   };
   const attachments = cases
     .flatMap((c) =>
@@ -145,12 +136,19 @@ export default async function CasesPage({
       mime: a.mime || "",
       url: `${SUPABASE_URL}/storage/v1/object/public/case-files/${a.path}`,
     }));
+  // Names for the linked assets only — the form loads a site's assets when the
+  // site is picked, instead of the whole register riding along every render.
+  const assetNames: Record<string, string> = {};
   const caseAssets = cases.flatMap((c) =>
-    (((c as { case_assets?: EmbeddedCaseAsset[] }).case_assets ?? []).map((r) => ({
-      case_id: c.id as string,
-      equipment_id: r.equipment_id,
-      condition: r.condition ?? null,
-    })))
+    (((c as { case_assets?: EmbeddedCaseAsset[] }).case_assets ?? []).map((r) => {
+      const e = Array.isArray(r.equipment) ? r.equipment[0] : r.equipment;
+      if (e) assetNames[r.equipment_id] = `${e.name}${e.serial_number ? ` · ${e.serial_number}` : ""}`;
+      return {
+        case_id: c.id as string,
+        equipment_id: r.equipment_id,
+        condition: r.condition ?? null,
+      };
+    }))
   );
 
   return (
@@ -165,12 +163,7 @@ export default async function CasesPage({
         company_id: (c.company_id as string) ?? null,
       }))}
       sites={sites}
-      assets={assets.map((a) => ({
-        id: a.id as string,
-        name: `${a.name}${a.serial_number ? ` · ${a.serial_number}` : ""}`,
-        site_id: (a.site_id as string) ?? null,
-        status: (a.status as string) ?? "operational",
-      }))}
+      assetNames={assetNames}
       caseAssets={caseAssets}
       supporters={supporters}
       dispatchers={dispatchers}

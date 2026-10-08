@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { CASE_DEPTS, DEFAULT_CASE_DEPT, type CaseDept } from "./constants";
-import { getSessionContext, type SessionContext } from "@/lib/data";
+import { getSessionContext, fetchAll, type SessionContext } from "@/lib/data";
 import { type ActionResult, ok, fail } from "@/lib/action-result";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { isOwnStoragePath } from "@/lib/storage-path";
@@ -214,6 +214,50 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   revalidatePath("/assets");
   // Return the id so the client can upload queued attachments for a new case.
   return ok(created.id);
+}
+
+export type CaseSiteAsset = { id: string; name: string; site_id: string | null; status: string };
+
+/**
+ * One site's assets for the case form's checklist (retired ones left out),
+ * loaded as the site is picked — rather than the whole register (~6,500 rows)
+ * riding along with every render of /cases, every search and every refresh.
+ */
+export async function loadCaseSiteAssets(
+  siteId: string
+): Promise<{ ok: true; data: CaseSiteAsset[] } | { ok: false; error: string }> {
+  const ctx = await getSessionContext();
+  if (!canManageCases(ctx)) return { ok: false, error: NO_PERMISSION };
+  try {
+    const list = await fetchAll<{
+      id: string;
+      name: string;
+      site_id: string | null;
+      status: string | null;
+      serial_number: string | null;
+    }>(
+      () =>
+        ctx.supabase
+          .from("equipment")
+          .select("id, name, site_id, status, serial_number")
+          .eq("org_id", ctx.org.id)
+          .eq("site_id", siteId)
+          .neq("status", "retired")
+          .order("code")
+          .order("id") as never
+    );
+    return {
+      ok: true,
+      data: list.map((a) => ({
+        id: a.id,
+        name: `${a.name}${a.serial_number ? ` · ${a.serial_number}` : ""}`,
+        site_id: a.site_id ?? null,
+        status: a.status ?? "operational",
+      })),
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "โหลดรายการเครื่องไม่สำเร็จ" };
+  }
 }
 
 /**
