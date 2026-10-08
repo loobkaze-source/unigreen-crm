@@ -110,6 +110,21 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
   // Reconcile the case ↔ asset links, then apply each reported condition to the
   // asset's operating status (a retired asset stays retired).
   async function syncCaseAssets(caseId: string): Promise<string | null> {
+    // What the case already said about each asset. A condition is applied to
+    // the asset only when it is NEWLY reported — a fresh link, or a changed
+    // condition. Every save re-sends the whole list, and re-applying it would
+    // undo what happened since: the repair job that restored the asset to
+    // operational, or a dispatcher's manual change on the asset page.
+    const { data: before, error: readErr } = await supabase
+      .from("case_assets")
+      .select("equipment_id, condition")
+      .eq("org_id", org.id)
+      .eq("case_id", caseId);
+    if (readErr) return readErr.message;
+    const previous = new Map(
+      (before ?? []).map((r) => [r.equipment_id as string, (r.condition as string | null) ?? null])
+    );
+
     // Replace the whole set: drop links no longer present, upsert the rest.
     const keepIds = assetList.map((a) => a.equipment_id);
     let del = supabase
@@ -134,10 +149,17 @@ export async function saveCase(input: CaseInput): Promise<ActionResult> {
       if (upErr) return upErr.message;
     }
 
+    // A closed case reports nothing new about its assets.
+    if (payload.status === "closed") return null;
+
     // Independent per-asset updates — run them together, not one by one.
     const results = await Promise.all(
       assetList
-        .filter((a) => a.condition)
+        .filter(
+          (a) =>
+            a.condition &&
+            (!previous.has(a.equipment_id) || previous.get(a.equipment_id) !== a.condition)
+        )
         .map((a) =>
           supabase
             .from("equipment")

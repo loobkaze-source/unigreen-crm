@@ -2,6 +2,7 @@ import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { CasesView } from "./cases-view";
+import { searchedRecordNumber } from "@/lib/search";
 
 const CASES_PAGE_LIMIT = 200;
 
@@ -35,8 +36,8 @@ export default async function CasesPage({
       // The number the customer quotes is the one they search by.
       `customer_wo_ref.ilike.%${term}%`,
     ];
-    const digits = search.replace(/\D/g, "");
-    if (digits) ors.push(`number.eq.${Number(digits)}`);
+    const n = searchedRecordNumber(search);
+    if (n !== null) ors.push(`number.eq.${n}`);
     casesQuery = casesQuery.or(ors.join(","));
   }
 

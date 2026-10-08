@@ -3,6 +3,7 @@ import { assetCode } from "@/lib/asset";
 import { loadCaseOptions } from "./case-options";
 import { loadContractOptions } from "./contract-options";
 import { WorkOrdersView } from "./work-orders-view";
+import { searchedRecordNumber } from "@/lib/search";
 
 const WO_PAGE_LIMIT = 200;
 
@@ -38,8 +39,8 @@ export default async function WorkOrdersPage({
       `report_no.ilike.%${term}%`,
       `site_address.ilike.%${term}%`,
     ];
-    const digits = search.replace(/\D/g, "");
-    if (digits) ors.push(`number.eq.${Number(digits)}`);
+    const n = searchedRecordNumber(search);
+    if (n !== null) ors.push(`number.eq.${n}`);
     woQuery = woQuery.or(ors.join(","));
   }
 
