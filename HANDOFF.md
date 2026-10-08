@@ -172,9 +172,19 @@ Open Supabase → **SQL Editor** and run in order:
     `work-orders/photo-groups.ts` is the one definition, used by both the card and the report,
     so the page prints in the order the card shows. Also backfills `position`, which had sat
     at 0 for everything uploaded since 0050. **Applied to the live project 2026-08-21.**
+58. `0058_storage_org_scope.sql` — storage policies on `wo-photos` / `case-files` now require
+    membership of the org named by the object's first path segment (`<org_id>/<record_id>/…`,
+    via `storage_object_org()`); anonymous SELECT is gone, so the buckets can no longer be
+    *listed* with the anon key. The buckets stay public, so `/object/public/…` URLs still load.
+    Server actions reject a file path outside the record's own folder (`lib/storage-path.ts`).
+    **Applied to the live project 2026-10-08** (anon list → 0 entries, public URL → 200).
 
 **Dates:** all displayed dates use `src/lib/format.ts` `fmtDate` (DD-MM-YYYY) / `fmtDateTime`
 (DD-MM-YYYY HH:mm), Gregorian year. Prefer these over date-fns/พ.ศ. for new date output.
+Date-picker values are zoneless **Bangkok** wall-clock strings: convert with
+`bangkokInputToIso` before storing and `isoToBangkokInput` when filling a form, and group by
+`bangkokDay()` — never `new Date(v)` on the server or `iso.slice(0, 10)`. (Until 2026-10-08 the
+server parsed them as UTC and stored every picked time 7h late; the rows were repaired once.)
 
 **Supabase Auth settings (dashboard):** turn **Confirm email = OFF** (Authentication → Sign In /
 Providers → Email) and set **Site URL = https://unicloudcrm.netlify.app** + add it to Redirect URLs
