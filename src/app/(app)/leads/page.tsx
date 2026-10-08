@@ -1,8 +1,9 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { LeadsView } from "./leads-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function LeadsPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const leads = rows(
     await fetchAllRes(() =>

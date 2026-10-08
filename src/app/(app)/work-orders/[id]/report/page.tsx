@@ -1,25 +1,15 @@
-import { cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { getSessionContext, row, rows } from "@/lib/data";
+import { getSessionContext, rows } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
-import type { WorkOrder } from "@/lib/database.types";
 import { COMPANY } from "@/lib/company";
 import { woCode } from "../../constants";
 import { ServiceReport } from "./service-report";
+import { loadVisibleWorkOrder } from "../load-work-order";
 
-/** One fetch per request, shared by generateMetadata and the page. */
-const loadWorkOrder = cache(async (id: string) => {
-  const { supabase, org } = await getSessionContext();
-  return row<WorkOrder>(
-    (await supabase
-      .from("work_orders")
-      .select("*")
-      .eq("id", id)
-      .eq("org_id", org.id)
-      .maybeSingle()) as never
-  );
-});
+/** The job, if this user may see it — the same check as the detail page
+ *  (a field technician only gets jobs assigned to them). */
+const loadWorkOrder = async (id: string) => (await loadVisibleWorkOrder(id)).workOrder;
 
 /**
  * The tab title IS the default filename the browser offers for "Save as PDF" —

@@ -8,6 +8,7 @@ import { SUPABASE_URL } from "@/lib/supabase/env";
 import type { Case, CaseStatus } from "@/lib/database.types";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { CaseDetail } from "./case-detail";
+import { requireFullAccess } from "@/lib/page-access";
 
 type Named = { name: string } | null;
 type CaseRow = Case & {
@@ -73,7 +74,7 @@ export default async function CaseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ctx = await getSessionContext();
+  const ctx = await requireFullAccess();
   const { supabase, org, isAdmin, appRoles } = ctx;
   const canManage = isAdmin || hasRole(appRoles, ...CASE_ROLES);
 

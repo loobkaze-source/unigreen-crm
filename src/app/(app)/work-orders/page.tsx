@@ -1,9 +1,10 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAll, fetchAllRes } from "@/lib/data";
 import { assetCode } from "@/lib/asset";
 import { loadCaseOptions } from "./case-options";
 import { loadContractOptions } from "./contract-options";
 import { WorkOrdersView } from "./work-orders-view";
 import { searchedRecordNumber } from "@/lib/search";
+import { requireFullAccess } from "@/lib/page-access";
 
 const WO_PAGE_LIMIT = 200;
 
@@ -12,7 +13,7 @@ export default async function WorkOrdersPage({
 }: {
   searchParams: Promise<{ q?: string; case?: string; visit?: string }>;
 }) {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
   const sp = await searchParams;
   const search = (sp.q ?? "").trim();
   // Arriving from a case that has just been opened — see cases-view.
@@ -20,16 +21,8 @@ export default async function WorkOrdersPage({
   // Arriving from a contract round that wants a job raising for it.
   const fromVisit = (sp.visit ?? "").trim() || null;
 
-  // Newest WO_PAGE_LIMIT rows; ?q= searches server-side so older rows stay
-  // reachable as the table grows. The linked assets ride along embedded —
-  // fetching the whole junction table org-wide would silently truncate at
-  // PostgREST's 1,000-row cap long before the job list does.
-  let woQuery = supabase
-    .from("work_orders")
-    .select("*, work_order_assets(equipment_id)")
-    .eq("org_id", org.id)
-    .order("created_at", { ascending: false })
-    .limit(WO_PAGE_LIMIT);
+  // ?q= searches server-side so older rows stay reachable as the table grows.
+  let searchOr: string | null = null;
   if (search) {
     // Escape ilike wildcards; drop chars that would break the .or() syntax.
     const term = search.replace(/[%_]/g, "\\$&").replace(/[,()]/g, " ").trim();
@@ -41,12 +34,36 @@ export default async function WorkOrdersPage({
     ];
     const n = searchedRecordNumber(search);
     if (n !== null) ors.push(`number.eq.${n}`);
-    woQuery = woQuery.or(ors.join(","));
+    searchOr = ors.join(",");
   }
+  // The linked assets ride along embedded — fetching the whole junction table
+  // org-wide would silently truncate at PostgREST's 1,000-row cap long before
+  // the job list does.
+  const woBase = () => {
+    const q = supabase
+      .from("work_orders")
+      .select("*, work_order_assets(equipment_id)")
+      .eq("org_id", org.id);
+    return searchOr ? q.or(searchOr) : q;
+  };
+  // The newest WO_PAGE_LIMIT jobs, plus every unfinished one however old.
+  // The status chips and the schedule tab filter what is loaded, so with the
+  // newest 200 alone an open job raised months ago sat in no chip and on no
+  // schedule. A search already narrows the list, so it needs only the first.
+  const recentQuery = woBase().order("created_at", { ascending: false }).limit(WO_PAGE_LIMIT);
+  const openQuery = searchOr
+    ? Promise.resolve([])
+    : fetchAll(() =>
+        woBase()
+          .not("status", "in", "(completed,cancelled)")
+          .order("created_at", { ascending: false })
+          .order("id")
+      );
 
   // One parallel wave — every query here depends only on the session.
   const [
     woRes,
+    openRows,
     techRes,
     companiesRes,
     contactsRes,
@@ -56,7 +73,8 @@ export default async function WorkOrdersPage({
     contractList,
     visitRes,
   ] = await Promise.all([
-    woQuery,
+    recentQuery,
+    openQuery,
     supabase
       .from("technicians")
       .select("id, name")
@@ -106,7 +124,12 @@ export default async function WorkOrdersPage({
       : Promise.resolve({ data: null }),
   ]);
 
-  const workOrders = rows(woRes);
+  const recent = rows(woRes);
+  const byId = new Map(recent.map((w) => [w.id as string, w]));
+  for (const w of openRows as typeof recent) if (!byId.has(w.id)) byId.set(w.id, w);
+  const workOrders = [...byId.values()].sort((a, b) =>
+    a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0
+  );
   const technicians = rows(techRes);
   const companies = rows(companiesRes);
   const contacts = rows(contactsRes);
@@ -135,7 +158,8 @@ export default async function WorkOrdersPage({
             }
           : null
       }
-      limitHit={(workOrders ?? []).length === WO_PAGE_LIMIT}
+      limitHit={recent.length === WO_PAGE_LIMIT}
+      openAlwaysShown={!search}
       technicians={technicians ?? []}
       companies={companies ?? []}
       contacts={(contacts ?? []).map((c) => ({

@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation";
 import { getSessionContext, rows as unwrap } from "@/lib/data";
 import { isAdminKeyConfigured } from "@/lib/supabase/admin";
 import { UsersView } from "./users-view";
 
 export default async function UsersPage() {
   const { supabase, org, isAdmin } = await getSessionContext();
+  // Admin-only, like /audit-log and /settings — the nav hides it, but the
+  // member list (with every username) must not render for a guessed URL.
+  if (!isAdmin) redirect("/dashboard");
 
   // Two steps by necessity: organization_members has no FK to profiles (both
   // point at auth.users), so PostgREST cannot embed one in the other.

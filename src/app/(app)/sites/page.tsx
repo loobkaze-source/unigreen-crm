@@ -1,5 +1,6 @@
-import { getSessionContext, fetchAll } from "@/lib/data";
+import { fetchAll } from "@/lib/data";
 import { SitesView } from "./sites-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 /** One row of site_asset_facets (migration 0035) — what one site holds. */
 type SiteFacets = {
@@ -29,7 +30,7 @@ function encodeFacet(lists: (string[] | null | undefined)[]) {
 }
 
 export default async function SitesPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const [sites, companies, contacts, facets] = await Promise.all([
     fetchAll(() =>

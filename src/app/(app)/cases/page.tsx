@@ -1,8 +1,9 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { CASE_ROLES, hasRole } from "@/lib/roles";
 import { CasesView } from "./cases-view";
 import { searchedRecordNumber } from "@/lib/search";
+import { requireFullAccess } from "@/lib/page-access";
 
 const CASES_PAGE_LIMIT = 200;
 
@@ -11,7 +12,7 @@ export default async function CasesPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await requireFullAccess();
   const search = ((await searchParams).q ?? "").trim();
   const canManage = isAdmin || hasRole(appRoles, ...CASE_ROLES);
 

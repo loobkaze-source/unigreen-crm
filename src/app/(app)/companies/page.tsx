@@ -1,8 +1,9 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { CompaniesView } from "./companies-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function CompaniesPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   // fetchAll: this IS the company register — PostgREST's silent 1,000-row cap
   // must not decide which customers appear in it.

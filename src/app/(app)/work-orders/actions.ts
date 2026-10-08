@@ -123,7 +123,7 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     // must not restamp its history (or re-trigger the asset restore).
     const { data: existing, error: exErr } = await supabase
       .from("work_orders")
-      .select("status")
+      .select("status, technician_id")
       .eq("id", input.id)
       .eq("org_id", org.id)
       .maybeSingle();
@@ -134,6 +134,14 @@ export async function saveWorkOrder(input: WorkOrderInput): Promise<ActionResult
     if (becameCompleted) payload.completed_at = new Date().toISOString();
     else if (input.status !== "completed" && existing.status === "completed")
       payload.completed_at = null;
+    // "Accepted" belongs to the technician who pressed รับงาน. Hand the job to
+    // someone else and it is theirs to accept — otherwise it lands on the new
+    // technician's phone as already taken, with no รับงาน button, and the
+    // dispatcher sees the previous person's acceptance time.
+    if ((existing.technician_id ?? null) !== payload.technician_id) {
+      payload.accepted_at = null;
+      payload.accepted_by = null;
+    }
 
     const { error } = await supabase
       .from("work_orders")
@@ -612,12 +620,17 @@ export async function deleteWorkOrderPart(
   const ctx = await getSessionContext();
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
-  const { error } = await ctx.supabase
+  // Scoped to the job assertMayWork checked: a part id from another job must
+  // not be deletable by passing your own job's id alongside it.
+  const { data: removed, error } = await ctx.supabase
     .from("work_order_parts")
     .delete()
     .eq("id", id)
-    .eq("org_id", ctx.org.id);
+    .eq("work_order_id", workOrderId)
+    .eq("org_id", ctx.org.id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!removed?.length) return fail("ไม่พบรายการนี้ในใบงานนี้");
   // "layout" also refreshes the nested /report page these fields print on.
   revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();
@@ -672,12 +685,16 @@ export async function saveWorkOrderPhotoCaption(
   const denied = await assertMayWork(ctx, workOrderId);
   if (denied) return fail(denied);
 
-  const { error } = await ctx.supabase
+  // Scoped to the job assertMayWork checked, as with the part delete above.
+  const { data: updated, error } = await ctx.supabase
     .from("work_order_photos")
     .update({ caption: caption.trim() || null })
     .eq("id", id)
-    .eq("org_id", ctx.org.id);
+    .eq("work_order_id", workOrderId)
+    .eq("org_id", ctx.org.id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!updated?.length) return fail("ไม่พบรูปนี้ในใบงานนี้");
   // "layout" also refreshes the nested /report page these fields print on.
   revalidatePath(`/work-orders/${workOrderId}`, "layout");
   return ok();

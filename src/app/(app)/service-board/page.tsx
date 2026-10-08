@@ -1,6 +1,7 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { rows } from "@/lib/data";
 import { SERVICE_BOARDS } from "@/lib/departments";
 import { ServiceBoardView } from "./service-board-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 const OPEN_STATUSES = ["new", "scheduled", "in_progress", "on_hold"];
 
@@ -11,7 +12,7 @@ const embeddedName = (v: unknown): string | null => {
 };
 
 export default async function ServiceBoardPage() {
-  const { supabase, org, userId, isAdmin } = await getSessionContext();
+  const { supabase, org, userId, isAdmin } = await requireFullAccess();
 
   // Which service boards may this user see?
   let boardKeys: string[];

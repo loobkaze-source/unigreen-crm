@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { row, rows, fetchAllRes } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
 import { ChangeLog } from "@/components/app/change-log";
 import type { Site } from "@/lib/database.types";
 import { SiteDetail } from "./site-detail";
+import { requireFullAccess } from "@/lib/page-access";
 
 type SiteRow = Site & {
   companies: { name: string } | null;
@@ -16,7 +17,7 @@ export default async function SiteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   // The customer and contact names ride along embedded — this page used to
   // fetch every company and 500 contacts to resolve two strings.

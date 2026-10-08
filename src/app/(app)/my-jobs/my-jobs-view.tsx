@@ -90,11 +90,15 @@ function subscribeToDayChange(onChange: () => void) {
 
 export function MyJobsView({
   jobs,
+  doneTotal,
   technicianName,
   linked,
   orgId,
 }: {
+  /** Every unfinished job, then the most recent finished ones (newest first). */
   jobs: Job[];
+  /** How many finished jobs there are in all — `jobs` carries only the latest. */
+  doneTotal: number;
   technicianName: string | null;
   linked: boolean;
   orgId: string;
@@ -138,8 +142,10 @@ export function MyJobsView({
   const counts = useMemo(() => {
     const m: Record<Cat, number> = { new: 0, accepted: 0, done: 0 };
     for (const j of jobs) m[catOf(j)]++;
+    // Only the latest finished jobs are loaded; the chip counts them all.
+    m.done = Math.max(m.done, doneTotal);
     return m;
-  }, [jobs]);
+  }, [jobs, doneTotal]);
 
   const visible = useMemo(() => jobs.filter((j) => shown.includes(catOf(j))), [jobs, shown]);
 
@@ -191,20 +197,23 @@ export function MyJobsView({
         items: open.filter((j) => at(j) == null),
       },
       (() => {
+        // Already the most recent ones, newest first (see page.tsx).
         const done = visible.filter((j) => DONE.includes(j.status));
         return {
           key: "done",
           // Say when the list is a sample, or "20" under a chip saying 57
           // reads as a bug.
           label:
-            done.length > 20 ? `เสร็จแล้ว (20 ล่าสุดจาก ${done.length})` : "เสร็จแล้ว",
+            doneTotal > done.length
+              ? `เสร็จแล้ว (${done.length} ล่าสุดจาก ${doneTotal})`
+              : "เสร็จแล้ว",
           tone: "text-muted-foreground",
-          items: done.slice(0, 20),
+          items: done,
         };
       })(),
     ].filter((g) => g.items.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dayKey re-runs this when the date flips
-  }, [visible, dayKey]);
+  }, [visible, dayKey, doneTotal]);
 
   function run(job: Job, fn: () => Promise<{ ok: boolean; error?: string }>) {
     // One action in flight at a time — tapping a second card used to clear the

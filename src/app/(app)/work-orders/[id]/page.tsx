@@ -1,15 +1,14 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
 import { ChangeLog } from "@/components/app/change-log";
 import { loadConflicts } from "@/lib/schedule-conflicts";
-import { isTechnicianOnly } from "@/lib/roles";
-import type { WorkOrder } from "@/lib/database.types";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import { assetCode } from "@/lib/asset";
 import { loadCaseOptions } from "../case-options";
 import { loadContractOptions } from "../contract-options";
 import { WorkOrderDetail } from "./work-order-detail";
+import { loadVisibleWorkOrder } from "./load-work-order";
 
 export default async function WorkOrderDetailPage({
   params,
@@ -17,37 +16,11 @@ export default async function WorkOrderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org, userId, isAdmin, appRoles } = await getSessionContext();
+  const { supabase, org } = await getSessionContext();
 
-  // The job row and (for a field technician) their technician record depend
-  // only on the session — fetch together.
-  const fieldOnly = !isAdmin && isTechnicianOnly(appRoles);
-  const [woRow, techRow] = await Promise.all([
-    supabase
-      .from("work_orders")
-      .select("*")
-      .eq("id", id)
-      .eq("org_id", org.id)
-      .maybeSingle(),
-    fieldOnly
-      ? supabase
-          .from("technicians")
-          .select("id")
-          .eq("org_id", org.id)
-          .eq("user_id", userId)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
-  const workOrder = row<WorkOrder>(woRow);
+  // Not in this org, or (for a field technician) not assigned to them.
+  const { workOrder, fieldOnly } = await loadVisibleWorkOrder(id);
   if (!workOrder) notFound();
-
-  // A pure field technician may only open jobs assigned to them. The nav is
-  // already limited to /my-jobs, but this is the check that actually holds —
-  // otherwise a guessed URL would expose someone else's job.
-  if (fieldOnly) {
-    const tech = row<{ id: string }>(techRow);
-    if (!tech || workOrder.technician_id !== tech.id) notFound();
-  }
 
   const [
     photosRes,

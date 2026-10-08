@@ -1,4 +1,4 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { getSessionContext, rows, fetchAll } from "@/lib/data";
 import { SUPABASE_URL } from "@/lib/supabase/env";
 import type { WorkOrder } from "@/lib/database.types";
 import { MyJobsView } from "./my-jobs-view";
@@ -23,6 +23,10 @@ type JobRow = WorkOrder & {
     | null;
 };
 
+const DONE_STATUSES = ["completed", "cancelled"];
+/** Finished jobs shown — enough to re-open one to re-sign or print. */
+const RECENT_DONE = 20;
+
 const contactName = (c: ContactEmbed) =>
   c ? [c.first_name, c.last_name].filter(Boolean).join(" ") : null;
 
@@ -44,23 +48,43 @@ export default async function MyJobsPage() {
   if (techErr) throw new Error(techErr.message);
 
   if (!tech) {
-    return <MyJobsView linked={false} technicianName={null} jobs={[]} orgId={org.id} />;
+    return (
+      <MyJobsView linked={false} technicianName={null} jobs={[]} doneTotal={0} orgId={org.id} />
+    );
   }
 
   // Everything a technician needs on site rides along embedded — customer,
   // site (with its default contact), and the person named on the job. This
   // page is opened over mobile data, where each extra round trip is felt.
-  const workOrders = rows<JobRow>(
-    (await supabase
+  const select =
+    "*, companies(name, phone), contacts(first_name, last_name, phone), sites(id, name, address, map_url, contacts(first_name, last_name, phone))";
+  const mine = () =>
+    supabase.from("work_orders").select(select).eq("org_id", org.id).eq("technician_id", tech.id);
+
+  // Two lists, not one capped list: a single "first 200 by date" filled up
+  // with old finished jobs, and once a technician had 200 of those, newly
+  // assigned work never reached the page at all. Every unfinished job, then
+  // only the most recent finished ones (and how many there are in all).
+  const [openRows, doneRes] = await Promise.all([
+    fetchAll<JobRow>(
+      () =>
+        mine()
+          .not("status", "in", `(${DONE_STATUSES.join(",")})`)
+          .order("scheduled_start", { ascending: true, nullsFirst: false })
+          .order("id") as never
+    ),
+    supabase
       .from("work_orders")
-      .select(
-        "*, companies(name, phone), contacts(first_name, last_name, phone), sites(id, name, address, map_url, contacts(first_name, last_name, phone))"
-      )
+      .select(select, { count: "exact" })
       .eq("org_id", org.id)
       .eq("technician_id", tech.id)
-      .order("scheduled_start", { ascending: true, nullsFirst: false })
-      .limit(200)) as never
-  );
+      .in("status", DONE_STATUSES)
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .order("updated_at", { ascending: false })
+      .limit(RECENT_DONE),
+  ]);
+  const workOrders = [...openRows, ...rows<JobRow>(doneRes as never)];
+  const doneTotal = doneRes.count ?? 0;
 
   const jobs = workOrders.map((w) => {
     // Prefer the person named on the job; fall back to the site's contact.
@@ -98,6 +122,7 @@ export default async function MyJobsPage() {
       linked
       technicianName={(tech.nickname as string) || (tech.name as string)}
       jobs={jobs}
+      doneTotal={doneTotal}
       orgId={org.id}
     />
   );

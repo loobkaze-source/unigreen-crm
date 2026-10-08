@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import { getSessionContext, row, rows, fetchAllRes } from "@/lib/data";
+import { row, rows, fetchAllRes } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
 import type { ServiceContract, ServiceVisit } from "@/lib/database.types";
 import { ContractDetail, type ScheduleSnapshot } from "./contract-detail";
+import { requireFullAccess } from "@/lib/page-access";
 
 type Named = { name: string } | null;
 type ContractRow = ServiceContract & {
@@ -27,7 +28,7 @@ export default async function ContractDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   // The three names ride along embedded — resolving them by fetching every
   // company and site in the org was several round trips for three strings.

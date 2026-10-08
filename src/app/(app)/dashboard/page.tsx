@@ -8,16 +8,17 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { getSessionContext, row, rows } from "@/lib/data";
+import { row, rows } from "@/lib/data";
 import { fmtDate } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn, formatCurrency } from "@/lib/utils";
 import { departmentLabel } from "@/lib/departments";
 import { canUseDeals } from "@/lib/roles";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function DashboardPage() {
-  const { supabase, org, profile, email, isAdmin, appRoles } = await getSessionContext();
+  const { supabase, org, profile, email, isAdmin, appRoles } = await requireFullAccess();
   // Pipeline figures and links to the deals board are for Sales only.
   const showPipeline = canUseDeals(isAdmin, appRoles);
 

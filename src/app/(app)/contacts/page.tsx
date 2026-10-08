@@ -1,8 +1,9 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { ContactsView } from "./contacts-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function ContactsPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const [contactsRes, companiesRes] = await Promise.all([
     fetchAllRes(() =>

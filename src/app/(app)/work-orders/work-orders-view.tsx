@@ -71,6 +71,7 @@ export function WorkOrdersView({
   initialCaseId = null,
   initialVisit = null,
   limitHit = false,
+  openAlwaysShown = false,
 }: {
   workOrders: WorkOrder[];
   technicians: Option[];
@@ -87,6 +88,8 @@ export function WorkOrdersView({
   /** Set by ?visit=… — raise a job for that round of a contract. */
   initialVisit?: { id: string; seq: number; due_date: string; contract_id: string } | null;
   limitHit?: boolean;
+  /** Every unfinished job is loaded however old; only finished ones are cut. */
+  openAlwaysShown?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
@@ -302,7 +305,9 @@ export function WorkOrdersView({
 
       {limitHit ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          แสดงเฉพาะรายการล่าสุด — พิมพ์ค้นหาเพื่อหารายการที่เก่ากว่า
+          {openAlwaysShown
+            ? "แสดงงานที่ยังไม่เสร็จทุกงาน ส่วนงานที่เสร็จแล้วแสดงเฉพาะรายการล่าสุด — พิมพ์ค้นหาเพื่อหารายการที่เก่ากว่า"
+            : "แสดงเฉพาะรายการล่าสุด — พิมพ์ค้นหาเพื่อหารายการที่เก่ากว่า"}
         </p>
       ) : null}
 

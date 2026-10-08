@@ -1,8 +1,9 @@
-import { getSessionContext, fetchAll } from "@/lib/data";
+import { fetchAll } from "@/lib/data";
 import { AssetsView } from "./assets-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function AssetsPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const [equipment, sites, groups, openWos] = await Promise.all([
     fetchAll(() =>

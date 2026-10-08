@@ -1,8 +1,9 @@
-import { getSessionContext, rows } from "@/lib/data";
+import { rows } from "@/lib/data";
 import { TechniciansView } from "./technicians-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function TechniciansPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const technicians = rows(
     await supabase

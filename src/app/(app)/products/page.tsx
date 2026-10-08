@@ -1,8 +1,9 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { ProductsView } from "./products-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function ProductsPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const products = rows(
     await fetchAllRes(() =>

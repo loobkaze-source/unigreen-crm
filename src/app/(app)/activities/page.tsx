@@ -1,9 +1,10 @@
-import { getSessionContext, rows, fetchAllRes } from "@/lib/data";
+import { rows, fetchAllRes } from "@/lib/data";
 import { loadConflicts } from "@/lib/schedule-conflicts";
 import { ActivitiesView } from "./activities-view";
+import { requireFullAccess } from "@/lib/page-access";
 
 export default async function ActivitiesPage() {
-  const { supabase, org } = await getSessionContext();
+  const { supabase, org } = await requireFullAccess();
 
   const [activitiesRes, companiesRes, contactsRes, dealsRes, techRes, crewRes] =
     await Promise.all([

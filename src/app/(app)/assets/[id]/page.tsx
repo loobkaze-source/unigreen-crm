@@ -13,7 +13,7 @@ import {
   Wrench,
   Cog,
 } from "lucide-react";
-import { getSessionContext, row, rows } from "@/lib/data";
+import { row, rows } from "@/lib/data";
 import { loadAudit } from "@/lib/audit";
 import { ChangeLog } from "@/components/app/change-log";
 import type { Equipment, WorkOrder } from "@/lib/database.types";
@@ -25,6 +25,7 @@ import { bangkokDay, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { statusMeta, typeLabel, woCode, jobClassLabel } from "../../work-orders/constants";
 import { AssetStatusControl } from "./status-control";
+import { requireFullAccess } from "@/lib/page-access";
 
 const CATEGORIES: Record<string, string> = {
   solar_panel: "แผงโซลาร์",
@@ -49,7 +50,7 @@ export default async function AssetLifetimePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase, org, isAdmin, appRoles } = await getSessionContext();
+  const { supabase, org, isAdmin, appRoles } = await requireFullAccess();
   const canOverride = isAdmin || appRoles.includes("Dispatcher");
 
   const eq = row<Equipment>(
