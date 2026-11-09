@@ -26,6 +26,8 @@ export const WO_TYPES: { value: WorkOrderType; label: string }[] = [
   { value: "ev_charger", label: "EV Charger" },
   { value: "electrical", label: "Electrical" },
   { value: "water_pump", label: "Water Pump" },
+  { value: "pv", label: "PV" },
+  { value: "ev", label: "EV" },
 ];
 
 /** What a job opened before this list existed still shows. */
