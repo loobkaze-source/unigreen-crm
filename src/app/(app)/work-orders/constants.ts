@@ -29,6 +29,23 @@ export const WO_TYPES: { value: WorkOrderType; label: string }[] = [
   { value: "ev", label: "EV" },
 ];
 
+/**
+ * WO_TYPES as picker options, plus the value a record already holds when the
+ * list no longer has it. Without that extra entry the picker would show the
+ * field as empty while the record still carries the old value. Shared by the
+ * work-order form and the case forms, which pick from the same list.
+ */
+export const woTypeOptions = (current?: string | null) => [
+  ...(current && !WO_TYPES.some((t) => t.value === current)
+    ? [{ value: current, label: `${current} (ค่าเดิม)` }]
+    : []),
+  ...WO_TYPES,
+];
+
+/** True when `v` is one of the listed job types (not a legacy value). */
+export const isWoType = (v: string | null | undefined) =>
+  !!v && WO_TYPES.some((t) => t.value === v);
+
 /** What a job opened before this list existed still shows. */
 export const DEFAULT_WO_TYPE: WorkOrderType = "atg";
 

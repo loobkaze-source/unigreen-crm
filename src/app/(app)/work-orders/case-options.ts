@@ -1,6 +1,7 @@
 import type { SessionContext } from "@/lib/data";
 import { rows } from "@/lib/data";
 import type { CaseOption } from "./work-order-modal";
+import { isWoType } from "./constants";
 
 /** Newest cases offered in the picker. Older ones are reachable from the case. */
 const CASE_LIMIT = 500;
@@ -20,7 +21,7 @@ export async function loadCaseOptions(
   const casesRes = await supabase
     .from("cases")
     .select(
-      "id, code, number, subject, note, company_id, site_id, contact_id, case_assets(equipment_id)"
+      "id, code, number, subject, note, case_type, company_id, site_id, contact_id, case_assets(equipment_id)"
     )
     .eq("org_id", orgId)
     .order("number", { ascending: false })
@@ -45,5 +46,8 @@ export async function loadCaseOptions(
     subject: (c.subject as string) ?? "",
     note: (c.note as string) ?? "",
     asset_ids: assetIds[c.id as string] ?? [],
+    // Older cases hold Venio workflow codes here (WF_UNW, Warranty), which are
+    // not job types; only a listed type is carried into the job.
+    type: isWoType(c.case_type as string | null) ? (c.case_type as string) : null,
   }));
 }

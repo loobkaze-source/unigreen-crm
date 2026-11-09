@@ -19,7 +19,7 @@ import {
   WO_JOB_CLASS,
   WO_PRIORITIES,
   WO_STATUSES,
-  WO_TYPES,
+  woTypeOptions,
 } from "./constants";
 import { saveWorkOrder } from "./actions";
 import { loadWorkOrderAssets } from "./form-options";
@@ -73,6 +73,8 @@ export type CaseOption = {
   note: string;
   /** The machines the case was opened about. */
   asset_ids: string[];
+  /** The case's job type, when it is one of WO_TYPES. */
+  type: string | null;
 };
 export type SiteOption = {
   id: string;
@@ -143,6 +145,9 @@ function withCase(
     site_map_url: sameSite ? f.site_map_url : site?.map_url ?? "",
     title: f.title || c.subject,
     description: f.description || c.note,
+    // The case was opened knowing which system it is about; the job is on
+    // the same one.
+    type: c.type || f.type,
   };
 }
 
@@ -553,12 +558,7 @@ export function WorkOrderModal({
               onChange={(v) => set("type", v)}
               allowClear={false}
               placeholder="— เลือกประเภทงาน —"
-              options={[
-                ...(form.type && !WO_TYPES.some((t) => t.value === form.type)
-                  ? [{ value: form.type, label: `${form.type} (ค่าเดิม)` }]
-                  : []),
-                ...WO_TYPES,
-              ]}
+              options={woTypeOptions(form.type)}
             />
           </div>
           <div>

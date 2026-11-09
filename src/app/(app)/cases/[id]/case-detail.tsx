@@ -34,7 +34,7 @@ import { fmtDate, fmtDateTime, isoToBangkokInput } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 import { shrinkImage } from "@/lib/image";
 import { CASE_STATUS, caseStatusMeta } from "../constants";
-import { statusMeta as woStatusMeta, woCode } from "../../work-orders/constants";
+import { statusMeta as woStatusMeta, woCode, woTypeOptions } from "../../work-orders/constants";
 import {
   saveCase,
   updateCaseStatus,
@@ -428,11 +428,13 @@ export function CaseDetail({
               <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <Label htmlFor="case_type">ประเภท</Label>
-                  <Input
+                  <Combobox
                     id="case_type"
                     value={form.case_type}
-                    onChange={(e) => set("case_type", e.target.value)}
+                    onChange={(v) => set("case_type", v)}
                     disabled={!canManage}
+                    placeholder="— เลือกประเภท —"
+                    options={woTypeOptions(form.case_type)}
                   />
                 </div>
                 <div>

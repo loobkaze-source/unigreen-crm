@@ -41,6 +41,7 @@ import {
 import { cn } from "@/lib/utils";
 import { fmtDate, isoToBangkokInput } from "@/lib/format";
 import { CASE_DEPTS, CASE_STATUS, DEFAULT_CASE_DEPT, caseStatusMeta } from "./constants";
+import { typeLabel, woTypeOptions } from "../work-orders/constants";
 import {
   saveCase,
   deleteCase,
@@ -296,8 +297,8 @@ export function CasesView({
       {
         key: "case_type",
         header: "ประเภท",
-        sortAccessor: (c) => c.case_type,
-        filter: { kind: "text", accessor: (c) => c.case_type },
+        sortAccessor: (c) => (c.case_type ? typeLabel(c.case_type) : ""),
+        filter: { kind: "text", accessor: (c) => (c.case_type ? typeLabel(c.case_type) : "") },
       },
       {
         key: "employee",
@@ -616,7 +617,7 @@ export function CasesView({
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{c.case_type || "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.case_type ? typeLabel(c.case_type) : "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{c.employee || "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {siteName(c.site_id) || "—"}
@@ -749,10 +750,14 @@ export function CasesView({
             </div>
             <div>
               <Label htmlFor="case_type">ประเภท</Label>
-              <Input
+              {/* The same list as a job's type, so a job raised from the case
+                  starts on the right system. */}
+              <Combobox
                 id="case_type"
                 value={form.case_type}
-                onChange={(e) => setForm({ ...form, case_type: e.target.value })}
+                onChange={(v) => setForm({ ...form, case_type: v })}
+                placeholder="— เลือกประเภท —"
+                options={woTypeOptions(form.case_type)}
               />
             </div>
             <div>
