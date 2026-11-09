@@ -23,7 +23,6 @@ export const WO_TYPES: { value: WorkOrderType; label: string }[] = [
   { value: "double_wall_pipe", label: "Double-Wall Pipe" },
   { value: "dispenser", label: "Dispenser" },
   { value: "pos", label: "POS" },
-  { value: "ev_charger", label: "EV Charger" },
   { value: "electrical", label: "Electrical" },
   { value: "water_pump", label: "Water Pump" },
   { value: "pv", label: "PV" },
